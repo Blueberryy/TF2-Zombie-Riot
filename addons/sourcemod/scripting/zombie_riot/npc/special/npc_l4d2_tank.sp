@@ -778,6 +778,12 @@ public Action contact_throw_tank(int client)
 	float chargerPos[3];
 	float flVel[3];
 	GetEntPropVector(client, Prop_Data, "m_vecVelocity", flVel);
+	if (IsValidClient(client) && IsPlayerAlive(client) && dieingstate[client] != 0 && TeutonType[client] == TEUTON_NONE)
+	{
+		
+		Zero(b_AlreadyHitTankThrow);
+		SDKUnhook(client, SDKHook_PreThink, contact_throw_tank);	
+	}
 	if ((GetEntityFlags(client) & FL_ONGROUND) != 0 || GetEntProp(client, Prop_Send, "m_nWaterLevel") >= 1)
 	{
 		Zero(b_AlreadyHitTankThrow);
@@ -787,6 +793,7 @@ public Action contact_throw_tank(int client)
 	else
 	{
 		char classname[60];
+		
 		chargerPos = WorldSpaceCenter(client);
 		for(int entity=1; entity <= MAXENTITIES; entity++)
 		{
@@ -797,7 +804,7 @@ public Action contact_throw_tank(int client)
 				if (!StrContains(classname, "zr_base_npc", true) || !StrContains(classname, "player", true) || !StrContains(classname, "obj_dispenser", true) || !StrContains(classname, "obj_sentrygun", true))
 				{
 					targPos = WorldSpaceCenter(entity);
-					if (GetVectorDistance(chargerPos, targPos, true) <= Pow(125.0, 2.0))
+					if (GetVectorDistance(chargerPos, targPos, true) <= (125.0* 125.0))
 					{
 						if (!b_AlreadyHitTankThrow[entity] && entity != client && i_TankThrewThis[client] != entity)
 						{		
@@ -864,7 +871,7 @@ public Action contact_throw_tank_entity(int client)
 				if (!StrContains(classname, "zr_base_npc", true) || !StrContains(classname, "player", true) || !StrContains(classname, "obj_dispenser", true) || !StrContains(classname, "obj_sentrygun", true))
 				{
 					targPos = WorldSpaceCenter(entity);
-					if (GetVectorDistance(chargerPos, targPos, true) <= Pow(125.0, 2.0))
+					if (GetVectorDistance(chargerPos, targPos, true) <= (125.0* 125.0))
 					{
 						if (!b_AlreadyHitTankThrow[entity] && entity != client && i_TankThrewThis[client] != entity)
 						{		

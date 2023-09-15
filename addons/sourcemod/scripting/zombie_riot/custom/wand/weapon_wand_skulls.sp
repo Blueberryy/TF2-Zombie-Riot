@@ -17,10 +17,6 @@
 #pragma semicolon 1
 #pragma newdecls required
 
-#define ENERGY_BALL_MODEL	"models/weapons/w_models/w_drg_ball.mdl"
-#define SOUND_WAND_SHOT 	"weapons/capper_shoot.wav"
-#define SOUND_ZAP "misc/halloween/spell_lightning_ball_impact.wav"
-
 //Level 1 skulls are green, level 2 are orange, level 3 are bright blue.
 
 #define SKULL_MODEL				"models/freak_fortress_2/new_spookmaster/skullrocket.mdl"
@@ -151,7 +147,7 @@ public void Skulls_LaunchAll(int client, int weapon, bool crit, int tier)
 
 	if(mana_cost <= Current_Mana[client] && !Skulls_PlayerHasNoSkulls(client))
 	{	
-		Rogue_OnAbilityUse(client, weapon);
+		Rogue_OnAbilityUse(weapon);
 		Mana_Regen_Delay[client] = GetGameTime() + 1.0;
 		Mana_Hud_Delay[client] = 0.0;
 		
@@ -190,25 +186,15 @@ public void Skulls_LaunchAll(int client, int weapon, bool crit, int tier)
 
 public void Skulls_LaunchSkull(int ent, int weapon, int client, int tier)
 {
-	Address address;
-	
 	float damage = Skulls_LaunchDMG[tier];
-	address = TF2Attrib_GetByDefIndex(weapon, 410);
-	if(address != Address_Null)
-		damage *= TF2Attrib_GetValue(address);
+	damage *= Attributes_Get(weapon, 410, 1.0);
 			
 	float velocity = Skulls_LaunchVel[tier];
-	address = TF2Attrib_GetByDefIndex(weapon, 103);
-	if(address != Address_Null)
-		velocity *= TF2Attrib_GetValue(address);
+	velocity *= Attributes_Get(weapon, 103, 1.0);
 	
-	address = TF2Attrib_GetByDefIndex(weapon, 104);
-	if(address != Address_Null)
-		velocity *= TF2Attrib_GetValue(address);
+	velocity *= Attributes_Get(weapon, 104, 1.0);
 	
-	address = TF2Attrib_GetByDefIndex(weapon, 475);
-	if(address != Address_Null)
-		velocity *= TF2Attrib_GetValue(address);
+	velocity *= Attributes_Get(weapon, 475, 1.0);
 		
 	float pos[3], ang[3], TargetLoc[3], DummyAngles[3];
 	
@@ -248,7 +234,7 @@ public void Skulls_LaunchSkull(int ent, int weapon, int client, int tier)
 	int projectile = Wand_Projectile_Spawn(client, velocity, 15.0, damage, 18, weapon, particle, ang, false);
 	
 	if (IsValidEdict(projectile))
-	{
+	{	
 		TeleportEntity(projectile, pos, NULL_VECTOR, NULL_VECTOR);
 		
 		SetEntityModel(projectile, SKULL_MODEL);
@@ -308,11 +294,12 @@ public void Skulls_Summon(int client, int weapon, bool crit, int tier)
 	
 		if(mana_cost <= Current_Mana[client])
 		{
-			Rogue_OnAbilityUse(client, weapon);
+			Rogue_OnAbilityUse(weapon);
 			int prop = CreateEntityByName("prop_physics_override");
 			
 			if (IsValidEntity(prop))
 			{
+				b_EntityIgnoredByShield[prop] = true;
 				DispatchKeyValue(prop, "targetname", "droneparent"); 
 				DispatchKeyValue(prop, "spawnflags", "4"); 
 				DispatchKeyValue(prop, "model", "models/props_c17/canister01a.mdl");
@@ -345,7 +332,7 @@ public void Skulls_Summon(int client, int weapon, bool crit, int tier)
 					
 					delete trace;
 					
-					if (GetVectorDistance(spawnLoc, eyePos, true) >= Pow(200.0, 2.0)) //Constraint logic, borrowed from Dynamic Point Teleport and converted to a for loop
+					if (GetVectorDistance(spawnLoc, eyePos, true) >= (200.0 * 200.0)) //Constraint logic, borrowed from Dynamic Point Teleport and converted to a for loop
 					{
 						float constraint = 200.0/GetVectorDistance(spawnLoc, eyePos);
 						
@@ -475,29 +462,11 @@ public void Skulls_SetVariables(int prop, int weapon, int tier, int client)
 {
 //	Address address;
 	float damage = Skulls_ShootDMG[tier];
-	/*
-	address = TF2Attrib_GetByDefIndex(weapon, 410);
-	if(address != Address_Null)
-		damage *= TF2Attrib_GetValue(address);
-	*/
 	float velocity = Skulls_ShootVelocity[tier];
-	/*
-	address = TF2Attrib_GetByDefIndex(weapon, 103);
-	if(address != Address_Null)
-		velocity *= TF2Attrib_GetValue(address);
-	
-	address = TF2Attrib_GetByDefIndex(weapon, 104);
-	if(address != Address_Null)
-		velocity *= TF2Attrib_GetValue(address);
-	
-	address = TF2Attrib_GetByDefIndex(weapon, 475);
-	if(address != Address_Null)
-		velocity *= TF2Attrib_GetValue(address);
-	*/
 	
 	Skull_ShootDMG[prop] = damage;
 	Skull_ShootVelocity[prop] = velocity;
-	Skull_ShootRange[prop] = Pow(Skulls_ShootRange[tier], 2.0);
+	Skull_ShootRange[prop] = (Skulls_ShootRange[tier] * Skulls_ShootRange[tier]);
 	Skull_ShootFrequency[prop] = Skulls_ShootFrequency[tier];
 	Skull_Tier[prop] = tier;
 	Skull_Weapon[prop] = EntIndexToEntRef(weapon);
@@ -611,22 +580,13 @@ void Skull_AutoFire(int ent, int target, int client)
 	
 	if (IsValidEntity(weapon))
 	{
-		Address address;
-		address = TF2Attrib_GetByDefIndex(weapon, 410);
-		if(address != Address_Null)
-			damage *= TF2Attrib_GetValue(address);
+		damage *= Attributes_Get(weapon, 410, 1.0);
 
-		address = TF2Attrib_GetByDefIndex(weapon, 103);
-		if(address != Address_Null)
-			velocity *= TF2Attrib_GetValue(address);
+		velocity *= Attributes_Get(weapon, 103, 1.0);
 		
-		address = TF2Attrib_GetByDefIndex(weapon, 104);
-		if(address != Address_Null)
-			velocity *= TF2Attrib_GetValue(address);
+		velocity *= Attributes_Get(weapon, 104, 1.0);
 		
-		address = TF2Attrib_GetByDefIndex(weapon, 475);
-		if(address != Address_Null)
-			velocity *= TF2Attrib_GetValue(address);
+		velocity *= Attributes_Get(weapon, 475, 1.0);
 	}
 
 	if(dist < (Skull_ShootRange[ent] * 0.5)) //If at half range, try to predict.
@@ -692,10 +652,7 @@ void Skull_SetNextShootTime(int ent)
 	
 	if (IsValidEntity(weapon))
 	{
-		Address address;
-		address = TF2Attrib_GetByDefIndex(weapon, 6);
-		if(address != Address_Null)
-			BuffAmt = TF2Attrib_GetValue(address);
+		BuffAmt = Attributes_Get(weapon, 6, 1.0);
 	}
 	
 	if (LastMann)
@@ -889,7 +846,7 @@ public void Skulls_UpdateFollowerPositions(int client)
 						
 			delete trace;
 						
-			if (GetVectorDistance(spawnLoc, eyePos, true) >= Pow(80.0, 2.0)) //Constraint logic, borrowed from Dynamic Point Teleport and converted to a for loop
+			if (GetVectorDistance(spawnLoc, eyePos, true) >= (80.0 * 80.0)) //Constraint logic, borrowed from Dynamic Point Teleport and converted to a for loop
 			{
 				float constraint = 80.0/GetVectorDistance(spawnLoc, eyePos);
 							

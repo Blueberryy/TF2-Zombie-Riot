@@ -91,7 +91,7 @@ methodmap SeabornHeavy < CClotBody
 		npc.m_flRangedArmor = 0.9;
 		
 		SetEntityRenderMode(npc.index, RENDER_TRANSCOLOR);
-		SetEntityRenderColor(npc.index, 155, 155, 255, 255);
+		SetEntityRenderColor(npc.index, 100, 100, 255, 255);
 
 		return npc;
 	}
@@ -205,9 +205,12 @@ void SeabornHeavy_OnTakeDamage(int victim, int attacker, int damagetype)
 
 			if(damagetype & DMG_CLUB)
 			{
-				npc.m_flMeleeArmor -= 0.05;
-				if(npc.m_flMeleeArmor < 0.05)
-					npc.m_flMeleeArmor = 0.05;
+				if(!NpcStats_IsEnemySilenced(npc.index))
+				{
+					npc.m_flMeleeArmor -= 0.05;
+					if(npc.m_flMeleeArmor < 0.05)
+						npc.m_flMeleeArmor = 0.05;
+				}
 				
 				npc.m_flRangedArmor += 0.05;
 				if(npc.m_flRangedArmor > 1.5)

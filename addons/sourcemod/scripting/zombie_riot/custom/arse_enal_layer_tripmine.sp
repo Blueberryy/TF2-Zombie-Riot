@@ -10,8 +10,6 @@ Handle Timer_Trip_Management[MAXPLAYERS+1] = {INVALID_HANDLE, ...};
 
 float f_TerroriserAntiSpamCd[MAXPLAYERS+1] = {0.0, ...};
 
-#define SPRITE_SPRITE	"materials/sprites/laserbeam.vmt"
-
 static int LaserSprite;
 
 
@@ -62,7 +60,7 @@ public void Weapon_Arsenal_Trap(int client, int weapon, const char[] classname, 
 			TR_GetEndPosition(spawnLoc, trace);
 		} 
 		delete trace;
-		if (GetVectorDistance(eyePos, spawnLoc, true) <= Pow(450.0, 2.0))
+		if (GetVectorDistance(eyePos, spawnLoc, true) <= (450.0 * 450.0))
 		{
 			float Calculate_HP_Spikes = 75.0; 
 		
@@ -70,9 +68,9 @@ public void Weapon_Arsenal_Trap(int client, int weapon, const char[] classname, 
 			
 			float attack_speed;
 		
-			attack_speed = 1.0 / Attributes_FindOnPlayer(client, 343, true, 1.0); //Sentry attack speed bonus
+			attack_speed = 1.0 / Attributes_GetOnPlayer(client, 343, true, true); //Sentry attack speed bonus
 				
-			Bonus_damage = attack_speed * Attributes_FindOnPlayer(client, 287, true, 1.0);			//Sentry damage bonus
+			Bonus_damage = attack_speed * Attributes_GetOnPlayer(client, 287, true, true);			//Sentry damage bonus
 			
 			if (Bonus_damage <= 1.0)
 				Bonus_damage = 1.0;
@@ -345,7 +343,7 @@ public void Trip_TrackPlanted(int client)
 							//EntLoc2[2] += 20.0;
 							//Add 20 to the height of both locations to prevent the model from blocking the line of sight check
 							
-							if (GetVectorDistance(EntLoc, EntLoc2, true) <= Pow(Trip_BlastRadius, 2.0)/* && HasLineOfSight(ent, ent2, true, EntLoc, EntLoc2)*/)
+							if (GetVectorDistance(EntLoc, EntLoc2, true) <= (Trip_BlastRadius * Trip_BlastRadius))
 							{
 								bool TriggerExplosion = false;
 								
@@ -518,9 +516,7 @@ public void Weapon_Arsenal_Terroriser_M2(int client, int weapon, const char[] cl
 				{
 					EmitSoundToAll(TRIP_ARMED, npc, _, 85);
 					float damage = 50.0;
-					Address address = TF2Attrib_GetByDefIndex(weapon, 2);
-					if(address != Address_Null)
-						damage *= RoundToCeil(TF2Attrib_GetValue(address));
+					damage *= Attributes_Get(weapon, 2, 1.0);
 
 					damage *= i_HowManyBombsOnThisEntity[npc][client];
 
@@ -567,15 +563,6 @@ void CleanAllApplied_Aresenal(int entity, bool force = false)
 	{
 		b_HasBombImplanted[entity] = false;	
 	}
-	/*
-			int particle_index;
-		particle_index = EntRefToEntIndex(Terroriser_Bomb_Implant_Particle[entity]);
-
-		if(IsValidEntity(particle_index))
-		{
-			RemoveEntity(particle_index);
-		}		
-		*/
 }
 
 void Cause_Terroriser_Explosion(int client, int npc, float damage, float EntLoc2[3], bool allowLagcomp = false)
@@ -602,8 +589,8 @@ void Cause_Terroriser_Explosion(int client, int npc, float damage, float EntLoc2
 	spawnRing_Vectors(EntLoc2, 0.0, 0.0, 0.0, 0.0, "materials/sprites/laserbeam.vmt", 255, 0, 0, 200, 1, 0.25, 6.0, 2.1, 1, radius);	
 	if(allowLagcomp)
 	{
-		StartLagCompensation_Base_Boss(client);
 		b_LagCompNPC_No_Layers = true;
+		StartLagCompensation_Base_Boss(client);
 
 		Explode_Logic_Custom(damage, client, client, -1, EntLoc2, Terroriser_Implant_Radius,_,_,false);
 

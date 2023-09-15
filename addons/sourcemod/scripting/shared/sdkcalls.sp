@@ -6,7 +6,6 @@ static Handle SDKGetMaxHealth;
 //static Handle g_hGetAttachment;
 //static Handle g_hStudio_FindAttachment;
 
-static Handle g_hSetLocalAngle;
 static Handle g_hSetAbsOrigin;
 static Handle g_hSetAbsAngle;
 static Handle g_hInvalidateBoneCache;
@@ -23,7 +22,6 @@ static Handle g_hSDKStartLagComp;
 static Handle g_hSDKEndLagComp;
 static Handle g_hSDKUpdateBlocked;
 
-static Handle g_hImpulse;
 
 static Handle SDKGetShootSound;
 static Handle SDKBecomeRagdollOnClient;
@@ -107,13 +105,6 @@ void SDKCall_Setup()
 	if ((g_hSetAbsVelocity = EndPrepSDKCall()) == null) SetFailState("Failed to create SDKCall for CBaseEntity::SetAbsVelocity");
 
 	StartPrepSDKCall(SDKCall_Entity);
-	PrepSDKCall_SetFromConf(gamedata, SDKConf_Signature, "CBaseEntity::SetLocalAngles");
-	PrepSDKCall_AddParameter(SDKType_QAngle, SDKPass_ByRef);
-	g_hSetLocalAngle = EndPrepSDKCall();
-	if(!g_hSetLocalAngle)
-		LogError("[Gamedata] Could not find CBaseEntity::SetLocalAngles");
-		
-	StartPrepSDKCall(SDKCall_Entity);
 	PrepSDKCall_SetFromConf(gamedata, SDKConf_Signature, "CBaseEntity::SetAbsOrigin");
 	PrepSDKCall_AddParameter(SDKType_Vector, SDKPass_ByRef);
 	g_hSetAbsOrigin = EndPrepSDKCall();
@@ -136,6 +127,10 @@ void SDKCall_Setup()
 	g_hImpulse = EndPrepSDKCall();
 	if(!g_hImpulse)
 		LogError("[Gamedata] Could not find CBasePlayer::CheatImpulseCommands");
+
+	StartPrepSDKCall(SDKCall_Raw);
+	PrepSDKCall_SetFromConf(gamedata, SDKConf_Signature, "CTFPlayerShared::RecalculatePlayerBodygroups");
+	if((g_hRecalculatePlayerBodygroups = EndPrepSDKCall()) == INVALID_HANDLE) SetFailState("Failed to create Call for CTFPlayerShared::RecalculatePlayerBodygroups");
 		
 	StartPrepSDKCall(SDKCall_Entity);
 	PrepSDKCall_SetFromConf(gamedata, SDKConf_Signature, "CBaseAnimating::InvalidateBoneCache");
@@ -280,15 +275,7 @@ void SDKCall_SetLocalOrigin(int index, float localOrigin[3])
 		SDKCall(g_hSetLocalOrigin, index, localOrigin);
 	}
 }
-/*
-void SDKCall_SetLocalAngle(int index, float localAngle[3])
-{
-	if(g_hSetLocalAngle)
-	{
-		SDKCall(g_hSetLocalAngle, index, localAngle);
-	}
-}
-*/
+
 void SDKCall_InvalidateBoneCache(int index)
 {
 	SDKCall(g_hInvalidateBoneCache, index);
@@ -310,6 +297,20 @@ void SDKCall_SetAbsAngle(int index, float AbsAngle[3])
 	}
 }
 */
+
+void SDKCall_RecalculatePlayerBodygroups(int index)
+{
+	if(g_hRecalculatePlayerBodygroups)
+	{
+		SDKCall(g_hRecalculatePlayerBodygroups, GetPlayerSharedAddress(index));
+	}
+}
+//https://github.com/nosoop/SM-TFUtils/blob/4802fa401a86d3088feb77c8a78d758c10806112/scripting/tf2utils.sp#L1067C1-L1067C1
+static Address GetPlayerSharedAddress(int client) {
+	return GetEntityAddress(client)
+			+ view_as<Address>(FindSendPropInfo("CTFPlayer", "m_Shared"));
+}
+
 int SDKCall_GetMaxHealth(int client)
 {
 	return SDKGetMaxHealth ? SDKCall(SDKGetMaxHealth, client) : GetEntProp(client, Prop_Data, "m_iMaxHealth");

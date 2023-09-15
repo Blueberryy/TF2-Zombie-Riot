@@ -231,7 +231,7 @@ methodmap SpyMainBoss < CClotBody
 		npc.m_bmovedelay_gun = false;
 		npc.m_bmovedelay = false;
 		
-		SetEntProp(npc.index, Prop_Send, "m_bGlowEnabled", true);
+		GiveNpcOutLineLastOrBoss(npc.index, true);
 		
 		npc.m_flGetClosestTargetTime = 0.0;
 		npc.StartPathing();
@@ -346,6 +346,9 @@ public void SpyMainBoss_ClotThink(int iNPC)
 			
 		npc.PlayDecloakSound();
 		npc.PlayDecloakSound();
+		b_IsEntityNeverTranmitted[npc.index] = false;
+		npc.m_bTeamGlowDefault = true;
+		GiveNpcOutLineLastOrBoss(npc.index, true);
 	}
 
 	if(IsValidEnemy(npc.index, PrimaryThreatIndex, true))
@@ -625,6 +628,9 @@ public Action SpyMainBoss_OnTakeDamage(int victim, int &attacker, int &inflictor
 		npc.m_flDead_Ringer_Invis = GetGameTime(npc.index) + 2.0;
 		npc.m_flDead_Ringer = GetGameTime(npc.index) + 13.0;
 		npc.m_flDead_Ringer_Invis_bool = true;
+		b_IsEntityNeverTranmitted[npc.index] = true;
+		GiveNpcOutLineLastOrBoss(npc.index, false);
+		npc.m_bTeamGlowDefault = false;
 		npc.PlayDeathSound();	
 	}
 	

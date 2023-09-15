@@ -31,8 +31,6 @@ static int g_rocket_particle;
 
 static char gLaser2;
 
-#define PARTICLE_ROCKET_MODEL	"models/weapons/w_models/w_drg_ball.mdl" //This will accept particles and also hide itself.
-
 #define YAMATO_MAX_ABILITY_COUNT 2	//how many abilites yamato has
 
 //NOTE: Only increase the ability count IF you added a new ability to EACH one. or you might end up with the 1st main have only 2 sub's but it cycles to a "3rd" which simply doesn't exist and makes the weapon do nothing
@@ -198,7 +196,6 @@ static void Yamato_Rainsword_Skill_2_Loop(int client)
 	return;
 }
 
-#define MAX_TARGETS_HIT 10
 static float BEAM_Targets_Hit[MAXTF2PLAYERS+1];
 static int BEAM_BuildingHit[MAX_TARGETS_HIT];
 static bool BEAM_HitDetected[MAXTF2PLAYERS+1];
@@ -404,7 +401,6 @@ static float f_projectile_dmg[MAXENTITIES];
 
 static int i_yamato_index[MAXENTITIES+1];
 static int i_yamato_wep[MAXENTITIES+1];
-static int i_rocket_particle[MAXENTITIES];
 
 static void Yamato_Rocket_Launch(int client, int weapon, float startVec[3], float targetVec[3], float speed, float dmg, const char[] rocket_particle = "")
 {
@@ -438,7 +434,7 @@ static void Yamato_Rocket_Launch(int client, int weapon, float startVec[3], floa
 		if(rocket_particle[0]) //If it has something, put it in. usually it has one. but if it doesn't base model it remains.
 		{
 			particle = ParticleEffectAt(startVec, rocket_particle, 0.0); //Inf duartion
-			i_rocket_particle[entity]=particle;
+			i_rocket_particle[entity]= EntIndexToEntRef(particle);
 			TeleportEntity(particle, NULL_VECTOR, Angles, NULL_VECTOR);
 			SetParent(entity, particle);	
 			SetEntityRenderMode(entity, RENDER_TRANSCOLOR); //Make it entirely invis.
@@ -511,7 +507,7 @@ public Action Yamato_StartTouch(int entity, int other)
 			case 5:EmitSoundToAll(SOUND_IMPACT_5, entity, SNDCHAN_STATIC, 80, _, 0.9);
 				
 	   	}
-	   	int particle = i_rocket_particle[entity];
+	   	int particle = EntRefToEntIndex(i_rocket_particle[entity]);
 		if(IsValidEntity(particle))
 		{
 			RemoveEntity(particle);
@@ -534,7 +530,7 @@ public Action Yamato_StartTouch(int entity, int other)
 			
 			case 4:EmitSoundToAll(SOUND_IMPACT_CONCRETE_4, entity, SNDCHAN_STATIC, 80, _, 0.9);
 		}
-		int particle = i_rocket_particle[entity];
+		int particle = EntRefToEntIndex(i_rocket_particle[entity]);
 		if(IsValidEntity(particle))
 		{
 			RemoveEntity(particle);
@@ -632,23 +628,14 @@ static void Yamato_Update_Stats(int client, int weapon)
 	float damage = 1.0;
 	float speed = 1.0;
 
-	Address address;
-	address = TF2Attrib_GetByDefIndex(weapon, 1);
-	if(address != Address_Null)
-		damage *= TF2Attrib_GetValue(address);
+
+	damage *= Attributes_Get(weapon, 1, 1.0);
 	
-	address = TF2Attrib_GetByDefIndex(weapon, 2);
-	if(address != Address_Null)
-		damage *= TF2Attrib_GetValue(address);
+	damage *= Attributes_Get(weapon, 2, 1.0);
 	
 	//reloadrate of rainsword. also how fast the passive drain is.
-	address = TF2Attrib_GetByDefIndex(weapon, 5);
-	if(address != Address_Null)
-		speed *= TF2Attrib_GetValue(address);
-					
-	address = TF2Attrib_GetByDefIndex(weapon, 6);
-	if(address != Address_Null)
-		speed *= TF2Attrib_GetValue(address);
+	speed *= Attributes_Get(weapon, 5, 1.0);
+	speed *= Attributes_Get(weapon, 6, 1.0);
 					
 	int maxhealth = SDKCall_GetMaxHealth(client);
 	float tmp=maxhealth/200.0;

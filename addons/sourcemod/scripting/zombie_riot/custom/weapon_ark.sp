@@ -16,14 +16,7 @@ static int Ark_Level[MAXPLAYERS+1]={0, ...};
 
 static float f_AniSoundSpam[MAXPLAYERS+1]={0.0, ...};
 
-#define ENERGY_BALL_MODEL	"models/weapons/w_models/w_drg_ball.mdl"
-#define SOUND_WAND_SHOT_AUTOAIM 	"weapons/man_melter_fire.wav"
-#define SOUND_WAND_SHOT_AUTOAIM_ABILITY	"weapons/man_melter_fire_crit.wav"
-#define SOUND_AUTOAIM_IMPACT 		"misc/halloween/spell_lightning_ball_impact.wav"
 
-#define ENERGY_BALL_MODEL	"models/weapons/w_models/w_drg_ball.mdl"
-#define SOUND_WAND_SHOT 	"weapons/capper_shoot.wav"
-#define SOUND_ZAP "misc/halloween/spell_lightning_ball_impact.wav"
 
 #define SOUND_LAPPLAND_SHOT 	"weapons/fx/nearmiss/dragons_fury_nearmiss.wav"
 #define SOUND_LAPPLAND_ABILITY 	"items/powerup_pickup_plague.wav"
@@ -39,6 +32,7 @@ static float f_WeaponArkhuddelay[MAXPLAYERS+1]={0.0, ...};
 
 #define LAPPLAND_MAX_HITS_NEEDED 84 //Double the amount because we do double hits.
 #define LAPPLAND_AOE_SILENCE_RANGE 200.0
+#define LAPPLAND_AOE_SILENCE_RANGE_SQUARED 40000.0
 Handle h_TimerLappLandManagement[MAXPLAYERS+1] = {INVALID_HANDLE, ...};
 static int i_LappLandHitsDone[MAXPLAYERS+1]={0, ...};
 static float f_LappLandAbilityActive[MAXPLAYERS+1]={0.0, ...};
@@ -77,7 +71,7 @@ public void Ark_empower_ability(int client, int weapon, bool crit, int slot) // 
 {
 	if (Ability_Check_Cooldown(client, slot) < 0.0)
 	{
-		Rogue_OnAbilityUse(client, weapon);
+		Rogue_OnAbilityUse(weapon);
 		Ability_Apply_Cooldown(client, slot, 15.0);
 		ClientCommand(client, "playgamesound weapons/samurai/tf_katana_draw_02.wav");
 
@@ -118,7 +112,7 @@ public void Ark_empower_ability_2(int client, int weapon, bool crit, int slot) /
 {
 	if (Ability_Check_Cooldown(client, slot) < 0.0)
 	{
-		Rogue_OnAbilityUse(client, weapon);
+		Rogue_OnAbilityUse(weapon);
 		Ability_Apply_Cooldown(client, slot, 15.0);
 		ClientCommand(client, "playgamesound weapons/samurai/tf_katana_draw_02.wav");
 
@@ -161,7 +155,7 @@ public void Ark_empower_ability_3(int client, int weapon, bool crit, int slot) /
 {
 	if (Ability_Check_Cooldown(client, slot) < 0.0)
 	{
-		Rogue_OnAbilityUse(client, weapon);
+		Rogue_OnAbilityUse(weapon);
 		Ability_Apply_Cooldown(client, slot, 15.0);
 		ClientCommand(client, "playgamesound weapons/samurai/tf_katana_draw_02.wav");
 
@@ -207,32 +201,21 @@ public void Ark_attack0(int client, int weapon, bool crit, int slot) // stats fo
 		Ark_Hits[client] -= 1;
 		float damage = 25.0;
 
-		Address address = TF2Attrib_GetByDefIndex(weapon, 2);
-		if(address != Address_Null)
-			damage *= TF2Attrib_GetValue(address);
+		damage *= Attributes_Get(weapon, 2, 1.0);
 			
 		float speed = 500.0;
-		address = TF2Attrib_GetByDefIndex(weapon, 103);
-		if(address != Address_Null)
-			speed *= TF2Attrib_GetValue(address);
+
+		speed *= Attributes_Get(weapon, 103, 1.0);
 	
-		address = TF2Attrib_GetByDefIndex(weapon, 104);
-		if(address != Address_Null)
-			speed *= TF2Attrib_GetValue(address);
+		speed *= Attributes_Get(weapon, 104, 1.0);
 	
-		address = TF2Attrib_GetByDefIndex(weapon, 475);
-		if(address != Address_Null)
-			speed *= TF2Attrib_GetValue(address);
+		speed *= Attributes_Get(weapon, 475, 1.0);
 	
 	
 		float time = 1000.0/speed;
-		address = TF2Attrib_GetByDefIndex(weapon, 101);
-		if(address != Address_Null)
-			time *= TF2Attrib_GetValue(address);
+		time *= Attributes_Get(weapon, 101, 1.0);
 	
-		address = TF2Attrib_GetByDefIndex(weapon, 102);
-		if(address != Address_Null)
-			time *= TF2Attrib_GetValue(address);
+		time *= Attributes_Get(weapon, 102, 1.0);
 
 		EmitSoundToAll(SOUND_WAND_SHOT, client, _, 65, _, 0.45);
 
@@ -245,32 +228,21 @@ public void Ark_attack1(int client, int weapon, bool crit, int slot) //first pap
 	{
 		Ark_Hits[client] -= 1;
 		float damage = 50.0;
-		Address address = TF2Attrib_GetByDefIndex(weapon, 2);
-		if(address != Address_Null)
-			damage *= TF2Attrib_GetValue(address);
 			
 		float speed = 1100.0;
-		address = TF2Attrib_GetByDefIndex(weapon, 103);
-		if(address != Address_Null)
-			speed *= TF2Attrib_GetValue(address);
+		damage *= Attributes_Get(weapon, 2, 1.0);
+
+		speed *= Attributes_Get(weapon, 103, 1.0);
 	
-		address = TF2Attrib_GetByDefIndex(weapon, 104);
-		if(address != Address_Null)
-			speed *= TF2Attrib_GetValue(address);
+		speed *= Attributes_Get(weapon, 104, 1.0);
 	
-		address = TF2Attrib_GetByDefIndex(weapon, 475);
-		if(address != Address_Null)
-			speed *= TF2Attrib_GetValue(address);
+		speed *= Attributes_Get(weapon, 475, 1.0);
 	
 	
 		float time = 1000.0/speed;
-		address = TF2Attrib_GetByDefIndex(weapon, 101);
-		if(address != Address_Null)
-			time *= TF2Attrib_GetValue(address);
+		time *= Attributes_Get(weapon, 101, 1.0);
 	
-		address = TF2Attrib_GetByDefIndex(weapon, 102);
-		if(address != Address_Null)
-			time *= TF2Attrib_GetValue(address);
+		time *= Attributes_Get(weapon, 102, 1.0);
 
 		EmitSoundToAll(SOUND_WAND_SHOT, client, _, 65, _, 0.45);
 		Ark_Lauch_projectile(client, weapon, false, speed, time, damage);
@@ -286,32 +258,21 @@ public void Ark_attack2(int client, int weapon, bool crit, int slot) //second pa
 		Ark_Hits[client] -= 1;
 
 		float damage = 50.0;
-		Address address = TF2Attrib_GetByDefIndex(weapon, 2);
-		if(address != Address_Null)
-			damage *= TF2Attrib_GetValue(address);
 			
 		float speed = 1100.0;
-		address = TF2Attrib_GetByDefIndex(weapon, 103);
-		if(address != Address_Null)
-			speed *= TF2Attrib_GetValue(address);
+		damage *= Attributes_Get(weapon, 2, 1.0);
+
+		speed *= Attributes_Get(weapon, 103, 1.0);
 	
-		address = TF2Attrib_GetByDefIndex(weapon, 104);
-		if(address != Address_Null)
-			speed *= TF2Attrib_GetValue(address);
+		speed *= Attributes_Get(weapon, 104, 1.0);
 	
-		address = TF2Attrib_GetByDefIndex(weapon, 475);
-		if(address != Address_Null)
-			speed *= TF2Attrib_GetValue(address);
+		speed *= Attributes_Get(weapon, 475, 1.0);
 	
 	
 		float time = 1000.0/speed;
-		address = TF2Attrib_GetByDefIndex(weapon, 101);
-		if(address != Address_Null)
-			time *= TF2Attrib_GetValue(address);
+		time *= Attributes_Get(weapon, 101, 1.0);
 	
-		address = TF2Attrib_GetByDefIndex(weapon, 102);
-		if(address != Address_Null)
-			time *= TF2Attrib_GetValue(address);
+		time *= Attributes_Get(weapon, 102, 1.0);
 			
 		EmitSoundToAll(SOUND_WAND_SHOT, client, _, 65, _, 0.45);
 		Ark_Lauch_projectile(client, weapon, false, speed, time, damage);
@@ -365,8 +326,6 @@ void Ark_Lauch_projectile(int client, int weapon, bool multi, float speed, float
 		*/	
 	}
 }
-//Sarysapub1 code but fixed and altered to make it work for our base bosses
-#define TARGET_Z_OFFSET 40.0
 public Action Ark_Homing_Repeat_Timer(Handle timer, int ref)
 {
 	int entity = EntRefToEntIndex(ref);
@@ -671,37 +630,20 @@ void Weapon_ark_LapplandRangedAttack(int client, int weapon)
 	{
 		damage *= 2.0;
 	}
-	Address address;
-	address = TF2Attrib_GetByDefIndex(weapon, 1);
-	if(address != Address_Null)
-		damage *= TF2Attrib_GetValue(address);
-
-	address = TF2Attrib_GetByDefIndex(weapon, 2);
-	if(address != Address_Null)
-		damage *= TF2Attrib_GetValue(address);
 			
 	float speed = 1100.0;
-	address = TF2Attrib_GetByDefIndex(weapon, 103);
-	if(address != Address_Null)
-		speed *= TF2Attrib_GetValue(address);
-	
-	address = TF2Attrib_GetByDefIndex(weapon, 104);
-	if(address != Address_Null)
-		speed *= TF2Attrib_GetValue(address);
-	
-	address = TF2Attrib_GetByDefIndex(weapon, 475);
-	if(address != Address_Null)
-		speed *= TF2Attrib_GetValue(address);
-	
-	
+	damage *= Attributes_Get(weapon, 2, 1.0);
+	speed *= Attributes_Get(weapon, 103, 1.0);
+
+	speed *= Attributes_Get(weapon, 104, 1.0);
+
+	speed *= Attributes_Get(weapon, 475, 1.0);
+
+
 	float time = 2000.0/speed;
-	address = TF2Attrib_GetByDefIndex(weapon, 101);
-	if(address != Address_Null)
-		time *= TF2Attrib_GetValue(address);
-	
-	address = TF2Attrib_GetByDefIndex(weapon, 102);
-	if(address != Address_Null)
-		time *= TF2Attrib_GetValue(address);
+	time *= Attributes_Get(weapon, 101, 1.0);
+
+	time *= Attributes_Get(weapon, 102, 1.0);
 
 	if(IsValidEnemy(client, target))
 	{
@@ -825,8 +767,12 @@ public Action PerfectHomingShot(Handle timer, DataPack pack)
 			}
 			return Plugin_Continue;
 		}
+		else
+		{
+			return Plugin_Stop;
+		}
 	}
-	return Plugin_Handled;
+	return Plugin_Stop;
 }
 
 void HomingProjectile_TurnToTarget(int enemy, int Projectile)
@@ -1005,7 +951,7 @@ void Weapon_Ark_SilenceAOE(int enemyStruck)
 		if(IsValidEntity(entity))
 		{
 			GetEntPropVector(entity, Prop_Data, "m_vecAbsOrigin", EnemyPos);
-			if (GetVectorDistance(EnemyPos, VictimPos, true) <= Pow(LAPPLAND_AOE_SILENCE_RANGE, 2.0))
+			if (GetVectorDistance(EnemyPos, VictimPos, true) <= (LAPPLAND_AOE_SILENCE_RANGE_SQUARED))
 			{
 				NpcStats_SilenceEnemy(entity, LAPPLAND_SILENCE_DUR_ABILITY);
 			}

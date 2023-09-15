@@ -60,6 +60,7 @@ public void Weapon_Tornado_Laucher_M2(int client, int weapon, const char[] class
 		StopSound(client, SNDCHAN_STATIC, "UI/hint.wav");
 	}
 }
+
 public void Weapon_tornado_launcher_Spam(int client, int weapon, const char[] classname, bool &result)
 {
 	bl_tornado_barrage_mode[client]=false;
@@ -150,21 +151,15 @@ void Weapon_Tornado_Launcher_Spam_Fire_Rocket(int client, int weapon)
 		
 		
 		//note: redo attributes for better customizability
-		Address address = TF2Attrib_GetByDefIndex(weapon, 2);
-		if(address != Address_Null)
-			dmgProjectile *= TF2Attrib_GetValue(address);
-			
-		address = TF2Attrib_GetByDefIndex(weapon, 103);
-		if(address != Address_Null)
-			speedMult *= TF2Attrib_GetValue(address);
+		dmgProjectile *= Attributes_Get(weapon, 1, 1.0);
+
+		dmgProjectile *= Attributes_Get(weapon, 2, 1.0);
+				
+		speedMult *= Attributes_Get(weapon, 103, 1.0);
 		
-		address = TF2Attrib_GetByDefIndex(weapon, 104);
-		if(address != Address_Null)
-			speedMult *= TF2Attrib_GetValue(address);
+		speedMult *= Attributes_Get(weapon, 104, 1.0);
 		
-		address = TF2Attrib_GetByDefIndex(weapon, 475);
-		if(address != Address_Null)
-			speedMult *= TF2Attrib_GetValue(address);
+		speedMult *= Attributes_Get(weapon, 475, 1.0);
 			
 		float damage=dmgProjectile;
 		int iAmmoTable = FindSendPropInfo("CTFWeaponBase", "m_iClip1");
@@ -228,8 +223,8 @@ void BlitzRocket(int client, float speed, float damage, int weapon)
 	if(IsValidEntity(entity))
 	{
 		fl_tornado_dmg[entity]=damage;
-		i_tornado_wep[entity]=weapon;
-		i_tornado_index[entity]=client;
+		i_tornado_wep[entity]=EntIndexToEntRef(weapon);
+		i_tornado_index[entity]=EntIndexToEntRef(client);
 		b_EntityIsArrow[entity] = true;
 		SetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity", client); //No owner entity! woo hoo
 		SetEntDataFloat(entity, FindSendPropInfo("CTFProjectile_Rocket", "m_iDeflected")+4, 0.0, true);

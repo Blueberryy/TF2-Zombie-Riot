@@ -142,7 +142,7 @@ methodmap SawRunner < CClotBody
 	
 	public SawRunner(int client, float vecPos[3], float vecAng[3], bool ally)
 	{
-		SawRunner npc = view_as<SawRunner>(CClotBody(vecPos, vecAng, "models/zombie_riot/cof/sawrunner_2.mdl", "1.5", GetSawRunnerHealth(), ally, false, true, true));
+		SawRunner npc = view_as<SawRunner>(CClotBody(vecPos, vecAng, "models/zombie_riot/cof/sawrunner_2.mdl", "1.5", GetSawRunnerHealth(), ally, false, false, true));
 		
 		i_NpcInternalId[npc.index] = SAWRUNNER;
 		i_NpcWeight[npc.index] = 2;
@@ -198,12 +198,12 @@ public void SawRunner_ClotThink(int iNPC)
 {
 	SawRunner npc = view_as<SawRunner>(iNPC);
 	
-//	if(npc.m_flNextDelayTime > GetGameTime(npc.index))
+	if(npc.m_flNextDelayTime > GetGameTime(npc.index))
 	{
-	//	return;
+		return;
 	}
 	
-//	npc.m_flNextDelayTime = GetGameTime(npc.index) + DEFAULT_UPDATE_DELAY_FLOAT;
+	npc.m_flNextDelayTime = GetGameTime(npc.index) + DEFAULT_UPDATE_DELAY_FLOAT;
 	
 	npc.Update();	
 	

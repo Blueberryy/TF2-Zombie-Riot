@@ -298,9 +298,11 @@ void SeaFounder_SpawnNethersea(const float pos[3])
 	{
 		if(NavList.FindValue(nav) == -1)
 		{
-			NavList.Push(nav);
-
-			TriggerTimer(RenderTimer, true);
+			if(!nav.HasAttributes(NAV_MESH_NO_HOSTAGES))
+			{
+				NavList.Push(nav);
+				TriggerTimer(RenderTimer, true);
+			}
 		}
 	}
 }
@@ -336,7 +338,7 @@ public Action SeaFounder_RenderTimer(Handle timer, DataPack pack)
 		return Plugin_Stop;
 	}
 
-	if(++SpreadTicks > 4)
+	if(++SpreadTicks > (CurrentRound == 59 ? 24 : 8))
 	{
 		SpreadTicks = (GetURandomInt() % 3) - 1;
 
@@ -364,7 +366,7 @@ public Action SeaFounder_RenderTimer(Handle timer, DataPack pack)
 					for(int c; c < count; c++)
 					{
 						CNavArea nav2 = nav1.GetAdjacentArea(b, c);
-						if(nav2 != NULL_AREA && NavList.FindValue(nav2) == -1)
+						if(nav2 != NULL_AREA && !nav2.HasAttributes(NAV_MESH_NO_HOSTAGES) && NavList.FindValue(nav2) == -1)
 							NavList.Push(nav2);
 					}
 				}
@@ -615,20 +617,20 @@ public Action SeaFounder_DamageTimer(Handle timer, DataPack pack)
 					// 20 x 0.25 x 0.2
 				*/
 
-				int entity = EntRefToEntIndex(i_DyingParticleIndication[client]);
+				int entity = EntRefToEntIndex(i_DyingParticleIndication[client][0]);
 				if(!IsValidEntity(entity))
 				{
 					float flPos[3];
 					GetEntPropVector(client, Prop_Data, "m_vecAbsOrigin", flPos);		
 					int particle_Sing = ParticleEffectAt(flPos, "utaunt_hands_teamcolor_blue", -1.0);
 					SetParent(client, particle_Sing);
-					i_DyingParticleIndication[client] = EntIndexToEntRef(particle_Sing);
+					i_DyingParticleIndication[client][0] = EntIndexToEntRef(particle_Sing);
 				}
 				NervousTouching[client] = NervousTouching[0];
 			}
 			else
 			{
-				int entity = EntRefToEntIndex(i_DyingParticleIndication[client]);
+				int entity = EntRefToEntIndex(i_DyingParticleIndication[client][0]);
 				if(IsValidEntity(entity))
 				{
 					RemoveEntity(entity);

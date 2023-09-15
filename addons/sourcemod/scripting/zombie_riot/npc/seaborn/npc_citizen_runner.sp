@@ -19,8 +19,7 @@ methodmap CitizenRunner < CClotBody
 
 		int seed = GetURandomInt();
 		Citizen_GenerateModel(seed, view_as<bool>(seed % 2), Cit_Unarmed, buffer, sizeof(buffer));
-
-		CitizenRunner npc = view_as<CitizenRunner>(CClotBody(vecPos, vecAng, buffer, "1.15", "500", true, false));
+		CitizenRunner npc = view_as<CitizenRunner>(CClotBody(vecPos, vecAng, buffer, "1.15", "500", true, false,_,_,_,_,_,true));
 		
 		i_NpcInternalId[npc.index] = CITIZEN_RUNNER;
 		i_NpcWeight[npc.index] = 1;
@@ -36,6 +35,11 @@ methodmap CitizenRunner < CClotBody
 		
 		npc.m_flSpeed = 241.5;
 		npc.m_flGetClosestTargetTime = 0.0;
+
+		npc.m_iTeamGlow = TF2_CreateGlow(npc.index);
+		SetVariantColor(view_as<int>({255, 200, 0, 200}));
+		AcceptEntityInput(npc.m_iTeamGlow, "SetGlowColor");
+
 		return npc;
 	}
 }
@@ -56,8 +60,15 @@ public void CitizenRunner_ClotThink(int iNPC)
 	
 	npc.m_flNextThinkTime = gameTime + 0.1;
 
+	if(!npc.Anger)
+	{
+		Change_Npc_Collision(npc.index, 3); //they go through enemy npcs
+		npc.Anger = true;
+	}
+	
 	if(Waves_InSetup())
 	{
+		npc.m_bNoKillFeed = true;
 		SDKHooks_TakeDamage(npc.index, 0, 0, 999999999.0, DMG_GENERIC);
 		return;
 	}
@@ -111,6 +122,8 @@ void CitizenRunner_NPCDeath(int entit)
 		GetEntPropVector(npc.index, Prop_Data, "m_angRotation", angles);
 		GetEntPropVector(npc.index, Prop_Send, "m_vecOrigin", pos);
 
+		SeaFounder_SpawnNethersea(pos);
+
 		static const int RandomInfection[] = { SEAPREDATOR_ALT, SEAPREDATOR_ALT, SEAFOUNDER_ALT, SEASPEWER_ALT, SEASWARMCALLER_ALT };
 
 		int entity = Npc_Create(RandomInfection[GetURandomInt() % sizeof(RandomInfection)], -1, pos, angles, false);
@@ -118,14 +131,15 @@ void CitizenRunner_NPCDeath(int entit)
 		{
 			Zombies_Currently_Still_Ongoing++;
 			
-			int health = GetEntProp(npc.index, Prop_Data, "m_iMaxHealth") * 10;
+			int health = GetEntProp(npc.index, Prop_Data, "m_iMaxHealth") * 30;
 			SetEntProp(entity, Prop_Data, "m_iHealth", health);
 			SetEntProp(entity, Prop_Data, "m_iMaxHealth", health);
 			
 			fl_Extra_MeleeArmor[entity] = fl_Extra_MeleeArmor[npc.index];
 			fl_Extra_RangedArmor[entity] = fl_Extra_RangedArmor[npc.index];
-			fl_Extra_Speed[entity] = fl_Extra_Speed[npc.index];
-			fl_Extra_Damage[entity] = fl_Extra_Damage[npc.index] * 1.5;
+			fl_Extra_Speed[entity] = fl_Extra_Speed[npc.index] * 1.25;
+			fl_Extra_Damage[entity] = fl_Extra_Damage[npc.index] * 2.0;
+			b_thisNpcIsABoss[entity] = true;
 
 			FreezeNpcInTime(entity, 1.5);
 		}
@@ -152,8 +166,9 @@ void CitizenRunner_NPCDeath(int entit)
 */
 	}
 }
-
+/*
 public void CitizenRunner_PostDeath(const char[] output, int caller, int activator, float delay)
 {
 	RemoveEntity(caller);
 }
+*/

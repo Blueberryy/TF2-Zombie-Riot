@@ -65,7 +65,7 @@ methodmap SeabornSniper < CClotBody
 	
 	public SeabornSniper(int client, float vecPos[3], float vecAng[3], bool ally)
 	{
-		SeabornSniper npc = view_as<SeabornSniper>(CClotBody(vecPos, vecAng, "models/player/sniper.mdl", "1.0", "2000", ally));
+		SeabornSniper npc = view_as<SeabornSniper>(CClotBody(vecPos, vecAng, "models/player/sniper.mdl", "1.0", "4000", ally));
 		
 		i_NpcInternalId[npc.index] = SEABORN_SNIPER;
 		i_NpcWeight[npc.index] = 1;
@@ -86,7 +86,7 @@ methodmap SeabornSniper < CClotBody
 		npc.m_flAttackHappens = 0.0;
 		
 		SetEntityRenderMode(npc.index, RENDER_TRANSCOLOR);
-		SetEntityRenderColor(npc.index, 155, 155, 255, 255);
+		SetEntityRenderColor(npc.index, 100, 100, 255, 255);
 		
 		npc.m_iWearable1 = npc.EquipItem("head", "models/weapons/c_models/c_breadmonster/c_breadmonster.mdl");
 

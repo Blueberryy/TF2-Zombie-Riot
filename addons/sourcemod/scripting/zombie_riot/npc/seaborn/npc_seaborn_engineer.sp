@@ -69,7 +69,7 @@ methodmap SeabornEngineer < CClotBody
 	
 	public SeabornEngineer(int client, float vecPos[3], float vecAng[3], bool ally)
 	{
-		SeabornEngineer npc = view_as<SeabornEngineer>(CClotBody(vecPos, vecAng, "models/player/heavy.mdl", "1.0", "3000", ally));
+		SeabornEngineer npc = view_as<SeabornEngineer>(CClotBody(vecPos, vecAng, "models/player/engineer.mdl", "1.0", "10000", ally));
 		
 		i_NpcInternalId[npc.index] = SEABORN_ENGINEER;
 		i_NpcWeight[npc.index] = 1;
@@ -83,16 +83,15 @@ methodmap SeabornEngineer < CClotBody
 
 		SDKHook(npc.index, SDKHook_Think, SeabornEngineer_ClotThink);
 		
-		Is_a_Medic[npc.index] = true;
 		npc.m_flSpeed = 300.0;
 		npc.m_flGetClosestTargetTime = 0.0;
 		npc.m_flNextMeleeAttack = 0.0;
 		npc.m_flAttackHappens = 0.0;
-		npc.m_flNextRangedAttack = GetGameTime(npc.index) + GetRandomFloat(8.0, 12.0);
+		npc.m_flNextRangedAttack = GetGameTime(npc.index) + GetRandomFloat(4.0, 6.0);
 		npc.m_fbRangedSpecialOn = false;
 		
 		SetEntityRenderMode(npc.index, RENDER_TRANSCOLOR);
-		SetEntityRenderColor(npc.index, 155, 155, 255, 255);
+		SetEntityRenderColor(npc.index, 100, 100, 255, 255);
 
 		npc.m_iWearable1 = npc.EquipItem("head", "models/weapons/c_models/c_wrench/c_wrench.mdl");
 		npc.m_iWearable2 = npc.EquipItem("head", "models/player/items/cyoa_pda/cyoa_pda.mdl");
@@ -154,7 +153,7 @@ public void SeabornEngineer_ClotThink(int iNPC)
 		}
 		
 		if(!npc.m_bThisNpcIsABoss && !b_thisNpcHasAnOutline[npc.index])
-			SetEntProp(npc.index, Prop_Send, "m_bGlowEnabled", false);
+			GiveNpcOutLineLastOrBoss(npc.index, false);
 		
 		npc.m_fbRangedSpecialOn = false;
 		npc.m_flNextRangedAttack = FAR_FUTURE;
@@ -163,7 +162,7 @@ public void SeabornEngineer_ClotThink(int iNPC)
 		AcceptEntityInput(npc.m_iWearable1, "Enable");
 		AcceptEntityInput(npc.m_iWearable2, "Disable");
 	}
-	else if(npc.m_flNextRangedAttack < gameTime)
+	else if(npc.m_flNextRangedAttack < gameTime && !NpcStats_IsEnemySilenced(npc.index))
 	{
 		for(int i; i < i_MaxcountBuilding; i++)
 		{
@@ -176,7 +175,7 @@ public void SeabornEngineer_ClotThink(int iNPC)
 					b_ThisEntityIgnored[entity] = true;
 
 					if(!npc.m_bThisNpcIsABoss && !b_thisNpcHasAnOutline[npc.index])
-						SetEntProp(npc.index, Prop_Send, "m_bGlowEnabled", true);
+						GiveNpcOutLineLastOrBoss(npc.index, true);
 					
 					npc.m_iTarget = 0;
 					npc.m_iTargetAlly = entity;

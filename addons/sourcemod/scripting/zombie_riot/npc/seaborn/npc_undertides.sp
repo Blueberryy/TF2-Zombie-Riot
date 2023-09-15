@@ -83,7 +83,7 @@ methodmap UnderTides < CClotBody
 
 		if(!npc.Anger)
 		{
-			SetEntProp(npc.index, Prop_Send, "m_bGlowEnabled", true);
+			GiveNpcOutLineLastOrBoss(npc.index, true);
 			
 			npc.m_flMeleeArmor = 2.0;
 
@@ -91,7 +91,7 @@ methodmap UnderTides < CClotBody
 			npc.m_flNextRangedAttack = npc.m_flNextMeleeAttack + 15.0;
 			npc.m_flNextRangedSpecialAttack = npc.m_flNextMeleeAttack + 30.0;
 
-			Citizen_MiniBossSpawn(npc.index);
+			Citizen_MiniBossSpawn();
 		}
 
 		float vecMe[3]; vecMe = WorldSpaceCenter(npc.index);
@@ -154,8 +154,8 @@ public void UnderTides_ClotThink(int iNPC)
 
 		AproxRandomSpaceToWalkTo[2] += 50.0;
 
-		AproxRandomSpaceToWalkTo[0] = GetRandomFloat((AproxRandomSpaceToWalkTo[0] - 800.0),(AproxRandomSpaceToWalkTo[0] + 800.0));
-		AproxRandomSpaceToWalkTo[1] = GetRandomFloat((AproxRandomSpaceToWalkTo[1] - 800.0),(AproxRandomSpaceToWalkTo[1] + 800.0));
+		AproxRandomSpaceToWalkTo[0] = GetRandomFloat((AproxRandomSpaceToWalkTo[0] - 1000.0),(AproxRandomSpaceToWalkTo[0] + 1000.0));
+		AproxRandomSpaceToWalkTo[1] = GetRandomFloat((AproxRandomSpaceToWalkTo[1] - 1000.0),(AproxRandomSpaceToWalkTo[1] + 1000.0));
 
 		Handle ToGroundTrace = TR_TraceRayFilterEx(AproxRandomSpaceToWalkTo, view_as<float>( { 90.0, 0.0, 0.0 } ), npc.GetSolidMask(), RayType_Infinite, BulletAndMeleeTrace, npc.index);
 		
@@ -165,6 +165,12 @@ public void UnderTides_ClotThink(int iNPC)
 		CNavArea area = TheNavMesh.GetNearestNavArea(AproxRandomSpaceToWalkTo, true);
 		if(area == NULL_AREA)
 			return;
+
+		int NavAttribs = area.GetAttributes();
+		if(NavAttribs & NAV_MESH_AVOID)
+		{
+			return;
+		}
 		
 		area.GetCenter(AproxRandomSpaceToWalkTo);
 
@@ -198,7 +204,7 @@ public void UnderTides_ClotThink(int iNPC)
 
 		TeleportEntity(npc.index, AproxRandomSpaceToWalkTo);
 
-		SetEntProp(npc.index, Prop_Send, "m_bGlowEnabled", true);
+		GiveNpcOutLineLastOrBoss(npc.index, true);
 		
 		npc.Anger = false;
 		npc.m_flMeleeArmor = 2.0;
@@ -207,7 +213,17 @@ public void UnderTides_ClotThink(int iNPC)
 		npc.m_flNextRangedAttack = npc.m_flNextMeleeAttack + 15.0;
 		npc.m_flNextRangedSpecialAttack = npc.m_flNextMeleeAttack + 30.0;
 
-		Citizen_MiniBossSpawn(npc.index);
+		Citizen_MiniBossSpawn();
+		
+		for(int i; i < ZR_MAX_SPAWNERS; i++)
+		{
+			if(!i_ObjectsSpawners[i] || !IsValidEntity(i_ObjectsSpawners[i]))
+			{
+				Spawns_AddToArray(npc.index, true);
+				i_ObjectsSpawners[i] = npc.index;
+				break;
+			}
+		}
 	}
 	else if(npc.m_flNextMeleeAttack < gameTime)
 	{
@@ -332,21 +348,40 @@ public void UnderTides_ClotThink(int iNPC)
 	}
 }
 
-static void GetHighDefTargets(UnderTides npc, int[] enemy, int count)
+void GetHighDefTargets(UnderTides npc, int[] enemy, int count, bool respectTrace = false, bool player_only = false, int TraceFrom = -1, float RangeLimit = 0.0)
 {
 	// Prio:
 	// 1. Highest Defense Stat
 	// 2. Highest NPC Entity Index
 	// 3. Random Player
-
+	int TraceEntity = npc.index;
+	if(TraceFrom != -1)
+	{
+		TraceEntity = TraceFrom;
+	}
 	int team = GetEntProp(npc.index, Prop_Send, "m_iTeamNum");
 	int[] def = new int[count];
 	float gameTime = GetGameTime();
+	float Pos1[3];
+	if(RangeLimit > 0.0)
+	{
+		Pos1 = WorldSpaceCenter(TraceEntity);
+	}
 
 	for(int client = 1; client <= MaxClients; client++)
 	{
 		if(!view_as<CClotBody>(client).m_bThisEntityIgnored && IsClientInGame(client) && GetClientTeam(client) != team && IsEntityAlive(client) && Can_I_See_Enemy_Only(npc.index, client))
 		{
+			if(respectTrace && !Can_I_See_Enemy_Only(TraceEntity, client))
+				continue;
+				
+			if(RangeLimit > 0.0)
+			{
+				float flDistanceToTarget = GetVectorDistance(WorldSpaceCenter(client), Pos1, true);
+				if(flDistanceToTarget > RangeLimit)
+					continue;
+			}
+
 			for(int i; i < count; i++)
 			{
 				int defense = Armour_Level_Current[client];
@@ -398,7 +433,7 @@ static void GetHighDefTargets(UnderTides npc, int[] enemy, int count)
 		}
 	}
 
-	if(team != 3)
+	if(team != 3 && !player_only)
 	{
 		for(int a; a < i_MaxcountNpc; a++)
 		{
@@ -407,6 +442,16 @@ static void GetHighDefTargets(UnderTides npc, int[] enemy, int count)
 			{
 				if(!view_as<CClotBody>(entity).m_bThisEntityIgnored && !b_NpcIsInvulnerable[entity] && !b_ThisEntityIgnoredByOtherNpcsAggro[entity] && IsEntityAlive(entity) && Can_I_See_Enemy_Only(npc.index, entity))
 				{
+					if(respectTrace && !Can_I_See_Enemy_Only(TraceEntity, entity))
+						continue;
+
+					if(RangeLimit > 0.0)
+					{
+						float flDistanceToTarget = GetVectorDistance(WorldSpaceCenter(entity), Pos1, true);
+						if(flDistanceToTarget > RangeLimit)
+							continue;
+					}
+
 					for(int i; i < count; i++)
 					{
 						int defense = b_npcspawnprotection[entity] ? 8 : 0;
@@ -432,7 +477,7 @@ static void GetHighDefTargets(UnderTides npc, int[] enemy, int count)
 		}
 	}
 
-	if(team != 2)
+	if(team != 2 && !player_only)
 	{
 		for(int a; a < i_MaxcountNpc_Allied; a++)
 		{
@@ -441,6 +486,16 @@ static void GetHighDefTargets(UnderTides npc, int[] enemy, int count)
 			{
 				if(!view_as<CClotBody>(entity).m_bThisEntityIgnored && !b_NpcIsInvulnerable[entity] && !b_ThisEntityIgnoredByOtherNpcsAggro[entity] && IsEntityAlive(entity) && Can_I_See_Enemy_Only(npc.index, entity))
 				{
+					if(respectTrace && !Can_I_See_Enemy_Only(TraceEntity, entity))
+						continue;
+						
+					if(RangeLimit > 0.0)
+					{
+						float flDistanceToTarget = GetVectorDistance(WorldSpaceCenter(entity), Pos1, true);
+						if(flDistanceToTarget > RangeLimit)
+							continue;
+					}
+
 					for(int i; i < count; i++)
 					{
 						int defense = b_npcspawnprotection[entity] ? 8 : 0;
@@ -512,10 +567,21 @@ void UnderTides_NPCDeath(int entity)
 	npc.PlayDeathSound();
 
 	float pos[3];
-	GetEntPropVector(entity, Prop_Data, "m_vecAbsOrigin", pos);
+	GetEntPropVector(npc.index, Prop_Send, "m_vecOrigin", pos);
 	TE_Particle("asplode_hoodoo", pos, NULL_VECTOR, NULL_VECTOR, npc.index, _, _, _, _, _, _, _, _, _, 0.0);
 	
 	SDKUnhook(npc.index, SDKHook_Think, UnderTides_ClotThink);
+	
+	Spawns_RemoveFromArray(entity);
+	
+	for(int i; i < ZR_MAX_SPAWNERS; i++)
+	{
+		if(i_ObjectsSpawners[i] == entity)
+		{
+			i_ObjectsSpawners[i] = 0;
+			break;
+		}
+	}
 
 	if(IsValidEntity(npc.m_iWearable1))
 		RemoveEntity(npc.m_iWearable1);

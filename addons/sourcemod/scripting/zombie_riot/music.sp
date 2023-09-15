@@ -7,6 +7,8 @@ static float Give_Cond_Timer[MAXTF2PLAYERS];
 static bool MusicDisabled;
 static float RaidMusicVolume;
 
+#define RANGE_FIRST_MUSIC 6250000
+#define RANGE_SECOND_MUSIC 1000000
 
 /*
 Big thanks to backwards#8236 For pointing me towards GetTime and helping me with this music tgimer,
@@ -60,6 +62,11 @@ void Music_MapStart()
 	MusicDisabled = FindInfoTarget("zr_nomusic");
 }
 
+bool Music_Disabled()
+{
+	return MusicDisabled;
+}
+
 void Music_EndLastmann()
 {
 //	if(MusicDisabled)   Does this even matter? You might aswell keep it in yknow...
@@ -82,6 +89,9 @@ void Music_EndLastmann()
 				Armor_Charge[client] = 0;
 				if(IsPlayerAlive(client))
 					SetEntProp(client, Prop_Send, "m_iHealth", 50);
+				
+				//just incase.
+				Attributes_Set(client, 442, 1.0);
 			}
 		}
 		LastMann = false;
@@ -232,17 +242,21 @@ void Music_PostThink(int client)
 					TF2_AddCondition(client, TFCond_DefenseBuffed, 2.0);
 					TF2_AddCondition(client, TFCond_NoHealingDamageBuff, 2.0);
 					TF2_AddCondition(client, TFCond_RuneHaste, 2.0);
-					if(Attributes_FindOnPlayer(client, 232))
+					if(Attributes_FindOnPlayerZR(client, 232))
 						TF2_AddCondition(client, TFCond_CritCanteen, 2.0);
 					
 					Give_Cond_Timer[client] = GetGameTime() + 1.0;
+					Attributes_Set(client, 442, 0.7674418604651163);
+					
 				}
 			}
 		}
+		/*
 		if(TeutonType[client] == TEUTON_NONE)
 		{
 			SetEntPropFloat(client, Prop_Send, "m_flMaxspeed", 250.0);
 		}
+		*/
 	}
 	
 	if(MusicDisabled)
@@ -365,7 +379,7 @@ void Music_PostThink(int client)
 				GetClientAbsOrigin(client, chargerPos);
 				float distance = GetVectorDistance(chargerPos, targPos, true);
 				CClotBody npcstats = view_as<CClotBody>(entity);
-				if (distance <= Pow(2500.0, 2.0)) //Give way bigger range.
+				if (distance <= RANGE_FIRST_MUSIC) //Give way bigger range.
 				{
 					if(!npcstats.m_bThisNpcIsABoss)
 					{
@@ -376,7 +390,7 @@ void Music_PostThink(int client)
 						f_intencity += 6.0;
 					}
 				}
-				if (distance <= Pow(1000.0, 2.0))// If they are very close, cause more havok! more epic music!
+				if (distance <= RANGE_SECOND_MUSIC)// If they are very close, cause more havok! more epic music!
 				{
 					if(!npcstats.m_bThisNpcIsABoss)
 					{

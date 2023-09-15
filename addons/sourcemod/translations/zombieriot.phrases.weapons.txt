@@ -1938,9 +1938,7 @@
 	}
 	"Cryo Staff"
 	{
-	     "en"       "Beam Wand"
-		 "ru"       "Жезл луча"
-	     "chi"       "约束神杖"
+	     "en"       "Cryo Staff"
 	}
 	"Atomic Reconstructor"
 	{
@@ -2242,5 +2240,17 @@
 	{
 		"en"	"The Enforcer Mastery 5"
 		"ru"	"Мастерство головореза 5"
+	}
+	"Quincy's Bow"
+	{
+		"en"	"Quincy's Bow"
+	}
+	"The Standchen"
+	{
+		"en"	"The Ständchen"
+	}
+	"The Standchen Pap"
+	{
+		"en"	"The Ständchen Zugabe"
 	}
 }

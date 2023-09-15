@@ -1,8 +1,6 @@
 #pragma semicolon 1
 #pragma newdecls required
 
-#define ENERGY_BALL_MODEL	"models/weapons/w_models/w_drg_ball.mdl" //This will accept particles and also hide itself.
-
 static int i_ProjectileIndex;
 
 void WandStocks_Map_Precache()
@@ -18,7 +16,8 @@ int WandId,
 int weapon,
 const char[] WandParticle,
 float CustomAng[3] = {0.0,0.0,0.0},
-bool hideprojectile = true) //This will handle just the spawning, the rest like particle effects should be handled within the plugins themselves. hopefully.
+bool hideprojectile = true,
+float CustomPos[3] = {0.0,0.0,0.0}) //This will handle just the spawning, the rest like particle effects should be handled within the plugins themselves. hopefully.
 {
 	float fAng[3], fPos[3];
 	GetClientEyeAngles(client, fAng);
@@ -29,6 +28,12 @@ bool hideprojectile = true) //This will handle just the spawning, the rest like 
 		fAng[0] = CustomAng[0];
 		fAng[1] = CustomAng[1];
 		fAng[2] = CustomAng[2];
+	}
+	if(CustomPos[0] != 0.0 || CustomPos[1] != 0.0)
+	{
+		fPos[0] = CustomPos[0];
+		fPos[1] = CustomPos[1];
+		fPos[2] = CustomPos[2];
 	}
 
 
@@ -59,7 +64,8 @@ bool hideprojectile = true) //This will handle just the spawning, the rest like 
 	if(IsValidEntity(entity))
 	{
 		i_WandOwner[entity] = EntIndexToEntRef(client);
-		i_WandWeapon[entity] = EntIndexToEntRef(weapon);
+		if(IsValidEntity(weapon))
+			i_WandWeapon[entity] = EntIndexToEntRef(weapon);
 		f_WandDamage[entity] = damage;
 		i_WandIdNumber[entity] = WandId;
 		b_EntityIsArrow[entity] = true;
@@ -70,6 +76,7 @@ bool hideprojectile = true) //This will handle just the spawning, the rest like 
 		TeleportEntity(entity, fPos, fAng, NULL_VECTOR);
 		DispatchSpawn(entity);
 		TeleportEntity(entity, NULL_VECTOR, NULL_VECTOR, fVel);
+		SetEntPropVector(entity, Prop_Send, "m_angRotation", fAng); //set it so it can be used
 		SetEntPropVector(entity, Prop_Send, "m_vInitialVelocity", fVel);
 	//	SetEntProp(entity, Prop_Send, "m_flDestroyableTime", GetGameTime());
 		//make rockets visible on spawn.
@@ -207,6 +214,26 @@ public void Wand_Base_StartTouch(int entity, int other)
 		{
 			Wand_Skulls_Touch_Launched(entity, target);
 		}
+		case 19: //Health Hose particle
+		{
+			Wand_Health_Hose_Touch_World(entity, target);
+		}
+		case 20: //Vampire Knives thrown knife
+		{
+			Vamp_Knife_Touch(entity, target);
+		}
+		case 21: //Vampire Knives thrown cleaver
+		{
+			Vamp_Cleaver_Touch_World(entity, target);
+		}
+		case WEAPON_QUINCY_BOW:
+		{
+			Quincy_Touch(entity, target);
+		}
+		case 23:
+		{
+			Event_GB_OnHatTouch(entity, target);
+		}
 		/*		
 		case WEAPON_LANTEAN:
 		{
@@ -220,6 +247,18 @@ public void Wand_Base_StartTouch(int entity, int other)
 			Cryo_Touch(entity, target);
 		}
 		*/
+		case WEAPON_GLADIIA:
+		{
+			Gladiia_WandTouch(entity, target);
+		}
+		case WEAPON_GERMAN:
+		{
+			Weapon_German_WandTouch(entity, target);
+		}
+		case WEAPON_SENSAL_SCYTHE:
+		{
+			Weapon_Sensal_WandTouch(entity, target);
+		}
 	}
 #else
 	switch(i_WandIdNumber[entity])

@@ -17,8 +17,6 @@ static float damage_multiplier[MAXENTITIES];
 static float mf_extra_damage[MAXENTITIES];
 static int coins_flipped[MAXTF2PLAYERS];
 
-#define ARROW_TRAIL_RED "effects/arrowtrail_red.vmt"
-
 //	if (Ability_Check_Cooldown(client, slot) < 0.0)
 //	{
 //		Ability_Apply_Cooldown(client, slot, 10.0);
@@ -176,15 +174,13 @@ public Action Coin_on_ground(Handle timer, int ref)
 		if (TR_DidHit())
 		{
 			AcceptEntityInput(entity, "break");
-			return Plugin_Handled;
+			return Plugin_Stop;
 		}
-				
 		return Plugin_Continue;
 	}
 	else
 	{
-		KillTimer(timer);
-		return Plugin_Handled;
+		return Plugin_Stop;
 	}
 }
 
@@ -213,14 +209,7 @@ public Action flip_extra(Handle timer, int client)
 		{
 		//	SetEntityCollisionGroup(entity, 2); //COLLISION_GROUP_DEBRIS_TRIGGER
 		//	SDKHook(entity, SDKHook_ShouldCollide, Gib_ShouldCollide);
-			for (int i = 0; i < ZR_MAX_LAG_COMP; i++) //Make them lag compensate
-			{
-				if (EntRefToEntIndex(i_Objects_Apply_Lagcompensation[i]) <= 0)
-				{
-					i_Objects_Apply_Lagcompensation[i] = EntIndexToEntRef(entity);
-					i = ZR_MAX_LAG_COMP;
-				}
-			}
+			AddEntityToLagCompList(entity);
 			b_IsAlliedNpc[entity] = true;
 			b_DoNotIgnoreDuringLagCompAlly[entity] = true;
 			Entity_Owner[entity] = client;
@@ -265,9 +254,7 @@ public Action flip_extra(Handle timer, int client)
 			
 			damage_multiplier[entity] = 40.0;
 			
-			Address address = TF2Attrib_GetByDefIndex(weapon, 2);
-			if(address != Address_Null)
-				damage_multiplier[entity] *= TF2Attrib_GetValue(address);
+			damage_multiplier[entity] *= Attributes_Get(weapon, 2, 1.0);
 				
 			damage_multiplier[entity] *= 2.0;
 			
@@ -666,7 +653,7 @@ stock int GetClosestTarget_Coin(int entity)
 				GetEntPropVector( new_entity, Prop_Data, "m_vecAbsOrigin", TargetLocation ); 
 				float distance = GetVectorDistance( EntityLocation, TargetLocation, true );  
 				
-				if(distance <= Pow(1300.0, 2.0))
+				if(distance <= (1300.0 * 1300.0))
 				{
 					if( TargetDistance ) 
 					{
@@ -707,7 +694,7 @@ stock int GetClosestTarget_Coin(int entity)
 				
 				HighestHealth = GetEntProp(new_entity, Prop_Data, "m_iHealth");
 				
-				if(distance <= Pow(1300.0, 2.0))
+				if(distance <= (1300.0 * 1300.0))
 				{
 					if( Health ) 
 					{

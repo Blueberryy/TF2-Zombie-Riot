@@ -1,6 +1,7 @@
 #pragma semicolon 1
 #pragma newdecls required
 
+#define DEEP_SEA_VORE_RANGE 250.0
 enum
 {
 	Buff_Founder = 0,
@@ -18,7 +19,7 @@ static const char RemainModels[][] =
 	"models/pickups/pickup_powerup_king.mdl",
 	"models/pickups/pickup_powerup_precision.mdl",
 	"models/pickups/pickup_powerup_agility.mdl",
-	"models/pickups/pickup_powerup_strength.mdl"
+	"models/pickups/pickup_powerup_strength_arm.mdl"
 };
 
 void Remain_MapStart()
@@ -48,6 +49,7 @@ methodmap Remains < CClotBody
 		i_NpcWeight[npc.index] = 999;
 		i_NpcIsABuilding[npc.index] = true;
 		b_NpcIsInvulnerable[npc.index] = true;
+		npc.m_bNoKillFeed = true;
 		
 		npc.m_iBleedType = 0;
 		npc.m_iStepNoiseType = 0;
@@ -88,7 +90,7 @@ public void Remains_ClotThink(int iNPC)
 	npc.m_flNextThinkTime = gameTime + 0.5;
 
 	float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.index);
-	spawnRing_Vectors(vecTarget, 500.0, 0.0, 0.0, 0.0, "materials/sprites/laserbeam.vmt", 50, 50, 255, 200, 1, 0.55, 6.0, 0.1, 1);
+	ShowScuffedRemainsCircle(vecTarget);
 }
 
 void Remains_SpawnDrop(float pos[3], int type)
@@ -101,4 +103,19 @@ void Remains_SpawnDrop(float pos[3], int type)
 void Remains_NPCDeath(int entity)
 {
 	SDKUnhook(entity, SDKHook_Think, Remains_ClotThink);
+}
+
+
+void ShowScuffedRemainsCircle(float vecTarget[3])
+{
+	spawnRing_Vectors(vecTarget, DEEP_SEA_VORE_RANGE * 2.0, 0.0, 0.0, 0.0, "materials/sprites/laserbeam.vmt", 50, 50, 255, 200, 1, 0.55, 6.0, 0.1, 1);
+	vecTarget[2] -= 50.0;
+	spawnRing_Vectors(vecTarget, DEEP_SEA_VORE_RANGE * 2.0 * 0.85, 0.0, 0.0, 0.0, "materials/sprites/laserbeam.vmt", 50, 50, 255, 200, 1, 0.55, 6.0, 0.1, 1);
+	vecTarget[2] -= 50.0;
+	spawnRing_Vectors(vecTarget, DEEP_SEA_VORE_RANGE * 2.0 * 0.60, 0.0, 0.0, 0.0, "materials/sprites/laserbeam.vmt", 50, 50, 255, 200, 1, 0.55, 6.0, 0.1, 1);
+	vecTarget[2] += 100.0;
+	vecTarget[2] += 50.0;
+	spawnRing_Vectors(vecTarget, DEEP_SEA_VORE_RANGE * 2.0 * 0.85, 0.0, 0.0, 0.0, "materials/sprites/laserbeam.vmt", 50, 50, 255, 200, 1, 0.55, 6.0, 0.1, 1);
+	vecTarget[2] += 50.0;
+	spawnRing_Vectors(vecTarget, DEEP_SEA_VORE_RANGE * 2.0 * 0.60, 0.0, 0.0, 0.0, "materials/sprites/laserbeam.vmt", 50, 50, 255, 200, 1, 0.55, 6.0, 0.1, 1);
 }

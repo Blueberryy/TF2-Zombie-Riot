@@ -71,7 +71,7 @@ methodmap BarrackVillager < BarrackBody
 	}
 	public BarrackVillager(int client, float vecPos[3], float vecAng[3], bool ally)
 	{
-		BarrackVillager npc = view_as<BarrackVillager>(BarrackBody(client, vecPos, vecAng, "1000"));
+		BarrackVillager npc = view_as<BarrackVillager>(BarrackBody(client, vecPos, vecAng, "1000",_,_,_,_,"models/pickups/pickup_powerup_king.mdl"));
 		
 		i_NpcInternalId[npc.index] = BARRACKS_VILLAGER;
 		i_NpcWeight[npc.index] = 1;
@@ -90,6 +90,7 @@ methodmap BarrackVillager < BarrackBody
 		VillagerRepairFocusLoc[npc.index][0] = 0.0;
 		VillagerRepairFocusLoc[npc.index][1] = 0.0;
 		VillagerRepairFocusLoc[npc.index][2] = 0.0;
+		b_DoNotChangeTargetTouchNpc[npc.index] = 1;
 		
 		npc.m_iWearable1 = npc.EquipItem("weapon_bone", "models/workshop/weapons/c_models/c_sledgehammer/c_sledgehammer.mdl");
 		SetVariantString("0.5");
@@ -106,6 +107,8 @@ public void BarrackVillager_ClotThink(int iNPC)
 	npc.m_flSpeed = 150.0;
 	if(BarrackBody_ThinkStart(npc.index, GameTime))
 	{
+		int client = GetClientOfUserId(npc.OwnerUserId);
+		BarrackVillager player = view_as<BarrackVillager>(client);
 		if(npc.i_VillagerSpecialCommand != Villager_Command_GatherResource)
 		{
 			if(IsValidEntity(npc.m_iWearable2))
@@ -131,11 +134,10 @@ public void BarrackVillager_ClotThink(int iNPC)
 			}
 		}
 
-		int client = GetClientOfUserId(npc.OwnerUserId);
 		//	npc.SetActivity("ACT_VILLAGER_BUILD_LOOP");
 		bool ListenToCustomCommands = true;
 		bool IngoreBarracksCommands = false;
-		int BuildingAlive = npc.m_iTowerLinked;
+		int BuildingAlive = player.m_iTowerLinked;
 		if(!IsValidEntity(BuildingAlive))
 		{
 			if(VillagerDesiredBuildLocation[npc.index][0] != 0.0 && npc.f_VillagerBuildCooldown < GameTime)
@@ -168,7 +170,6 @@ public void BarrackVillager_ClotThink(int iNPC)
 						VillagerDesiredBuildLocation[npc.index][2] = 0.0;
 						npc.f_VillagerBuildCooldown = GameTime + 120.0;
 						npc.m_iTowerLinked = spawn_index;
-						BarrackVillager player = view_as<BarrackVillager>(client);
 						player.m_iTowerLinked = spawn_index;
 						if(!b_IsAlliedNpc[iNPC])
 						{
@@ -183,6 +184,7 @@ public void BarrackVillager_ClotThink(int iNPC)
 			}
 			else if(IsValidClient(client))
 			{
+
 				if(npc.f_VillagerRemind < GameTime && npc.f_VillagerBuildCooldown < GameTime)
 				{
 					npc.f_VillagerRemind = GameTime + 10.0;
@@ -278,23 +280,7 @@ public void BarrackVillager_ClotThink(int iNPC)
 					float flDistanceToTarget = GetVectorDistance(VillagerRepairFocusLoc[npc.index], MePos, true);
 					if(flDistanceToTarget < (25.0*25.0))
 					{
-						// 1 Supply = 1 Food Every 2 Seconds, 1 Wood Every 4 Seconds
-						float SupplyRateCalc = SupplyRate[client] / (LastMann ? 20.0 : 40.0);
-
-						if(i_NormalBarracks_HexBarracksUpgrades[client] & ZR_BARRACKS_UPGRADES_CONSCRIPTION)
-						{
-							SupplyRateCalc *= 1.25;
-						}
-						WoodAmount[client] += SupplyRateCalc;
-						FoodAmount[client] += SupplyRateCalc * 2.0; //food is gained 2x as fast
-
-						// 1 Supply = 1 Gold Every 150 Seconds
-						float GoldSupplyRate = SupplyRate[client] / 1500.0;
-						if(i_NormalBarracks_HexBarracksUpgrades[client] & ZR_BARRACKS_UPGRADES_GOLDMINERS)
-						{
-							GoldSupplyRate *= 1.25;
-						}
-						GoldAmount[client] += GoldSupplyRate;
+						SummonerRenerateResources(client, 0.25, true);
 						if(npc.m_iChanged_WalkCycle != 7)
 						{
 							npc.m_iChanged_WalkCycle = 7;
@@ -317,15 +303,16 @@ public void BarrackVillager_ClotThink(int iNPC)
 				}
 				case Villager_Command_StandNearTower:
 				{
-					IngoreBarracksCommands = true;
 					if(BarracksVillager_RepairSelfTower(npc.index, BuildingAlive))
 					{
+						IngoreBarracksCommands = true;
 						//uhhh....
 					}
 					else
 					{
 						if(BuildingAlive > 0)
 						{
+							IngoreBarracksCommands = true;
 							float BuildingPos[3];
 							GetEntPropVector(BuildingAlive, Prop_Data, "m_vecOrigin", BuildingPos);
 							int Closest_Building = GetClosestBuildingVillager(npc.index, BuildingPos, (750.0 * 750.0));
@@ -388,10 +375,9 @@ public void BarrackVillager_ClotThink(int iNPC)
 				}
 				case Villager_Command_RepairFocus:
 				{
-					IngoreBarracksCommands = true;
 					if(BarracksVillager_RepairSelfTower(npc.index, BuildingAlive))
 					{
-
+						IngoreBarracksCommands = true;
 					}
 					else
 					{
@@ -429,6 +415,7 @@ public void BarrackVillager_ClotThink(int iNPC)
 						}
 						else
 						{
+							IngoreBarracksCommands = true;
 							BarracksVillager_RepairBuilding(npc.index, Closest_Building);
 							//building found thats hurt, repair.
 						}
@@ -469,7 +456,7 @@ bool BarracksVillager_RepairSelfTower(int entity, int tower)
 		return false;
 	}
 	bool BuldingCanBeRepaired = false;
-	if(flDistanceToTarget < (25.0*25.0))
+	if(flDistanceToTarget < (50.0*50.0))
 	{
 		BuldingCanBeRepaired = true;
 		npc.FaceTowards(BuildingPos, 10000.0); //build.
@@ -517,7 +504,7 @@ void BarracksVillager_RepairBuilding(int entity, int building)
 	//we have no building to repair! ahh!
 	//be lazy :)
 	bool BuldingCanBeRepaired = false;
-	if(flDistanceToTarget < (25.0*25.0))
+	if(flDistanceToTarget < (100.0*100.0))
 	{
 		BuldingCanBeRepaired = true;
 		npc.FaceTowards(BuildingPos, 10000.0); //build.
@@ -544,10 +531,15 @@ void BarracksVillager_RepairBuilding(int entity, int building)
 	{
 		if(GetEntProp(building, Prop_Data, "m_iHealth") < GetEntProp(building, Prop_Data, "m_iMaxHealth"))
 		{
-			SetEntProp(building, Prop_Data, "m_iHealth", GetEntProp(building, Prop_Data, "m_iHealth") + (GetEntProp(building, Prop_Data, "m_iMaxHealth") / 500));
-			if(GetEntProp(building, Prop_Data, "m_iHealth") >= GetEntProp(building, Prop_Data, "m_iMaxHealth"))
+			if(i_IsABuilding[building])
 			{
-				SetEntProp(building, Prop_Data, "m_iHealth", GetEntProp(building, Prop_Data, "m_iMaxHealth"));
+				int HealthToRepair = Building_Max_Health[building] / 750;
+				if(HealthToRepair < 1)
+				{
+					HealthToRepair = 1;
+				}
+				SetVariantInt(HealthToRepair);
+				AcceptEntityInput(building, "AddHealth");
 			}
 		}
 	}
@@ -559,14 +551,15 @@ void BarracksVillager_MenuSpecial(int client, int entity)
 
 	Menu menu = new Menu(BarrackVillager_MenuH);
 	menu.SetTitle("%t\n \n%t\n ", "TF2: Zombie Riot", NPC_Names[i_NpcInternalId[entity]]);
-
+	BarrackVillager player = view_as<BarrackVillager>(client);
 	char num[16];
 	IntToString(EntIndexToEntRef(entity), num, sizeof(num));
 	menu.AddItem(num, "Default Engagement", npc.i_VillagerSpecialCommand == Villager_Command_Default ? ITEMDRAW_DISABLED : ITEMDRAW_DEFAULT);
-	menu.AddItem(num, "Place Tower There", ITEMDRAW_DEFAULT);
+	menu.AddItem(num, "Place Tower There", IsValidEntity(player.m_iTowerLinked) ? ITEMDRAW_DISABLED : ITEMDRAW_DEFAULT);
 	menu.AddItem(num, "Repair This", npc.i_VillagerSpecialCommand == Villager_Command_RepairFocus ? ITEMDRAW_DISABLED : ITEMDRAW_DEFAULT);
-	menu.AddItem(num, "Gather Resources", npc.i_VillagerSpecialCommand == Villager_Command_GatherResource ? ITEMDRAW_DISABLED : ITEMDRAW_DEFAULT);
+	menu.AddItem(num, "Gather Resources", ITEMDRAW_DEFAULT);
 	menu.AddItem(num, "Stand Near Tower", npc.i_VillagerSpecialCommand == Villager_Command_StandNearTower ? ITEMDRAW_DISABLED : ITEMDRAW_DEFAULT);
+	menu.AddItem(num, "Destroy Tower", IsValidEntity(player.m_iTowerLinked) ? ITEMDRAW_DEFAULT : ITEMDRAW_DISABLED);
 
 	menu.Pagination = 0;
 	menu.ExitButton = true;
@@ -592,6 +585,7 @@ public int BarrackVillager_MenuH(Menu menu, MenuAction action, int client, int c
 			{
 				BarrackVillager npc = view_as<BarrackVillager>(entity);
 				float GameTime = GetGameTime(entity);
+				npc.m_flComeToMe = GameTime;
 
 				switch(choice)
 				{
@@ -606,7 +600,7 @@ public int BarrackVillager_MenuH(Menu menu, MenuAction action, int client, int c
 							float StartOrigin[3], Angles[3], vecPos[3];
 							GetClientEyeAngles(client, Angles);
 							GetClientEyePosition(client, StartOrigin);
-							Handle TraceRay = TR_TraceRayFilterEx(StartOrigin, Angles, (MASK_NPCSOLID_BRUSHONLY), RayType_Infinite, TraceRayProp);
+							Handle TraceRay = TR_TraceRayFilterEx(StartOrigin, Angles, (MASK_NPCSOLID_BRUSHONLY), RayType_Infinite, HitOnlyWorld);
 							if (TR_DidHit(TraceRay))
 								TR_GetEndPosition(vecPos, TraceRay);
 								
@@ -663,7 +657,7 @@ public int BarrackVillager_MenuH(Menu menu, MenuAction action, int client, int c
 						float StartOrigin[3], Angles[3], vecPos[3];
 						GetClientEyeAngles(client, Angles);
 						GetClientEyePosition(client, StartOrigin);
-						Handle TraceRay = TR_TraceRayFilterEx(StartOrigin, Angles, (MASK_NPCSOLID_BRUSHONLY), RayType_Infinite, TraceRayProp);
+						Handle TraceRay = TR_TraceRayFilterEx(StartOrigin, Angles, (MASK_NPCSOLID_BRUSHONLY), RayType_Infinite, HitOnlyWorld);
 						if (TR_DidHit(TraceRay))
 							TR_GetEndPosition(vecPos, TraceRay);
 								
@@ -679,7 +673,7 @@ public int BarrackVillager_MenuH(Menu menu, MenuAction action, int client, int c
 						float StartOrigin[3], Angles[3], vecPos[3];
 						GetClientEyeAngles(client, Angles);
 						GetClientEyePosition(client, StartOrigin);
-						Handle TraceRay = TR_TraceRayFilterEx(StartOrigin, Angles, (MASK_NPCSOLID_BRUSHONLY), RayType_Infinite, TraceRayProp);
+						Handle TraceRay = TR_TraceRayFilterEx(StartOrigin, Angles, (MASK_NPCSOLID_BRUSHONLY), RayType_Infinite, HitOnlyWorld);
 						if (TR_DidHit(TraceRay))
 							TR_GetEndPosition(vecPos, TraceRay);
 								
@@ -693,6 +687,14 @@ public int BarrackVillager_MenuH(Menu menu, MenuAction action, int client, int c
 					case 4:
 					{
 						npc.i_VillagerSpecialCommand = Villager_Command_StandNearTower;
+					}
+					case 5:
+					{
+						BarrackVillager player = view_as<BarrackVillager>(client);
+						if(IsValidEntity(player.m_iTowerLinked))
+						{
+							RequestFrame(KillNpc, EntIndexToEntRef(player.m_iTowerLinked));
+						}
 					}
 				}
 				BarracksVillager_MenuSpecial(client, npc.index);

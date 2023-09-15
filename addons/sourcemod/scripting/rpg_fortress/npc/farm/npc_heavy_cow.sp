@@ -135,7 +135,7 @@ public void FarmCow_ClotThink(int iNPC)
 	GetEntPropVector(npc.index, Prop_Data, "m_vecAbsOrigin", vecTarget);
 
 	float fl_DistanceToOriginalSpawn = GetVectorDistance(vecTarget, f3_PositionArrival[npc.index], true);
-	if(fl_DistanceToOriginalSpawn < Pow(80.0, 2.0)) //We are too far away from our home! return!
+	if(fl_DistanceToOriginalSpawn < (80.0 * 80.0)) //We are too far away from our home! return!
 	{
 		npc.m_bisWalking = false;
 		npc.SetActivity("ACT_MP_STAND_MELEE");
@@ -164,8 +164,8 @@ public void FarmCow_ClotThink(int iNPC)
 		AproxRandomSpaceToWalkTo[0] = GetRandomFloat((AproxRandomSpaceToWalkTo[0] - 400.0),(AproxRandomSpaceToWalkTo[0] + 400.0));
 		AproxRandomSpaceToWalkTo[1] = GetRandomFloat((AproxRandomSpaceToWalkTo[1] - 400.0),(AproxRandomSpaceToWalkTo[1] + 400.0));
 		
-		if(!PF_IsPathToVectorPossible(iNPC, AproxRandomSpaceToWalkTo))
-			return;
+//		if(!PF_IsPathToVectorPossible(iNPC, AproxRandomSpaceToWalkTo))
+//			return;
 			
 
 		Handle ToGroundTrace = TR_TraceRayFilterEx(AproxRandomSpaceToWalkTo, view_as<float>( { 90.0, 0.0, 0.0 } ), npc.GetSolidMask(), RayType_Infinite, BulletAndMeleeTrace, npc.index);

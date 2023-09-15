@@ -247,13 +247,8 @@ void Stats_SetWeaponStats(int client, int entity, int slot)
 		float multi = AgilityMulti(Agility[client]);
 		//Agility code.
 
-		Address address = TF2Attrib_GetByDefIndex(entity, 6);
-		if(address != Address_Null)
-			TF2Attrib_SetByDefIndex(entity, 6, TF2Attrib_GetValue(address) * multi);
-
-		address = TF2Attrib_GetByDefIndex(entity, 96);
-		if(address != Address_Null)
-			TF2Attrib_SetByDefIndex(entity, 96, TF2Attrib_GetValue(address) * multi);
+		Attributes_SetMulti(entity, 6, multi);
+		Attributes_SetMulti(entity, 96, multi);
 	}
 
 	if(slot < TFWeaponSlot_Melee || i_IsWrench[entity])
@@ -261,9 +256,7 @@ void Stats_SetWeaponStats(int client, int entity, int slot)
 		int stat = Stats_Dexterity(client);
 		if(stat)
 		{
-			Address address = TF2Attrib_GetByDefIndex(entity, 2);
-			if(address != Address_Null)
-				TF2Attrib_SetByDefIndex(entity, 2, TF2Attrib_GetValue(address) * (1.0 + (stat / 50.0)));
+			Attributes_SetMulti(entity, 2, 1.0 + (stat / 50.0));
 		}
 	}
 	else if(i_IsWandWeapon[entity])
@@ -271,9 +264,7 @@ void Stats_SetWeaponStats(int client, int entity, int slot)
 		int stat = Stats_Intelligence(client);
 		if(stat)
 		{
-			Address address = TF2Attrib_GetByDefIndex(entity, 410);
-			if(address != Address_Null)
-				TF2Attrib_SetByDefIndex(entity, 410, TF2Attrib_GetValue(address) * (1.0 + (stat / 50.0)));
+			Attributes_SetMulti(entity, 410, 1.0 + (stat / 50.0));
 		}
 	}
 	else if(slot == TFWeaponSlot_Melee)
@@ -281,9 +272,7 @@ void Stats_SetWeaponStats(int client, int entity, int slot)
 		int stat = Stats_Strength(client);
 		if(stat)
 		{
-			Address address = TF2Attrib_GetByDefIndex(entity, 2);
-			if(address != Address_Null)
-				TF2Attrib_SetByDefIndex(entity, 2, TF2Attrib_GetValue(address) * (1.0 + (stat / 50.0)));
+			Attributes_SetMulti(entity, 2, 1.0 + (stat / 50.0));
 		}
 	}
 }
@@ -490,12 +479,12 @@ public Action Stats_ShowStats(int client, int args)
 
 		char buffer[64];
 
-		float vuln = Attributes_FindOnPlayer(client, 412, true, 1.0) * 100.0;
+		float vuln = Attributes_FindOnPlayerZR(client, 412, true, 1.0) * 100.0;
 
 		int amount;
 		Stats_BaseHealth(client, amount);
 		int bonus = SDKCall_GetMaxHealth(client) - amount;
-		FormatEx(buffer, sizeof(buffer), "Max Health: %d + %d (%.0f%% melee dmg, %.0f%% ranged dmg)", amount, bonus, vuln * Attributes_FindOnPlayer(client, 206, true, 1.0, true, true), vuln * Attributes_FindOnPlayer(client, 205, true, 1.0, true, true));
+		FormatEx(buffer, sizeof(buffer), "Max Health: %d + %d (%.0f%% melee dmg, %.0f%% ranged dmg)", amount, bonus, vuln * Attributes_FindOnPlayerZR(client, 206, true, 1.0, true, true), vuln * Attributes_FindOnPlayerZR(client, 205, true, 1.0, true, true));
 		menu.AddItem(NULL_STRING, buffer);
 
 		Stats_BaseCarry(client, amount, bonus);

@@ -314,6 +314,11 @@ methodmap TrueFusionWarrior < CClotBody
 		
 		float amount_of_people = float(CountPlayersOnRed());
 		
+		if(amount_of_people > 12.0)
+		{
+			amount_of_people = 12.0;
+		}
+		
 		amount_of_people *= 0.12;
 		
 		if(amount_of_people < 1.0)
@@ -400,7 +405,7 @@ methodmap TrueFusionWarrior < CClotBody
 		npc.m_flNextPull = GetGameTime(npc.index) + 5.0;
 		npc.m_bInKame = false;
 		
-		Citizen_MiniBossSpawn(npc.index);
+		Citizen_MiniBossSpawn();
 		Building_RaidSpawned(npc.index);
 		return npc;
 	}
@@ -534,7 +539,7 @@ public void TrueFusionWarrior_ClotThink(int iNPC)
 				npc.FaceTowards(vecTarget, 100.0);
 				NPC_StopPathing(npc.index);
 				npc.m_bPathing = false;
-				npc.SetActivity("ACT_MP_CROUCH_MELEE");
+				npc.SetActivity("ACT_MP_STAND_LOSERSTATE");
 				npc.m_bInKame = false;
 				npc.m_bisWalking = false;
 				for(int client=1; client<=MaxClients; client++)
@@ -551,7 +556,7 @@ public void TrueFusionWarrior_ClotThink(int iNPC)
 				}
 				if(GetGameTime() > f_TimeSinceHasBeenHurt[npc.index])
 				{
-					CPrintToChatAll("{gold}Silvester{default}: I thank you for your acceptance, i will help you eventually as a gift of kindness...");
+					CPrintToChatAll("{gold}Silvester{default}: You will get soon in touch with a friend of mine, i thank you, and beware of the rogue machine... {red}Blitzkrieg.");
 					npc.m_bDissapearOnDeath = true;
 
 					RequestFrame(KillNpc, EntIndexToEntRef(npc.index));
@@ -559,7 +564,7 @@ public void TrueFusionWarrior_ClotThink(int iNPC)
 					{
 						if(IsValidClient(client) && GetClientTeam(client) == 2 && TeutonType[client] != TEUTON_WAITING)
 						{
-							GiveNamedItem(client, "Cured Silvester");
+							Items_GiveNamedItem(client, "Cured Silvester");
 							CPrintToChat(client,"{default}You gained his favor, you obtained: {yellow}''Cured Silvester''{default}!");
 						}
 					}
@@ -567,22 +572,22 @@ public void TrueFusionWarrior_ClotThink(int iNPC)
 				else if(GetGameTime() + 5.0 > f_TimeSinceHasBeenHurt[npc.index] && i_SaidLineAlready[npc.index] < 4)
 				{
 					i_SaidLineAlready[npc.index] = 4;
-					CPrintToChatAll("{gold}Silvester{default}: ...You can cure this world, you cured me.");
+					CPrintToChatAll("{gold}Silvester{default}: Help the world, retain the chaos!");
 				}
 				else if(GetGameTime() + 10.0 > f_TimeSinceHasBeenHurt[npc.index] && i_SaidLineAlready[npc.index] < 3)
 				{
 					i_SaidLineAlready[npc.index] = 3;
-					CPrintToChatAll("{gold}Silvester{default}: ...You know, fusion warrior isn't my name");
+					CPrintToChatAll("{gold}Silvester{default}: I thank you, but i will need help from you later, and i will warn you of dangers.");
 				}
 				else if(GetGameTime() + 13.0 > f_TimeSinceHasBeenHurt[npc.index] && i_SaidLineAlready[npc.index] < 2)
 				{
 					i_SaidLineAlready[npc.index] = 2;
-					CPrintToChatAll("{gold}Silvester{default}: Why...");
+					CPrintToChatAll("{gold}Silvester{default}: A huge chaos is breaking out, you were able to knock some sense into me..!");
 				}
 				else if(GetGameTime() + 16.5 > f_TimeSinceHasBeenHurt[npc.index] && i_SaidLineAlready[npc.index] < 1)
 				{
 					i_SaidLineAlready[npc.index] = 1;
-					CPrintToChatAll("{gold}Silvester{default}: What are you waiting for..?");
+					CPrintToChatAll("{gold}Silvester{default}: Listen to me, please!");
 				}
 				return; //He is trying to help.
 			}
@@ -639,7 +644,7 @@ public void TrueFusionWarrior_ClotThink(int iNPC)
 				}
 			}
 			
-			if (npc.m_flNextRangedAttack < GetGameTime(npc.index) && flDistanceToTarget < Pow(500.0, 2.0) || (npc.m_bInKame && npc.m_flNextRangedAttack < GetGameTime(npc.index)))
+			if (npc.m_flNextRangedAttack < GetGameTime(npc.index) && flDistanceToTarget < (500.0 * 500.0) || (npc.m_bInKame && npc.m_flNextRangedAttack < GetGameTime(npc.index)))
 			{
 				if (!npc.Anger)
 				{
@@ -690,6 +695,7 @@ public void TrueFusionWarrior_ClotThink(int iNPC)
 														
 									TF2_AddCondition(client, TFCond_LostFooting, 0.5);
 									TF2_AddCondition(client, TFCond_AirCurrent, 0.5);
+									f_ImmuneToFalldamage[client] = GetGameTime() + 5.0;
 															
 									GetAngleVectors(vAngles, vDirection, NULL_VECTOR, NULL_VECTOR);
 														
@@ -738,6 +744,8 @@ public void TrueFusionWarrior_ClotThink(int iNPC)
 														
 									TF2_AddCondition(client, TFCond_LostFooting, 0.5);
 									TF2_AddCondition(client, TFCond_AirCurrent, 0.5);
+									
+									f_ImmuneToFalldamage[client] = GetGameTime() + 5.0;
 															
 									GetAngleVectors(vAngles, vDirection, NULL_VECTOR, NULL_VECTOR);
 											
@@ -764,7 +772,7 @@ public void TrueFusionWarrior_ClotThink(int iNPC)
 			}
 									
 									
-			if(npc.m_flNextRangedBarrage_Spam < GetGameTime(npc.index) && npc.m_flNextRangedBarrage_Singular < GetGameTime(npc.index) && flDistanceToTarget < Pow(500.0, 2.0) || (npc.m_bInKame && npc.m_flNextRangedAttack < GetGameTime(npc.index)))
+			if(npc.m_flNextRangedBarrage_Spam < GetGameTime(npc.index) && npc.m_flNextRangedBarrage_Singular < GetGameTime(npc.index) && flDistanceToTarget < (500.0 * 500.0) || (npc.m_bInKame && npc.m_flNextRangedAttack < GetGameTime(npc.index)))
 			{
 				if (!npc.Anger)
 				{
@@ -806,7 +814,7 @@ public void TrueFusionWarrior_ClotThink(int iNPC)
 					}
 				}
 			}
-			if(npc.m_flNextTeleport < GetGameTime(npc.index) && flDistanceToTarget > Pow(125.0, 2.0) && flDistanceToTarget < Pow(500.0, 2.0) && !npc.m_bInKame && ZR_GetWaveCount()+1 > 40)
+			if(npc.m_flNextTeleport < GetGameTime(npc.index) && flDistanceToTarget > (125.0* 125.0) && flDistanceToTarget < (500.0 * 500.0) && !npc.m_bInKame && ZR_GetWaveCount()+1 > 40)
 			{
 				static float flVel[3];
 				GetEntPropVector(closest, Prop_Data, "m_vecVelocity", flVel);
@@ -857,7 +865,7 @@ public void TrueFusionWarrior_ClotThink(int iNPC)
 				}
 			}
 			//Target close enough to hit
-			if(flDistanceToTarget < Pow(125.0, 2.0) && !npc.m_bInKame || npc.m_flAttackHappenswillhappen)
+			if(flDistanceToTarget < (125.0* 125.0) && !npc.m_bInKame || npc.m_flAttackHappenswillhappen)
 			{
 				//Look at target so we hit.
 				//Can we attack right now?
@@ -900,10 +908,10 @@ public void TrueFusionWarrior_ClotThink(int iNPC)
 									}
 
 									if(!npc.Anger)
-										SDKHooks_TakeDamage(target, npc.index, npc.index, damage * RaidModeScaling, DMG_CLUB, -1, _, vecHit);
+										SDKHooks_TakeDamage(target, npc.index, npc.index, damage * RaidModeScaling * 0.85, DMG_CLUB, -1, _, vecHit);
 											
 									if(npc.Anger)
-										SDKHooks_TakeDamage(target, npc.index, npc.index, damage_rage * RaidModeScaling, DMG_CLUB, -1, _, vecHit);									
+										SDKHooks_TakeDamage(target, npc.index, npc.index, damage_rage * RaidModeScaling * 0.85, DMG_CLUB, -1, _, vecHit);									
 										
 									
 									// Hit particle
@@ -968,17 +976,8 @@ public Action TrueFusionWarrior_OnTakeDamage(int victim, int &attacker, int &inf
 	
 	if(b_angered_twice[npc.index]) //Ignore teutons during this. they might ruin it.
 	{
-		if(IsValidClient(attacker))
-		{
-			if(TeutonType[attacker] != TEUTON_NONE)
-			{
-				return Plugin_Handled;
-			}
-		}
-		else //Ignore any atacker that isnt a player, they might ruin this, like grigori.
-		{
-			return Plugin_Handled;
-		}
+		damage = 0.0;
+		return Plugin_Handled;
 	}
 
 	if (npc.m_flHeadshotCooldown < GetGameTime(npc.index))
@@ -1011,12 +1010,10 @@ public Action TrueFusionWarrior_OnTakeDamage(int victim, int &attacker, int &inf
 		SetVariantColor(view_as<int>({255, 255, 0, 200}));
 		AcceptEntityInput(npc.m_iTeamGlow, "SetGlowColor");
 	}
-	if(ZR_GetWaveCount()+1 > 55 && !b_angered_twice[npc.index])
+	if(ZR_GetWaveCount()+1 > 55 && !b_angered_twice[npc.index] && !Waves_InFreeplay())
 	{
-		if((GetEntProp(npc.index, Prop_Data, "m_iMaxHealth")/20) >= GetEntProp(npc.index, Prop_Data, "m_iHealth")) //npc.Anger after half hp/400 hp
+		if(((GetEntProp(npc.index, Prop_Data, "m_iMaxHealth")/20) >= GetEntProp(npc.index, Prop_Data, "m_iHealth")) || (RoundToCeil(damage) >= GetEntProp(npc.index, Prop_Data, "m_iHealth"))) //npc.Anger after half hp/400 hp
 		{
-			damage = 0.0; //So he doesnt get oneshot somehow, atleast once.
-
 			b_ThisEntityIgnoredByOtherNpcsAggro[npc.index] = true; //Make allied npcs ignore him.
 
 			ReviveAll(true);
@@ -1025,6 +1022,9 @@ public Action TrueFusionWarrior_OnTakeDamage(int victim, int &attacker, int &inf
 			RaidModeTime += 60.0;
 
 			f_NpcImmuneToBleed[npc.index] = GetGameTime() + 1.0;
+			b_NpcIsInvulnerable[npc.index] = true;
+			GiveProgressDelay(20.0);
+			RemoveNpcFromEnemyList(npc.index);
 
 			StopSound(npc.index,SNDCHAN_STATIC,"weapons/physcannon/energy_sing_loop4.wav");
 			StopSound(npc.index, SNDCHAN_STATIC, "weapons/physcannon/energy_sing_loop4.wav");
@@ -1033,7 +1033,7 @@ public Action TrueFusionWarrior_OnTakeDamage(int victim, int &attacker, int &inf
 
 			SDKUnhook(npc.index, SDKHook_Think, TrueFusionWarrior_TBB_Tick);
 
-			CPrintToChatAll("{gold}Silvester{default}: ...End this before its too late...");
+			CPrintToChatAll("{gold}Silvester{default}: Stop, Stop please i beg you, i was infected!!");
 			int i = MaxClients + 1;
 			while((i = FindEntityByClassname(i, "obj_sentrygun")) != -1)
 			{
@@ -1063,6 +1063,8 @@ public Action TrueFusionWarrior_OnTakeDamage(int victim, int &attacker, int &inf
 		
 			npc.m_iWearable6 = ParticleEffectAt_Parent(flPos, "utaunt_astralbodies_greenorange_parent", npc.index, "head", {0.0,0.0,0.0});
 */
+			damage = 0.0; //So he doesnt get oneshot somehow, atleast once.
+			return Plugin_Handled;
 		}
 	}
 	if(f_NpcImmuneToBleed[npc.index] > GetGameTime())
@@ -1260,9 +1262,6 @@ public bool FusionWarrior_BEAM_TraceWallsOnly(int entity, int contentsMask)
 {
 	return !entity;
 }
-#define MAX_PLAYERS (MAX_PLAYERS_ARRAY < (MaxClients + 1) ? MAX_PLAYERS_ARRAY : (MaxClients + 1))
-#define MAX_PLAYERS_ARRAY 36
-
 
 public bool FusionWarrior_BEAM_TraceUsers(int entity, int contentsMask, int client)
 {
@@ -1305,8 +1304,6 @@ static void FusionWarrior_GetBeamDrawStartPoint(int client, float startPoint[3])
 	startPoint[1] += actualBeamOffset[1];
 	startPoint[2] += actualBeamOffset[2];
 }
-
-#define MAXTF2PLAYERS	36
 
 public Action TrueFusionWarrior_TBB_Tick(int client)
 {

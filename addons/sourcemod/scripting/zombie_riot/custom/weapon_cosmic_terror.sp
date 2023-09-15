@@ -168,17 +168,9 @@ public void Cosmic_Activate(int client, int weapon)
 		if(weapon >= MaxClients)
 		{
 			Cosmic_DMG[client]=100.0;
-			Address address = TF2Attrib_GetByDefIndex(weapon, 1);
-			if(address != Address_Null)
-				Cosmic_DMG[client] *= TF2Attrib_GetValue(address);
-					
-			address = TF2Attrib_GetByDefIndex(weapon, 2);
-			if(address != Address_Null)
-				Cosmic_DMG[client] *= TF2Attrib_GetValue(address);
-			
-			address = TF2Attrib_GetByDefIndex(weapon, 476);
-			if(address != Address_Null)
-				Cosmic_DMG[client] *= TF2Attrib_GetValue(address);
+			Cosmic_DMG[client] *= Attributes_Get(weapon, 1, 1.0);
+			Cosmic_DMG[client] *= Attributes_Get(weapon, 2, 1.0);
+			Cosmic_DMG[client] *= Attributes_Get(weapon, 476, 1.0);
 			
 			CosmicActualDamage[client] = Cosmic_DMG[client];
 			
@@ -439,7 +431,7 @@ void Cosmic_Terror_Charging(int client)
 		Cosmic_Terror_Trace_Delay[client] = gametime + 0.1;
 		Handle trace = TR_TraceRayFilterEx(EyeLoc, SpawnLoc, MASK_SHOT, RayType_Infinite, BulletAndMeleeTrace, client);
 		TR_GetEndPosition(SpawnLoc, trace);
-		CloseHandle(trace);
+		delete trace;
 		
 		int pitch = 25+100-RoundToFloor(100*(offset));
 		EmitSoundToClient(client, SND_WELD_SOUND ,_, SNDCHAN_STATIC, 100, _, 0.2, pitch);
@@ -600,7 +592,7 @@ void Cosmic_Terror_FullCharge(int client)
 		Cosmic_Terror_Trace_Delay[client] = gametime + 0.33;
 		Handle trace = TR_TraceRayFilterEx(EyeLoc, SpawnLoc, MASK_SHOT, RayType_Infinite, BulletAndMeleeTrace, client);
 		TR_GetEndPosition(SpawnLoc, trace);
-		CloseHandle(trace);
+		delete trace;
 		Cosmic_Terror_Last_Known_Loc[client] = SpawnLoc;
 	}
 		

@@ -1,43 +1,279 @@
 #pragma semicolon 1
 #pragma newdecls required
 
-#define ENFORCER_MAX_TARGETS		10
-#define ENFORCER_MAX_RANGE		200
-#define ENFORCER_MAX_BOUNDS		45.0
-#define ENFORCER_WEIGHT_PER_HEALTH	1000	// Every X health is 1 weight level for the enemy
-#define ENFORCER_KNOCKBACK		750.0	// Knockback when push level and enemy weight is the same
-#define ENFORCER_STUN_RATIO		0.00125	// Knockback converted into stun duration
+static Handle HealingTimer[MAXTF2PLAYERS] = {INVALID_HANDLE, ...};
+static int ParticleRef[MAXTF2PLAYERS] = {-1, ...};
 
-static int EnemiesHit[ENFORCER_MAX_TARGETS];
-static int EliteLevel[MAXTF2PLAYERS]
+static Handle WeaponTimer[MAXTF2PLAYERS] = {INVALID_HANDLE, ...};
+static int WeaponRef[MAXTF2PLAYERS];
+static int WeaponCharge[MAXTF2PLAYERS];
+static int EliteLevel[MAXTF2PLAYERS];
+
+void Gladiia_MapStart()
+{
+	Zero(WeaponCharge);
+	PrecacheSound("weapons/grappling_hook_reel_stop.wav");
+	PrecacheSound("weapons/grappling_hook_impact_flesh.wav");
+	PrecacheSound("weapons/grappling_hook_shoot.wav");
+}
 
 void Gladiia_Enable(int client, int weapon)
 {
 	switch(i_CustomWeaponEquipLogic[weapon])
 	{
+		case WEAPON_OCEAN, WEAPON_SPECTER:
+		{
+			if (HealingTimer[client] != INVALID_HANDLE)
+			{
+				KillTimer(HealingTimer[client]);
+			}
+			HealingTimer[client] = INVALID_HANDLE;
+
+			HealingTimer[client] = CreateTimer(0.1, Gladiia_TimerHealing, client, TIMER_REPEAT);
+		}
 		case WEAPON_GLADIIA:
 		{
-			WeaponRef[client] = EntIndexToEntRef(weapon);
-			delete WeaponTimer[client];
+			if (HealingTimer[client] != INVALID_HANDLE)
+			{
+				KillTimer(HealingTimer[client]);
+			}
+			HealingTimer[client] = INVALID_HANDLE;
 
-			Address address = TF2Attrib_GetByDefIndex(weapon, 861);
-			if(address == Address_Null)
+			HealingTimer[client] = CreateTimer(0.1, Gladiia_TimerHealing, client, TIMER_REPEAT);
+
+			WeaponRef[client] = EntIndexToEntRef(weapon);
+			if (WeaponTimer[client] != INVALID_HANDLE)
 			{
-				// Elite 0 Special 1
-				WeaponTimer[client] = CreateTimer(3.5, Saga_Timer1, client, TIMER_REPEAT);
+				KillTimer(WeaponTimer[client]);
 			}
-			else if(!TF2Attrib_GetValue(address))
+			WeaponTimer[client] = INVALID_HANDLE;
+
+			float value = Attributes_Get(weapon, 861, -1.0);
+			
+			switch(RoundFloat(value))
 			{
-				// Elite 1 Special 2
-				WeaponTimer[client] = CreateTimer(1.0, Saga_Timer2, client, TIMER_REPEAT);
-			}
-			else
-			{
-				// Elite 1 Special 3
-				WeaponTimer[client] = CreateTimer(1.0, Saga_Timer3, client, TIMER_REPEAT);
+				case 0:
+				{
+					// E1 S1 L7
+					WeaponTimer[client] = CreateTimer(1.0, Gladiia_TimerS1L7, client, TIMER_REPEAT);
+					EliteLevel[client] = 1;
+				}
+				case 1:
+				{
+					// E2 S1 L8
+					WeaponTimer[client] = CreateTimer(1.0, Gladiia_TimerS1L8, client, TIMER_REPEAT);
+					EliteLevel[client] = 2;
+				}
+				case 2:
+				{
+					// E2 S1 L10
+					WeaponTimer[client] = CreateTimer(1.0, Gladiia_TimerS1L10, client, TIMER_REPEAT);
+					EliteLevel[client] = 2;
+				}
+				case 3:
+				{
+					// E2 S1 L10 M3
+					WeaponTimer[client] = CreateTimer(1.0, Gladiia_TimerS1L10, client, TIMER_REPEAT);
+					EliteLevel[client] = 3;
+				}
+				default:
+				{
+					// E0 S1 L4
+					WeaponTimer[client] = CreateTimer(1.0, Gladiia_TimerS1L4, client, TIMER_REPEAT);
+					EliteLevel[client] = 0;
+				}
 			}
 		}
 	}
+}
+
+bool Gladiia_HasCharge(int client, int weapon)
+{
+	return (WeaponTimer[client] && EntRefToEntIndex(WeaponRef[client]) == weapon);
+}
+
+void Gladiia_ChargeReduction(int client, int weapon, float time)
+{
+	if(Gladiia_HasCharge(client, weapon))
+		WeaponCharge[client] += RoundFloat(time);
+}
+
+public Action Gladiia_TimerHealing(Handle timer, int client)
+{
+	if(IsClientInGame(client))
+	{
+		if(!dieingstate[client])
+		{
+			int weapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+			if(weapon != INVALID_ENT_REFERENCE)
+			{
+				switch(i_CustomWeaponEquipLogic[weapon])
+				{
+					case WEAPON_OCEAN, WEAPON_SPECTER, WEAPON_GLADIIA:
+					{
+						float amount = 0.0;
+						int elite = EliteLevel[GetHighestGladiiaClient()];
+						switch(elite)
+						{
+							case 1:
+							{
+								amount = 0.0015;
+							}
+							case 2:
+							{
+								amount = 0.0025;
+							}
+							case 3:
+							{
+								amount = 0.0035;
+							}
+						}
+
+						if(amount)
+						{
+							int maxhealth = SDKCall_GetMaxHealth(client);
+							if(maxhealth > 1000)
+								maxhealth = 1000;
+							
+							if(f_TimeUntillNormalHeal[client] > GetGameTime())
+								amount *= 0.25;
+
+							amount *= float(maxhealth);
+
+							StartHealingTimer(client, 0.0, amount);
+
+							if(ParticleRef[client] == -1)
+							{
+								int entity = ParticleEffectAt(WorldSpaceCenter(client), "env_rain_128", -1.0);
+								if(entity > MaxClients)
+								{
+									SetParent(client, entity);
+									ParticleRef[client] = EntIndexToEntRef(entity);
+								}
+							}
+
+							return Plugin_Continue;
+						}
+					}
+				}
+			}
+		}
+		
+		if(ParticleRef[client] != -1)
+		{
+			int entity = EntRefToEntIndex(ParticleRef[client]);
+			if(entity > MaxClients)
+				RemoveEntity(entity);
+
+			ParticleRef[client] = -1;
+		}
+
+		return Plugin_Continue;
+	}
+
+	HealingTimer[client] = INVALID_HANDLE;
+	EliteLevel[client] = 0;
+	return Plugin_Stop;
+}
+
+public Action Gladiia_TimerS1L4(Handle timer, int client)
+{
+	if(IsClientInGame(client))
+	{
+		int weapon = EntRefToEntIndex(WeaponRef[client]);
+		if(weapon != INVALID_ENT_REFERENCE)
+		{
+			if(weapon == GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon"))
+			{
+				if(++WeaponCharge[client] > 24)
+					WeaponCharge[client] = 24;
+				
+				PrintHintText(client, "Parting of the Great Ocean [%d / 2] {%ds}", WeaponCharge[client] / 12, 12 - (WeaponCharge[client] % 12));
+				StopSound(client, SNDCHAN_STATIC, "UI/hint.wav");
+			}
+
+			return Plugin_Continue;
+		}
+	}
+
+	WeaponTimer[client] = INVALID_HANDLE;
+	EliteLevel[client] = 0;
+	return Plugin_Stop;
+}
+
+public Action Gladiia_TimerS1L7(Handle timer, int client)
+{
+	if(IsClientInGame(client))
+	{
+		int weapon = EntRefToEntIndex(WeaponRef[client]);
+		if(weapon != INVALID_ENT_REFERENCE)
+		{
+			if(weapon == GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon"))
+			{
+				if(++WeaponCharge[client] > 20)
+					WeaponCharge[client] = 20;
+				
+				PrintHintText(client, "Parting of the Great Ocean [%d / 2] {%ds}", WeaponCharge[client] / 10, 10 - (WeaponCharge[client] % 10));
+				StopSound(client, SNDCHAN_STATIC, "UI/hint.wav");
+			}
+
+			return Plugin_Continue;
+		}
+	}
+
+	WeaponTimer[client] = INVALID_HANDLE;
+	EliteLevel[client] = 0;
+	return Plugin_Stop;
+}
+
+public Action Gladiia_TimerS1L8(Handle timer, int client)
+{
+	if(IsClientInGame(client))
+	{
+		int weapon = EntRefToEntIndex(WeaponRef[client]);
+		if(weapon != INVALID_ENT_REFERENCE)
+		{
+			if(weapon == GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon"))
+			{
+				if(++WeaponCharge[client] > 30)
+					WeaponCharge[client] = 30;
+				
+				PrintHintText(client, "Parting of the Great Ocean [%d / 3] {%ds}", WeaponCharge[client] / 10, 10 - (WeaponCharge[client] % 10));
+				StopSound(client, SNDCHAN_STATIC, "UI/hint.wav");
+			}
+
+			return Plugin_Continue;
+		}
+	}
+
+	WeaponTimer[client] = INVALID_HANDLE;
+	EliteLevel[client] = 0;
+	return Plugin_Stop;
+}
+
+public Action Gladiia_TimerS1L10(Handle timer, int client)
+{
+	if(IsClientInGame(client))
+	{
+		int weapon = EntRefToEntIndex(WeaponRef[client]);
+		if(weapon != INVALID_ENT_REFERENCE)
+		{
+			if(weapon == GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon"))
+			{
+				if(++WeaponCharge[client] > 24)
+					WeaponCharge[client] = 24;
+				
+				PrintHintText(client, "Parting of the Great Ocean [%d / 3] {%ds}", WeaponCharge[client] / 8, 8 - (WeaponCharge[client] % 8));
+				StopSound(client, SNDCHAN_STATIC, "UI/hint.wav");
+			}
+
+			return Plugin_Continue;
+		}
+	}
+
+	WeaponTimer[client] = INVALID_HANDLE;
+	EliteLevel[client] = 0;
+	return Plugin_Stop;
 }
 
 void Gladiia_OnTakeDamageEnemy(int victim, int attacker, float &damage)
@@ -56,16 +292,16 @@ float Gladiia_OnTakeDamageSelf(int victim, int attacker, float damage)
 		case 1:
 		{
 			if(i_BleedType[attacker] == BLEEDTYPE_SEABORN)
-				return damage * 0.85;
+				return damage * 0.925;//0.85;
 		}
 		case 2:
 		{
 			if(i_BleedType[attacker] == BLEEDTYPE_SEABORN)
-				return damage * 0.75;
+				return damage * 0.875;//0.75;
 		}
 		case 3:
 		{
-			return damage * 0.7;
+			return damage * 0.85;//0.7;
 		}
 	}
 
@@ -77,193 +313,137 @@ float Gladiia_OnTakeDamageAlly(int victim, int attacker, float damage)
 	if(EliteLevel[victim])	// Being two fishes are we?
 		return damage;
 	
+	return Gladiia_OnTakeDamageSelf(GetHighestGladiiaClient(), attacker, damage);
+}
+
+static int GetHighestGladiiaClient()
+{
 	int highest;
 	for(int client = 1; client <= MaxClients; client++)
 	{
-		if(EliteLevel[client] > EliteLevel[highest])
+		if(EliteLevel[client] > EliteLevel[highest] && TeutonType[client] == TEUTON_NONE)
 			highest = client;
 	}
 
-	return Gladiia_OnTakeDamageSelf(client, attacker, damage);
+	return highest;
 }
 
-public void Weapon_Enforcer_M2_Weight2(int client, int weapon, bool crit, int slot)
+public void Weapon_Gladiia_M2_S1L4(int client, int weapon, bool crit, int slot)
 {
-	AbilityM2(client, weapon, slot, 2, 1.0);
+	PullAbilityM2(client, weapon, slot, 12, 2, 1.5);
 }
 
-public void Weapon_Enforcer_M2_Weight3(int client, int weapon, bool crit, int slot)
+public void Weapon_Gladiia_M2_S1L7(int client, int weapon, bool crit, int slot)
 {
-	AbilityM2(client, weapon, slot, 3, 1.05);
+	PullAbilityM2(client, weapon, slot, 10, 2, 1.8);
 }
 
-public void Weapon_Enforcer_M2_Weight5(int client, int weapon, bool crit, int slot)
+public void Weapon_Gladiia_M2_S1L8(int client, int weapon, bool crit, int slot)
 {
-	AbilityM2(client, weapon, slot, 5, 1.1);
+	PullAbilityM2(client, weapon, slot, 10, 2, 1.9);
 }
 
-public void Weapon_Enforcer_M2_Weight8(int client, int weapon, bool crit, int slot)
+public void Weapon_Gladiia_M2_S1L10(int client, int weapon, bool crit, int slot)
 {
-	AbilityM2(client, weapon, slot, 8, 1.2);
+	PullAbilityM2(client, weapon, slot, 8, 3, 2.1);
 }
 
-public void Weapon_Enforcer_M2_Weight12(int client, int weapon, bool crit, int slot)
+public void Weapon_Gladiia_M2_S1L10M(int client, int weapon, bool crit, int slot)
 {
-	AbilityM2(client, weapon, slot, 12, 1.3);
+	PullAbilityM2(client, weapon, slot, 8, 3, 2.1, true);
 }
 
-public void Weapon_Enforcer_M2_Weight17(int client, int weapon, bool crit, int slot)
+public void Weapon_Gladiia_M2_S1L20M(int client, int weapon, bool crit, int slot)
 {
-	AbilityM2(client, weapon, slot, 17, 1.5);
+	PullAbilityM2(client, weapon, slot, 8, 4, 2.1, true);
 }
 
-public void Weapon_Enforcer_M2_Weight23(int client, int weapon, bool crit, int slot)
+public void Weapon_Gladiia_M2_S1L30M(int client, int weapon, bool crit, int slot)
 {
-	AbilityM2(client, weapon, slot, 23, 1.75);
+	PullAbilityM2(client, weapon, slot, 8, 5, 2.1, true);
 }
 
-public void Weapon_Enforcer_M2_Weight30(int client, int weapon, bool crit, int slot)
+static void PullAbilityM2(int client, int weapon, int slot, int cost, int strength, float damagemulti, bool module = false)
 {
-	AbilityM2(client, weapon, slot, 30, 2.0);
-}
-
-// Beyond this is freeplay level
-public void Weapon_Enforcer_M2_Weight38(int client, int weapon, bool crit, int slot)
-{
-	AbilityM2(client, weapon, slot, 38, 2.5);
-}
-
-public void Weapon_Enforcer_M2_Weight47(int client, int weapon, bool crit, int slot)
-{
-	AbilityM2(client, weapon, slot, 47, 3.0);
-}
-
-public void Weapon_Enforcer_M2_Weight57(int client, int weapon, bool crit, int slot)
-{
-	AbilityM2(client, weapon, slot, 57, 3.5);
-}
-
-public void Weapon_Enforcer_M2_Weight68(int client, int weapon, bool crit, int slot)
-{
-	AbilityM2(client, weapon, slot, 68, 4.0);
-}
-
-public void Weapon_Enforcer_M2_Weight80(int client, int weapon, bool crit, int slot)
-{
-	AbilityM2(client, weapon, slot, 80, 5.0);
-}
-
-static void AbilityM2(int client, int weapon, int slot, int pushLevel, float pushforcemulti)
-{
-	float cooldown = Ability_Check_Cooldown(client, slot);
-	if(cooldown > 0.0 && !CvarInfiniteCash.BoolValue)
+	if(WeaponCharge[client] < cost && !CvarInfiniteCash.BoolValue)
 	{
 		ClientCommand(client, "playgamesound items/medshotno1.wav");
 		SetDefaultHudPosition(client);
 		SetGlobalTransTarget(client);
-		ShowSyncHudText(client, SyncHud_Notifaction, "%t", "Ability has cooldown", cooldown);	
+		ShowSyncHudText(client, SyncHud_Notifaction, "%t", "Ability has cooldown", float(cost - WeaponCharge[client]));
+	}
+	else if(Ability_Check_Cooldown(client, slot) > 0.0)
+	{
+		ClientCommand(client, "playgamesound items/medshotno1.wav");
+		SetDefaultHudPosition(client);
+		SetGlobalTransTarget(client);
+		ShowSyncHudText(client, SyncHud_Notifaction, "%t", "Ability has cooldown", Ability_Check_Cooldown(client, slot));
 	}
 	else
 	{
-		int ammo = i_SemiAutoWeapon_AmmoCount[weapon];
-		if(ammo > pushLevel)
-			ammo = pushLevel;
-		
-		if(ammo >= sizeof(EnemiesHit))
-			ammo = sizeof(EnemiesHit) - 1;
-
-		static const float hullMin[3] = {-ENFORCER_MAX_BOUNDS, -ENFORCER_MAX_BOUNDS, -ENFORCER_MAX_BOUNDS};
-		static const float hullMax[3] = {ENFORCER_MAX_BOUNDS, ENFORCER_MAX_BOUNDS, ENFORCER_MAX_BOUNDS};
-
-		float fPos[3];
-		float fAng[3];
-		float endPoint[3];
-		float fPosForward[3];
-		GetClientEyeAngles(client, fAng);
-		GetClientEyePosition(client, fPos);
-		
-		GetAngleVectors(fAng, fPosForward, NULL_VECTOR, NULL_VECTOR);
-		
-		endPoint[0] = fPos[0] + fPosForward[0] * ENFORCER_MAX_RANGE;
-		endPoint[1] = fPos[1] + fPosForward[1] * ENFORCER_MAX_RANGE;
-		endPoint[2] = fPos[2] + fPosForward[2] * ENFORCER_MAX_RANGE;
-
-		Zero(EnemiesHit);
-
 		b_LagCompNPC_No_Layers = true;
 		StartLagCompensation_Base_Boss(client);
-		TR_TraceHullFilter(fPos, endPoint, hullMin, hullMax, 1073741824, Enforcer_TraceTargets, client);	// 1073741824 is CONTENTS_LADDER?
+		Handle swingTrace;
+		float vecSwingForward[3];
+		DoSwingTrace_Custom(swingTrace, client, vecSwingForward, 900.0, false, 45.0, false); //better detection due to HULL trace addition.
+		int entity = TR_GetEntityIndex(swingTrace);	
+		delete swingTrace;
 		FinishLagCompensation_Base_boss();
 
-	//	bool RaidActive = IsValidEntity(EntRefToEntIndex(RaidBossActive));
-		for(int i; i < ammo; i++)
+		if(entity > MaxClients && !b_NpcHasDied[entity])
 		{
-			if(!EnemiesHit[i])
-			{
-				ammo = i;
-				break;
-			}
-			
-			int weight = i_NpcWeight[EnemiesHit[i]];
-			if(weight > 998)
-				continue;
-			
+			int weight = i_NpcWeight[entity];
 			if(weight < 0)
 				weight = 1;
 			
-			float knockback = ENFORCER_KNOCKBACK;
-			switch(weight)
+			if(b_thisNpcIsABoss[entity])
+				weight++;
+
+			int force = strength - weight;
+			if(force >= 0)
 			{
-				case 0:
-				{
-					knockback *= 1.25;
-				}
-				case 2:
-				{
-					knockback *= 0.75;
-				}
-				case 3:
-				{
-					knockback *= 0.55;
-				}
-				case 4:
-				{
-					knockback *= 0.35;
-				}
-				case 5:
-				{
-					knockback *= 0.25;
-				}
+				if(module)
+					SDKHooks_TakeDamage(entity, client, client, 3200.0, DMG_PLASMA, weapon);
+
+				FreezeNpcInTime(entity, 0.4 + (force * 0.1));
+				Custom_Knockback(client, entity, -3000.0, true, true, true, 0.4 + (force * 0.1));
+				
+				EmitSoundToAll("weapons/grappling_hook_reel_stop.wav", client, SNDCHAN_STATIC, 80, _, 1.0);
+			}
+			else if(force == -1)
+			{
+				if(module)
+					SDKHooks_TakeDamage(entity, client, client, 280.0, DMG_PLASMA, weapon);
+
+				FreezeNpcInTime(entity, 0.2);
+				Custom_Knockback(client, entity, -300.0, true, true, true, 0.2);
+
+				EmitSoundToAll("weapons/grappling_hook_reel_stop.wav", client, SNDCHAN_STATIC, 80, _, 1.0);
+			}
+			else if(force == -2)
+			{
+				if(module)
+					SDKHooks_TakeDamage(entity, client, client, 24.0, DMG_PLASMA, weapon);
+
+				FreezeNpcInTime(entity, 0.5);
+
+				EmitSoundToAll("weapons/grappling_hook_reel_stop.wav", client, SNDCHAN_STATIC, 80, _, 1.0);
 			}
 
-			knockback *= pushforcemulti; //here we do math depending on how much extra pushforce they got.
-
-			if(b_thisNpcIsABoss[EnemiesHit[i]])
-			{
-				knockback *= 0.65; //They take half knockback
-			}
-
-			if(knockback < (ENFORCER_KNOCKBACK * pushforcemulti * 0.25))
-			{
-				knockback = (ENFORCER_KNOCKBACK * pushforcemulti * 0.25);
-			}
+			float damage = 65.0 * damagemulti;
+			damage *= Attributes_Get(weapon, 2, 1.0);
 			
-			FreezeNpcInTime(EnemiesHit[i], knockback * ENFORCER_STUN_RATIO);
-			Custom_Knockback(client, EnemiesHit[i], knockback, true, true, true);
-		}
-		
-		if(ammo)
-		{
-			EmitSoundToAll("weapons/shotgun/shotgun_dbl_fire.wav", client, SNDCHAN_STATIC, 80, _, 1.0);
-			Client_Shake(client, 0, 35.0, 20.0, 0.8);
+			SDKHooks_TakeDamage(entity, client, client, damage, DMG_CLUB, weapon);
 
-			GetAttachment(client, "effect_hand_l", fPos, fAng);
-			TE_Particle("mvm_soldier_shockwave", fPos, NULL_VECTOR, fAng, -1, _, _, _, _, _, _, _, _, _, 0.0);
+			EmitSoundToAll("weapons/grappling_hook_impact_flesh.wav", entity, SNDCHAN_STATIC, 80, _, 1.0);
+			EmitSoundToAll("weapons/grappling_hook_shoot.wav", client, SNDCHAN_STATIC, 80, _, 1.0);
 
-			Ability_Apply_Cooldown(client, slot, 40.0);
-			i_SemiAutoWeapon_AmmoCount[weapon] -= ammo;
+			Ability_Apply_Cooldown(client, slot, 1.0);
+			WeaponCharge[client] -= cost;
 
-			Rogue_OnAbilityUse(client, weapon);
+			Rogue_OnAbilityUse(weapon);
+
+			CreateTimer(0.5, Timer_RemoveEntity, EntIndexToEntRef(ConnectWithBeam(client, entity, 5, 5, 5, 3.0, 3.0, 1.0, LASERBEAM_PANZER)), TIMER_FLAG_NO_MAPCHANGE);
 		}
 		else
 		{
@@ -273,23 +453,72 @@ static void AbilityM2(int client, int weapon, int slot, int pushLevel, float pus
 	}
 }
 
-public bool Enforcer_TraceTargets(int entity, int contentsMask, int client)
+void Gladiia_RangedAttack(int client, int weapon)
 {
-	static char classname[64];
-	if(IsValidEntity(entity))
+
+	Handle swingTrace;
+	float vecSwingForward[3];
+	DoSwingTrace_Custom(swingTrace, client, vecSwingForward, 9999.9, false, 45.0, true); //infinite range, and ignore walls!
+				
+	int target = TR_GetEntityIndex(swingTrace);	
+	delete swingTrace;
+
+	EmitSoundToAll("weapons/breadmonster/throwable/bm_throwable_throw.wav", client, _, 75, _, 0.55, GetRandomInt(90, 110));
+
+	float damage = 65.0;
+	
+	damage *= Attributes_Get(weapon, 1, 1.0);
+
+	damage *= Attributes_Get(weapon, 2, 1.0);
+			
+	float speed = 1100.0;
+	speed *= Attributes_Get(weapon, 103, 1.0);
+	
+	speed *= Attributes_Get(weapon, 104, 1.0);
+	
+	speed *= Attributes_Get(weapon, 475, 1.0);
+	
+	float time = 500.0 / speed;
+	time *= Attributes_Get(weapon, 101, 1.0);
+	
+	time *= Attributes_Get(weapon, 102, 1.0);
+
+	int projectile = Wand_Projectile_Spawn(client, speed, time, damage, WEAPON_GLADIIA, weapon, "rockettrail_bubbles");
+
+	if(IsValidEnemy(client, target))
 	{
-		GetEntityClassname(entity, classname, sizeof(classname));
-		if(((!StrContains(classname, "zr_base_npc", true) && !b_NpcHasDied[entity]) || !StrContains(classname, "func_breakable", true)) && (GetEntProp(entity, Prop_Send, "m_iTeamNum") != GetEntProp(client, Prop_Send, "m_iTeamNum")))
+		if(Can_I_See_Enemy_Only(target,projectile)) //Insta home!
 		{
-			for(int i; i < sizeof(EnemiesHit); i++)
-			{
-				if(!EnemiesHit[i])
-				{
-					EnemiesHit[i] = entity;
-					break;
-				}
-			}
+			HomingProjectile_TurnToTarget(target, projectile);
 		}
+
+		DataPack pack;
+		CreateDataTimer(0.1, PerfectHomingShot, pack, TIMER_FLAG_NO_MAPCHANGE|TIMER_REPEAT);
+		pack.WriteCell(EntIndexToEntRef(projectile)); //projectile
+		pack.WriteCell(EntIndexToEntRef(target));		//victim to annihilate :)
+		//We have found a victim.
 	}
-	return false;
+}
+
+void Gladiia_WandTouch(int entity, int target)
+{
+	if(target > 0)	
+	{
+		float vecForward[3], Entity_Position[3];
+		GetEntPropVector(entity, Prop_Send, "m_angRotation", vecForward);
+		GetAngleVectors(vecForward, vecForward, NULL_VECTOR, NULL_VECTOR);
+		Entity_Position = WorldSpaceCenter(target);
+
+		int owner = EntRefToEntIndex(i_WandOwner[entity]);
+		int weapon = EntRefToEntIndex(i_WandWeapon[entity]);
+
+		SDKHooks_TakeDamage(target, owner, owner, f_WandDamage[entity], DMG_CLUB, weapon, CalculateDamageForce(vecForward, 10000.0), Entity_Position);
+	}
+
+	int particle = EntRefToEntIndex(i_WandParticle[entity]);
+	if(particle > MaxClients)
+		RemoveEntity(particle);
+	
+	EmitGameSoundToAll("Underwater.BulletImpact", entity);
+	RemoveEntity(entity);
 }

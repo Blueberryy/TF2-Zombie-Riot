@@ -28,6 +28,8 @@ methodmap StalkerFather < StalkerShared
 		
 		i_NpcInternalId[npc.index] = STALKER_FATHER;
 		i_NpcWeight[npc.index] = 5;
+		fl_GetClosestTargetTimeTouch[npc.index] = 99999.9;
+		b_DoNotChangeTargetTouchNpc[npc.index] = true;
 		
 		FormatEx(c_HeadPlaceAttachmentGibName[npc.index], sizeof(c_HeadPlaceAttachmentGibName[]), "head");
 		
@@ -46,8 +48,8 @@ methodmap StalkerFather < StalkerShared
 		Is_a_Medic[npc.index] = true;
 		npc.m_bStaticNPC = true;
 
+		GiveNpcOutLineLastOrBoss(npc.index, false);
 		b_thisNpcHasAnOutline[npc.index] = true; //Makes it so they never have an outline
-		SetEntProp(npc.index, Prop_Send, "m_bGlowEnabled", false);
 		b_NpcIsInvulnerable[npc.index] = true; //Special huds for invul targets
 
 		Zero(fl_AlreadyStrippedMusic);
@@ -76,13 +78,13 @@ public void StalkerFather_ClotThink(int iNPC)
 		if(b_NpcIsInvulnerable[npc.index])
 		{
 			// Vulnerable pass Wave 30
-			SetEntProp(npc.index, Prop_Send, "m_bGlowEnabled", true);
+			GiveNpcOutLineLastOrBoss(npc.index, true);
 			b_NpcIsInvulnerable[npc.index] = false; //Special huds for invul targets
 		}
 	}
 	else if(!b_NpcIsInvulnerable[npc.index])
 	{
-		SetEntProp(npc.index, Prop_Send, "m_bGlowEnabled", false);
+		GiveNpcOutLineLastOrBoss(npc.index, false);
 		b_NpcIsInvulnerable[npc.index] = true; //Special huds for invul targets
 	}
 
@@ -148,7 +150,7 @@ public void StalkerFather_ClotThink(int iNPC)
 		{
 			state = -1;
 		}
-		else if(distance < (NORMAL_ENEMY_MELEE_RANGE_FLOAT * NORMAL_ENEMY_MELEE_RANGE_FLOAT) && npc.m_flNextMeleeAttack < gameTime)
+		else if(distance < NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED && npc.m_flNextMeleeAttack < gameTime)
 		{
 			state = 1;
 		}
@@ -201,7 +203,7 @@ public void StalkerFather_ClotThink(int iNPC)
 		{
 			state = -1;
 		}
-		else if(distance < (NORMAL_ENEMY_MELEE_RANGE_FLOAT * NORMAL_ENEMY_MELEE_RANGE_FLOAT))
+		else if(distance < NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED)
 		{
 			state = 1;
 		}

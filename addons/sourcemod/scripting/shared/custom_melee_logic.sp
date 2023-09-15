@@ -450,7 +450,7 @@ public int PlayCustomWeaponSoundFromPlayerCorrectly(int client, int target, int 
 {
 	if(target == -1)
 		return ZEROSOUND;
-		
+
 	if(target > 0 && !b_NpcHasDied[target])
 	{
 		switch(weapon_index)
@@ -482,14 +482,10 @@ public int PlayCustomWeaponSoundFromPlayerCorrectly(int client, int target, int 
 
 stock bool IsValidCurrentWeapon(int client, int weapon)
 {
-	if(IsValidEntity(weapon))
+	int Active_weapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+	if(weapon == Active_weapon)
 	{
-		int Active_weapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
-		if(weapon == Active_weapon)
-		{
-			return true;
-			
-		}
+		return true;
 	}
 	return false;
 }
@@ -546,9 +542,8 @@ public void Timer_Do_Melee_Attack(DataPack pack)
 	int weapon = EntRefToEntIndex(pack.ReadCell());
 	char classname[32];
 	pack.ReadString(classname, 32);
-	if(IsValidClient(client) && IsValidCurrentWeapon(client, weapon))
+	if(client && weapon != -1 && IsValidCurrentWeapon(client, weapon))
 	{
-		
 		int aoeSwing = 1;
 
 		Handle swingTrace;
@@ -580,6 +575,13 @@ public void Timer_Do_Melee_Attack(DataPack pack)
 					delete swingTrace;
 					FinishLagCompensation_Base_boss();
 					delete pack;
+				}
+				case WEAPON_GLADIIA:
+				{
+					Gladiia_RangedAttack(client, weapon);
+					delete swingTrace;
+					FinishLagCompensation_Base_boss();
+					delete pack;
 				}	
 			}
 		}
@@ -589,12 +591,20 @@ public void Timer_Do_Melee_Attack(DataPack pack)
 		if(soundIndex > 0)
 		{
 			char SoundStringToPlay[256];
-			SDKCall_GetShootSound(weapon, soundIndex, SoundStringToPlay, sizeof(SoundStringToPlay));
-			EmitGameSoundToAll(SoundStringToPlay, client);
+			if(i_WeaponSoundIndexOverride[weapon] != -1)
+			{
+				if(i_WeaponSoundIndexOverride[weapon] > 0)
+					SetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex", i_WeaponSoundIndexOverride[weapon]);
+
+				SDKCall_GetShootSound(weapon, soundIndex, SoundStringToPlay, sizeof(SoundStringToPlay));
+				if(i_WeaponSoundIndexOverride[weapon] > 0)
+					SetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex", Item_Index);
+
+				EmitGameSoundToAll(SoundStringToPlay, client);
+					
+			}
 		}
 
-		Address address;
-		
 		float damage = 65.0;
 		if(!StrContains(classname, "tf_weapon_bat"))
 		{
@@ -607,25 +617,20 @@ public void Timer_Do_Melee_Attack(DataPack pack)
 
 		if(Item_Index != 155)
 		{
-			address = TF2Attrib_GetByDefIndex(weapon, 2);
-			if(address != Address_Null)
-				damage *= TF2Attrib_GetValue(address);
-			
+			damage *= Attributes_Get(weapon, 2, 1.0);
 		}
 		else
 		{
 			damage = 30.0;
 			float attack_speed;
 				
-			attack_speed = 1.0 / Attributes_FindOnPlayer(client, 343, true, 1.0); //Sentry attack speed bonus
+			attack_speed = 1.0 / Attributes_FindOnPlayerZR(client, 343, true, 1.0); //Sentry attack speed bonus
 						
-			damage = attack_speed * damage * Attributes_FindOnPlayer(client, 287, true, 1.0);			//Sentry damage bonus
+			damage = attack_speed * damage * Attributes_FindOnPlayerZR(client, 287, true, 1.0);			//Sentry damage bonus
 		}
 		
 			
-		address = TF2Attrib_GetByDefIndex(weapon, 1);
-		if(address != Address_Null)
-			damage *= TF2Attrib_GetValue(address);
+		damage *= Attributes_Get(weapon, 1, 1.0);
 				
 		
 		bool PlayOnceOnly = false;
@@ -643,9 +648,18 @@ public void Timer_Do_Melee_Attack(DataPack pack)
 
 						if(soundIndex > 0)
 						{
-							char SoundStringToPlay[256];
-							SDKCall_GetShootSound(weapon, soundIndex, SoundStringToPlay, sizeof(SoundStringToPlay));
-							EmitGameSoundToAll(SoundStringToPlay, client);
+							if(i_WeaponSoundIndexOverride[weapon] != -1)
+							{
+								char SoundStringToPlay[256];
+								if(i_WeaponSoundIndexOverride[weapon] > 0)
+									SetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex", i_WeaponSoundIndexOverride[weapon]);
+
+								SDKCall_GetShootSound(weapon, soundIndex, SoundStringToPlay, sizeof(SoundStringToPlay));
+								if(i_WeaponSoundIndexOverride[weapon] > 0)
+									SetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex", Item_Index);
+									
+								EmitGameSoundToAll(SoundStringToPlay, client);
+							}
 						}	
 					}
 					GetEntPropVector(i_EntitiesHitAoeSwing[counter], Prop_Data, "m_vecAbsOrigin", playerPos);

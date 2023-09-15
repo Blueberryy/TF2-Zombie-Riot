@@ -108,7 +108,7 @@ methodmap Barrack_Alt_Donnerkrieg < BarrackBody
 	}
 	public Barrack_Alt_Donnerkrieg(int client, float vecPos[3], float vecAng[3], bool ally)
 	{
-		Barrack_Alt_Donnerkrieg npc = view_as<Barrack_Alt_Donnerkrieg>(BarrackBody(client, vecPos, vecAng, "650", "models/player/medic.mdl", STEPTYPE_NORMAL));
+		Barrack_Alt_Donnerkrieg npc = view_as<Barrack_Alt_Donnerkrieg>(BarrackBody(client, vecPos, vecAng, "650", "models/player/medic.mdl", STEPTYPE_NORMAL,_,_,"models/pickups/pickup_powerup_precision.mdl"));
 		
 		i_NpcInternalId[npc.index] = ALT_BARRACK_DONNERKRIEG;
 		i_NpcWeight[npc.index] = 1;
@@ -313,8 +313,8 @@ static void Primary_Attack_BEAM_Iku_Ability(int client)
 	Ikunagae_BEAM_TicksActive[client] = 0;
 
 	Ikunagae_BEAM_CanUse[client] = true;
-	Ikunagae_BEAM_CloseDPT[client] = 12500.0* npc.BonusDamageBonus;	//what the fuck
-	Ikunagae_BEAM_FarDPT[client] = 2500.0* npc.BonusDamageBonus;
+	Ikunagae_BEAM_CloseDPT[client] = Barracks_UnitExtraDamageCalc(npc.index, GetClientOfUserId(npc.OwnerUserId),7500.0, 1);	//what the fuck
+	Ikunagae_BEAM_FarDPT[client] = Barracks_UnitExtraDamageCalc(npc.index, GetClientOfUserId(npc.OwnerUserId),2500.0, 1);
 	Ikunagae_BEAM_MaxDistance[client] = 500;
 	Ikunagae_BEAM_BeamRadius[client] = 2;
 	Ikunagae_BEAM_ColorHex[client] = ParseColor("abdaf7");
@@ -468,7 +468,7 @@ static Action Ikunagae_TBB_Tick(int client)
 		GetAttachment(npc.index, "effect_hand_r", startPoint, flAng);
 		
 		int target = npc.m_iTarget;
-		if(target > 0)
+		if(IsValidEntity(target))
 		{
 			float vecTarget[3]; vecTarget = WorldSpaceCenter(target);
 		

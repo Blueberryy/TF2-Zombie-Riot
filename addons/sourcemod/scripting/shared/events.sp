@@ -1,6 +1,8 @@
 #pragma semicolon 1
 #pragma newdecls required
 
+static float GiveCashDelay[MAXTF2PLAYERS];
+
 void Events_PluginStart()
 {
 	HookEvent("teamplay_round_start", OnRoundStart, EventHookMode_PostNoCopy);
@@ -22,13 +24,17 @@ void Events_PluginStart()
 	HookUserMessage(GetUserMessageId("SayText2"), Hook_BlockUserMessageEx, true);
 	
 	HookEntityOutput("logic_relay", "OnTrigger", OnRelayTrigger);
+
+//#if defined ZR
 	//HookEntityOutput("logic_relay", "OnUser1", OnRelayFireUser1);
+//#endif
 }
 
 public void OnRoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 #if defined ZR
 	b_GameOnGoing = true;
+	
 	
 	LastMann = false;
 	Ammo_Count_Ready = 0;
@@ -42,6 +48,7 @@ public void OnRoundStart(Event event, const char[] name, bool dontBroadcast)
 	Zero(Resupplies_Supplied);
 	Zero(i_BarricadeHasBeenDamaged);
 	Zero(i_ExtraPlayerPoints);
+	Zero(GiveCashDelay);
 	CurrentGibCount = 0;
 	for(int client=1; client<=MaxClients; client++)
 	{
@@ -57,7 +64,6 @@ public void OnRoundStart(Event event, const char[] name, bool dontBroadcast)
 	RoundStartTime = GetGameTime()+0.1;
 	
 	Escape_RoundStart();
-	NPC_RoundStart();
 	Waves_RoundStart();
 #endif
 
@@ -241,7 +247,7 @@ public void OnPlayerResupply(Event event, const char[] name, bool dontBroadcast)
 			ViewChange_PlayerModel(client);
 			
 			TF2Attrib_RemoveAll(client);
-			TF2Attrib_SetByDefIndex(client, 68, -1.0);
+			Attributes_Set(client, 68, -1.0);
 			SetVariantString(COMBINE_CUSTOM_MODEL);
 	  		AcceptEntityInput(client, "SetCustomModel");
 	   		SetEntProp(client, Prop_Send, "m_bUseClassAnimations", true);
@@ -259,70 +265,23 @@ public void OnPlayerResupply(Event event, const char[] name, bool dontBroadcast)
 
 	   		TF2Attrib_RemoveAll(weapon_index);
 	   		
-	   		float damage;
-	   		
-	   		int Wave_Count = Waves_GetRound() + 1;
+	   		float damage = 1.0;
 			
-			if(Wave_Count < 5)
-				damage = 0.25;
-				
-			if(Wave_Count < 10)
-				damage = 0.4;
-						
-			else if(Wave_Count < 15)
-				damage = 1.0;
-					
-			else if(Wave_Count < 20)
-				damage = 1.5;
-						
-			else if(Wave_Count < 25)
-				damage = 2.5;
-						
-			else if(Wave_Count < 30)
-				damage = 5.0;
-						
-			else if(Wave_Count < 40)
-				damage = 7.0;
-						
-			else if(Wave_Count < 45)
-				damage = 25.0;
-					
-			else if(Wave_Count < 50)
-				damage = 35.0;
-				
-			else if(Wave_Count < 55)
-				damage = 45.0;
-					
-			else if(Wave_Count < 60)
-				damage = 50.0;
-				
-			else if(Wave_Count < 70)
-				damage = 60.0;
-				
-			else if(Wave_Count < 80)
-				damage = 80.0;
-				
-			else if(Wave_Count < 90)
-				damage = 90.0;
-					
-			else
-				damage = 100.0;
-
 			if(TeutonType[client] == TEUTON_WAITING)
 			{
-				damage *= 0.25;
+				damage *= 0.33;
 			}
 			
-	   		TF2Attrib_SetByDefIndex(weapon_index, 2, damage);
-	   		TF2Attrib_SetByDefIndex(weapon_index, 264, 0.0);
-	   		TF2Attrib_SetByDefIndex(weapon_index, 263, 0.0);
-	   		TF2Attrib_SetByDefIndex(weapon_index, 6, 1.2);
-	   		TF2Attrib_SetByDefIndex(weapon_index, 412, 0.0);
-	   		TF2Attrib_SetByDefIndex(weapon_index, 442, 1.1);
+	   		Attributes_Set(weapon_index, 2, damage);
+	   		Attributes_Set(weapon_index, 264, 0.0);
+	   		Attributes_Set(weapon_index, 263, 0.0);
+	   		Attributes_Set(weapon_index, 6, 1.2);
+	   		Attributes_Set(weapon_index, 412, 0.0);
+	   		Attributes_Set(weapon_index, 442, 1.1);
 	   		TFClassType ClassForStats = WeaponClass[client];
 	   		
-	   		TF2Attrib_SetByDefIndex(weapon_index, 107, RemoveExtraSpeed(ClassForStats, 330.0));
-	   		TF2Attrib_SetByDefIndex(weapon_index, 476, 0.0);
+	   		Attributes_Set(weapon_index, 107, RemoveExtraSpeed(ClassForStats, 330.0));
+	   		Attributes_Set(weapon_index, 476, 0.0);
 	   		SetEntityCollisionGroup(client, 1);
 	   		SetEntityCollisionGroup(weapon_index, 1);
 	   		
@@ -500,7 +459,8 @@ public Action OnPlayerDeath(Event event, const char[] name, bool dontBroadcast)
 	//Incase they die, do suit!
 	i_HealthBeforeSuit[client] = 0;
 	i_ClientHasCustomGearEquipped[client] = false;
-	CreateTimer(0.0, QuantumDeactivate, EntIndexToEntRef(client), TIMER_FLAG_NO_MAPCHANGE); //early cancel out!, save the wearer!
+	UnequipQuantumSet(client);
+//	CreateTimer(0.0, QuantumDeactivate, EntIndexToEntRef(client), TIMER_FLAG_NO_MAPCHANGE); //early cancel out!, save the wearer!
 	//
 
 	Citizen_PlayerDeath(client);
@@ -626,26 +586,42 @@ public Action OnRelayTrigger(const char[] output, int entity, int caller, float 
 	//This breaks maps.
 	return Plugin_Continue;
 }
-
-/*public Action OnRelayFireUser1(const char[] output, int entity, int caller, float delay)
+/*
+#if defined ZR
+public Action OnRelayFireUser1(const char[] output, int entity, int caller, float delay)
 {
-	if(caller > 0 && caller <= MaxClients)
+	int client = caller;
+	if(client > MaxClients)
+		client = GetOwnerLoop(client);
+
+	if(client > 0 && client <= MaxClients)
 	{
+
+
 		char name[32];
 		GetEntPropString(entity, Prop_Data, "m_iName", name, sizeof(name));
 
 		if(!StrContains(name, "zr_cash_", false))
 		{
+			float gameTime = GetGameTime();
+			if(GiveCashDelay[client] > gameTime)
+				return Plugin_Continue;
+		
+			GiveCashDelay[client] = gameTime + 0.5;
+
 			char buffers[4][12];
 			ExplodeString(name, "_", buffers, sizeof(buffers), sizeof(buffers[]));
 			
 			int cash = StringToInt(buffers[2]);
-			CashSpent[caller] -= cash;
-			PrintToChat(caller, "Gained %d cash!", cash);
+			CashSpent[client] -= cash;
+			CashRecievedNonWave[client] += cash;
+			
+			PrintToChat(client, "Gained %d cash!", cash);
 		}
 	}
 	// DO NOT DO 
 	// return Plugin_Handled;!!!!!!
 	//This breaks maps.
 	return Plugin_Continue;
-}*/
+}
+#endif*/

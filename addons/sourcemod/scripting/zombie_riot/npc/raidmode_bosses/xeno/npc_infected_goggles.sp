@@ -75,6 +75,7 @@ static char g_HappySounds[][] =
 	"vo/compmode/cm_sniper_matchwon_14.mp3"
 };
 
+static bool b_angered_twice[MAXENTITIES];
 static int i_LaserEntityIndex[MAXENTITIES]={-1, ...};
 static int i_RaidDuoAllyIndex = INVALID_ENT_REFERENCE;
 static float f_HurtRecentlyAndRedirected[MAXENTITIES]={-1.0, ...};
@@ -194,6 +195,7 @@ methodmap RaidbossBlueGoggles < CClotBody
 		SetEntProp(npc.index, Prop_Send, "m_nSkin", 1);
 		
 		SDKHook(npc.index, SDKHook_Think, RaidbossBlueGoggles_ClotThink);
+		b_angered_twice[npc.index] = false;
 		
 
 		/*
@@ -232,6 +234,7 @@ methodmap RaidbossBlueGoggles < CClotBody
 		/*
 			Variables
 		*/
+		f_ExplodeDamageVulnerabilityNpc[npc.index] = 0.7;
 
 		npc.m_iBleedType = BLEEDTYPE_NORMAL;
 		npc.m_iStepNoiseType = STEPSOUND_GIANT;	
@@ -248,7 +251,7 @@ methodmap RaidbossBlueGoggles < CClotBody
 		npc.m_iGunType = 0;
 		npc.m_flSwitchCooldown = GetGameTime(npc.index) + 10.0;
 		npc.m_flBuffCooldown = GetGameTime(npc.index) + GetRandomFloat(10.0, 12.5);
-		npc.m_flPiggyCooldown = FAR_FUTURE;//GetGameTime(npc.index) + GetRandomFloat(30.0, 50.0);
+		npc.m_flPiggyCooldown = GetGameTime(npc.index) + GetRandomFloat(30.0, 50.0); // FAR_FUTURE;
 		npc.m_flPiggyFor = 0.0;
 		npc.m_flMeleeArmor = 1.25;
 
@@ -257,7 +260,7 @@ methodmap RaidbossBlueGoggles < CClotBody
 
 		f_HurtRecentlyAndRedirected[npc.index] = 0.0;
 		
-		Citizen_MiniBossSpawn(npc.index);
+		Citizen_MiniBossSpawn();
 		Building_RaidSpawned(npc.index);
 		npc.StartPathing();
 
@@ -317,6 +320,7 @@ public void RaidbossBlueGoggles_ClotThink(int iNPC)
 
 	npc.m_flNextDelayTime = gameTime + DEFAULT_UPDATE_DELAY_FLOAT;
 	npc.Update();
+	
 
 	//Think throttling
 	if(npc.m_flNextThinkTime > gameTime)
@@ -342,11 +346,48 @@ public void RaidbossBlueGoggles_ClotThink(int iNPC)
 			}	
 		}
 	}
-	else if(!IsEntityAlive(EntRefToEntIndex(RaidBossActive)))
+	else if(EntRefToEntIndex(RaidBossActive) != npc.index && !IsEntityAlive(EntRefToEntIndex(RaidBossActive)) || IsPartnerGivingUpSilvester(EntRefToEntIndex(RaidBossActive)))
 	{	
 		RaidBossActive = EntIndexToEntRef(npc.index);
 	}
 	
+	if(b_angered_twice[npc.index])
+	{
+		int closestTarget = GetClosestTarget(npc.index);
+		if(IsValidEntity(closestTarget))
+		{
+			npc.FaceTowards(WorldSpaceCenter(closestTarget), 100.0);
+		}
+		if(IsValidEntity(npc.m_iWearable3))
+			RemoveEntity(npc.m_iWearable3);
+			
+		if(npc.m_flPiggyFor)
+		{
+			SDKCall_SetLocalOrigin(npc.index, {0.0,0.0,85.0}); //keep teleporting just incase.
+			// Disable Piggyback Stuff
+			npc.m_flPiggyFor = 0.0;
+			npc.m_flSpeed = 290.0;
+			SDKCall_SetLocalOrigin(npc.index, {0.0,0.0,85.0});
+			AcceptEntityInput(npc.index, "ClearParent");
+			float flPos[3]; // original
+				
+			GetEntPropVector(npc.index, Prop_Data, "m_vecAbsOrigin", flPos);
+			flPos[2] -= 70.0;
+			SDKCall_SetLocalOrigin(npc.index, flPos);
+			npc.SetVelocity({0.0,0.0,0.0});
+			TeleportEntity(npc.index, flPos, NULL_VECTOR, _);
+		}
+		npc.SetActivity("ACT_MP_STAND_LOSERSTATE");
+		npc.StopPathing();
+		int ally = EntRefToEntIndex(i_RaidDuoAllyIndex);
+		if(SharedGiveupSilvester(ally,npc.index))
+		{
+			npc.m_bDissapearOnDeath = true;
+			RequestFrame(KillNpc, EntIndexToEntRef(npc.index));
+		}
+		return;
+	}
+
 	if(npc.m_flGetClosestTargetTime < gameTime || !IsEntityAlive(npc.m_iTarget))
 	{
 		npc.m_iTarget = GetClosestTarget(npc.index);
@@ -356,8 +397,14 @@ public void RaidbossBlueGoggles_ClotThink(int iNPC)
 	int ally = EntRefToEntIndex(i_RaidDuoAllyIndex);
 	bool alone = !IsEntityAlive(ally);
 
+	if(IsPartnerGivingUpSilvester(ally))
+	{
+		alone = true;
+	}
+
 	if(alone && !npc.Anger)
 	{
+		CPrintToChatAll("{darkblue}Blue Goggles{default}: We are trying to give you a warning, listen to us!");
 		npc.Anger = true;
 		npc.PlayAngerSound();
 	}
@@ -374,11 +421,13 @@ public void RaidbossBlueGoggles_ClotThink(int iNPC)
 
 	if(npc.m_flPiggyFor)
 	{
+		SDKCall_SetLocalOrigin(npc.index, {0.0,0.0,85.0}); //keep teleporting just incase.
 		if(npc.m_flPiggyFor < gameTime || alone || b_NpcIsInvulnerable[ally])
 		{
 			// Disable Piggyback Stuff
 			npc.m_flPiggyFor = 0.0;
 			npc.m_flSpeed = 290.0;
+			SDKCall_SetLocalOrigin(npc.index, {0.0,0.0,85.0});
 			AcceptEntityInput(npc.index, "ClearParent");
 			b_CannotBeKnockedUp[npc.index] = false;
 			b_NoGravity[npc.index] = false;
@@ -473,7 +522,7 @@ public void RaidbossBlueGoggles_ClotThink(int iNPC)
 		if(!alone && tier > 0 && npc.m_flBuffCooldown < gameTime && !NpcStats_IsEnemySilenced(npc.index))
 		{
 			vecAlly = WorldSpaceCenter(ally);
-			if(GetVectorDistance(vecAlly, vecMe, true) < Pow(NORMAL_ENEMY_MELEE_RANGE_FLOAT * 5.0, 2.0) && Can_I_See_Enemy_Only(npc.index, ally))
+			if(GetVectorDistance(vecAlly, vecMe, true) < (NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED * 5.0) && Can_I_See_Enemy_Only(npc.index, ally))
 			{
 				// Buff Silver
 				npc.m_flBuffCooldown = gameTime + GetRandomFloat(24.0 - (float(tier) * 4.0), 29.0 - (float(tier) * 4.0));
@@ -519,16 +568,15 @@ public void RaidbossBlueGoggles_ClotThink(int iNPC)
 
 				flPos[2] += 85.0;
 				SDKCall_SetLocalOrigin(npc.index, flPos);
-				TeleportEntity(npc.index, NULL_VECTOR, NULL_VECTOR, {0.0,0.0,0.0});
 				npc.SetVelocity({0.0,0.0,0.0});
 				float eyePitch[3];
 				GetEntPropVector(npcally.index, Prop_Data, "m_angRotation", eyePitch);
 				SetEntPropVector(npc.index, Prop_Data, "m_angRotation", eyePitch);
+				SDKCall_SetLocalOrigin(npc.index, {0.0,0.0,0.0});
 				SetParent(npcally.index, npc.index, "");
 				b_NoGravity[npc.index] = true;
 				b_CannotBeKnockedUp[npc.index] = true;
 				SDKCall_SetLocalOrigin(npc.index, {0.0,0.0,85.0});
-				TeleportEntity(npc.index, NULL_VECTOR, NULL_VECTOR, {0.0,0.0,0.0});
 				npc.SetVelocity({0.0,0.0,0.0});
 				GetEntPropVector(npcally.index, Prop_Data, "m_angRotation", eyePitch);
 				SetEntPropVector(npc.index, Prop_Data, "m_angRotation", eyePitch);
@@ -564,11 +612,11 @@ public void RaidbossBlueGoggles_ClotThink(int iNPC)
 									TR_GetEndPosition(vecHit, swingTrace);
 									if(npc.Anger)
 									{
-										SDKHooks_TakeDamage(target, npc.index, npc.index, (14.5 + (float(tier) * 2.0)) * 1.35 * RaidModeScaling, DMG_CLUB, -1, _, vecHit);
+										SDKHooks_TakeDamage(target, npc.index, npc.index, (14.5 + (float(tier) * 2.0)) * 1.35 * RaidModeScaling * 1.25, DMG_CLUB, -1, _, vecHit);
 									}
 									else
 									{
-										SDKHooks_TakeDamage(target, npc.index, npc.index, (14.5 + (float(tier) * 2.0)) * RaidModeScaling, DMG_CLUB, -1, _, vecHit);	
+										SDKHooks_TakeDamage(target, npc.index, npc.index, (14.5 + (float(tier) * 2.0)) * RaidModeScaling * 1.25, DMG_CLUB, -1, _, vecHit);	
 									}
 									
 									npc.PlayMeleeHitSound();
@@ -600,7 +648,7 @@ public void RaidbossBlueGoggles_ClotThink(int iNPC)
 							delete swingTrace;
 						}
 					}
-					else if(npc.m_flNextMeleeAttack < gameTime && distance < (NORMAL_ENEMY_MELEE_RANGE_FLOAT * NORMAL_ENEMY_MELEE_RANGE_FLOAT))
+					else if(npc.m_flNextMeleeAttack < gameTime && distance < NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED)
 					{
 						if(Can_I_See_Enemy(npc.index, npc.m_iTarget) == npc.m_iTarget)
 						{
@@ -814,6 +862,27 @@ public Action RaidbossBlueGoggles_OnTakeDamage(int victim, int &attacker, int &i
 		
 	RaidbossBlueGoggles npc = view_as<RaidbossBlueGoggles>(victim);
 	
+	if(ZR_GetWaveCount()+1 > 55 && !b_angered_twice[npc.index] && !Waves_InFreeplay())
+	{
+		if(damage >= GetEntProp(npc.index, Prop_Data, "m_iHealth"))
+		{
+			SetEntProp(npc.index, Prop_Data, "m_iHealth", 1);
+			b_angered_twice[npc.index] = true;
+			b_DoNotUnStuck[npc.index] = true;
+			b_CantCollidieAlly[npc.index] = true;
+			b_CantCollidie[npc.index] = true;
+			SetEntityCollisionGroup(npc.index, 24);
+			b_ThisEntityIgnoredByOtherNpcsAggro[npc.index] = true; //Make allied npcs ignore him.
+			b_NpcIsInvulnerable[npc.index] = true;
+			RemoveNpcFromEnemyList(npc.index);
+			GiveProgressDelay(28.0);
+			damage = 0.0;
+			CPrintToChatAll("{darkblue}Blue Goggles{default}: You win, i wont stop you no more...");
+			return Plugin_Handled;
+		}
+
+	}
+
 	if (npc.m_flHeadshotCooldown < GetGameTime(npc.index))
 	{
 		npc.m_flHeadshotCooldown = GetGameTime(npc.index) + DEFAULT_HURTDELAY;
@@ -822,17 +891,17 @@ public Action RaidbossBlueGoggles_OnTakeDamage(int victim, int &attacker, int &i
 
 	//redirect damage and reduce it if in range.
 	int AllyEntity = EntRefToEntIndex(i_RaidDuoAllyIndex);
-	if(IsEntityAlive(AllyEntity) && !b_NpcIsInvulnerable[AllyEntity])
+	if(IsEntityAlive(AllyEntity) && !b_NpcIsInvulnerable[AllyEntity] && !IsPartnerGivingUpGoggles(AllyEntity))
 	{
 		static float victimPos[3];
 		static float partnerPos[3];
 		GetEntPropVector(npc.index, Prop_Send, "m_vecOrigin", partnerPos);
 		GetEntPropVector(AllyEntity, Prop_Data, "m_vecAbsOrigin", victimPos); 
 		float Distance = GetVectorDistance(victimPos, partnerPos, true);
-		if(Distance < Pow(NORMAL_ENEMY_MELEE_RANGE_FLOAT * 10.0 * zr_smallmapbalancemulti.FloatValue, 2.0) && Can_I_See_Enemy_Only(npc.index, AllyEntity))
+		if(Distance < (NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED * 20.0 * zr_smallmapbalancemulti.FloatValue) && Can_I_See_Enemy_Only(npc.index, AllyEntity))
 		{	
 			damage *= 0.65;
-			SDKHooks_TakeDamage(AllyEntity, attacker, inflictor, damage * 0.75, damagetype, weapon, damageForce, damagePosition, false, ZR_DAMAGE_DO_NOT_APPLY_BURN_OR_BLEED);
+			SDKHooks_TakeDamage(AllyEntity, attacker, inflictor, damage * 0.75, damagetype, weapon, damageForce, damagePosition, false, ZR_DAMAGE_NOAPPLYBUFFS_OR_DEBUFFS);
 			damage *= 0.25;
 			f_HurtRecentlyAndRedirected[npc.index] = GetGameTime() + 0.15;
 		}
@@ -914,4 +983,12 @@ static void spawnBeam(float beamTiming, int r, int g, int b, int a, char sprite[
 	TE_SetupBeamPoints(startLoc, endLoc, SPRITE_INT, 0, 0, 0, beamTiming, width, endwidth, fadelength, amp, color, 0);
 	
 	TE_SendToAll();
+}
+
+bool IsPartnerGivingUpGoggles(int entity)
+{
+	if(!IsValidEntity(entity))
+		return true;
+
+	return b_angered_twice[entity];
 }

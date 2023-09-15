@@ -50,7 +50,16 @@ void Saga_DeadEffects(int victim, int attacker, int weapon)
 
 bool Saga_IsChargeWeapon(int client, int weapon)
 {
+	if(!IsValidEntity(weapon))
+		return false;
+
+	if(f_UberOnHitWeapon[weapon])
+		return true;
+	
 	if(Passanger_HasCharge(client))
+		return true;
+	
+	if(Gladiia_HasCharge(client, weapon))
 		return true;
 	
 	if(WeaponTimer[client] && EntRefToEntIndex(WeaponRef[client]) == weapon)
@@ -69,6 +78,7 @@ bool Saga_IsChargeWeapon(int client, int weapon)
 void Saga_ChargeReduction(int client, int weapon, float time)
 {
 	Passanger_ChargeReduced(client, time);
+	Gladiia_ChargeReduction(client, weapon, time);
 
 	if(WeaponTimer[client] && EntRefToEntIndex(WeaponRef[client]) == weapon)
 	{
@@ -96,13 +106,13 @@ void Saga_Enable(int client, int weapon)
 		WeaponRef[client] = EntIndexToEntRef(weapon);
 		delete WeaponTimer[client];
 
-		Address address = TF2Attrib_GetByDefIndex(weapon, 861);
-		if(address == Address_Null)
+		float value = Attributes_Get(weapon, 861, -1.0);
+		if(value == -1.0)
 		{
 			// Elite 0 Special 1
 			WeaponTimer[client] = CreateTimer(3.5, Saga_Timer1, client, TIMER_REPEAT);
 		}
-		else if(!TF2Attrib_GetValue(address))
+		else if(value == 0.0)
 		{
 			// Elite 1 Special 2
 			WeaponTimer[client] = CreateTimer(1.0, Saga_Timer2, client, TIMER_REPEAT);
@@ -227,16 +237,14 @@ static void Weapon_Saga_M2(int client, int weapon, bool mastery)
 	}
 	else
 	{
-		Rogue_OnAbilityUse(client, weapon);
+		Rogue_OnAbilityUse(weapon);
 		MakePlayerGiveResponseVoice(client, 4); //haha!
 		WeaponCharge[client] -= cost + 1;
 		CashRecievedNonWave[client] += 4;
 		CashSpent[client] -= 4;
 		
 		float damage = mastery ? 260.0 : 208.0;	// 400%, 320%
-		Address	address = TF2Attrib_GetByDefIndex(weapon, 2);
-		if(address != Address_Null)
-			damage *= TF2Attrib_GetValue(address);
+		damage *= Attributes_Get(weapon, 2, 1.0);
 		
 		int value = i_ExplosiveProjectileHexArray[client];
 		i_ExplosiveProjectileHexArray[client] = EP_DEALS_CLUB_DAMAGE;
@@ -273,9 +281,7 @@ public Action Saga_DelayedExplode(Handle timer, int userid)
 		if(weapon != INVALID_ENT_REFERENCE)
 		{
 			float damage = 0.1;
-			Address	address = TF2Attrib_GetByDefIndex(weapon, 2);
-			if(address != Address_Null)
-				damage *= TF2Attrib_GetValue(address);
+			damage *= Attributes_Get(weapon, 2, 1.0);
 			
 			int value = i_ExplosiveProjectileHexArray[client];
 			i_ExplosiveProjectileHexArray[client] = EP_DEALS_SLASH_DAMAGE;
@@ -290,8 +296,12 @@ public Action Saga_DelayedExplode(Handle timer, int userid)
 	return Plugin_Continue;
 }
 
-void Saga_OnTakeDamage(int victim, int &attacker, float &damage, int &weapon)
+void Saga_OnTakeDamage(int victim, int &attacker, float &damage, int &weapon, int damagetype)
 {
+	if(damagetype & DMG_SLASH)
+	{
+		return;
+	}
 	if(SagaCrippled[victim])
 	{
 		damage = 0.0;
@@ -300,7 +310,7 @@ void Saga_OnTakeDamage(int victim, int &attacker, float &damage, int &weapon)
 	{
 		damage = float(GetEntProp(victim, Prop_Data, "m_iHealth") - 1);
 
-		SagaCrippled[victim] = TF2Attrib_GetByDefIndex(weapon, 861) == Address_Null ? 1.0 : 2.0;
+		SagaCrippled[victim] = Attributes_Get(weapon, 861, -1.0) == -1.0 ? 1.0 : 2.0;
 		CreateTimer(10.0, Saga_ExcuteTarget, EntIndexToEntRef(victim), TIMER_FLAG_NO_MAPCHANGE);
 		FreezeNpcInTime(victim, 10.2);
 		SetEntityRenderMode(victim, RENDER_TRANSCOLOR, false, 1, false, true);
@@ -374,25 +384,31 @@ void SagaCutLast(int entity, int victim, float damage, int weapon)
 		Pos2[1] -= PosRand[1];
 		Pos2[2] -= PosRand[2];
 
-		//get random pos offset for cool slash effect cus i can.
-		
-		int particle = ParticleEffectAt(Pos1, "raygun_projectile_red_crit", 0.3);
+		int red = 255;
+		int green = 65;
+		int blue = 65;
+		int Alpha = 65;
 
-		DataPack pack = new DataPack();
-		pack.WriteCell(EntIndexToEntRef(particle));
-		pack.WriteFloat(Pos2[0]);
-		pack.WriteFloat(Pos2[1]);
-		pack.WriteFloat(Pos2[2]);
-		RequestFrames(TeleportParticleArk, 10,pack);
-		
+		int colorLayer4[4];
+		float diameter = float(10);
+		SetColorRGBA(colorLayer4, red, green, blue, Alpha);
+		//we set colours of the differnet laser effects to give it more of an effect
+		int colorLayer1[4];
+		SetColorRGBA(colorLayer1, colorLayer4[0] * 5 + 765 / 8, colorLayer4[1] * 5 + 765 / 8, colorLayer4[2] * 5 + 765 / 8, Alpha);
+		int glowColor[4];
+		SetColorRGBA(glowColor, red, green, blue, Alpha);
+		TE_SetupBeamPoints(Pos1, Pos2, Shared_BEAM_Laser, 0, 0, 0, 0.25, ClampBeamWidth(diameter * 0.5), ClampBeamWidth(diameter * 0.5), 0, 0.5, glowColor, 0);
+		TE_SendToAll(0.0);
 
-	//	TE_SetupBeamPoints(Pos1, Pos2, ShortTeleportLaserIndex, 0, 0, 0, 0.25, 10.0, 10.0, 0, 1.0, {255,0,0,200}, 3);
-	//	TE_SendToAll(0.0);
+		static float angles[3];
+		GetEntPropVector(entity, Prop_Send, "m_angRotation", angles);
+		float vecForward[3];
+		GetAngleVectors(angles, vecForward, NULL_VECTOR, NULL_VECTOR);
 
 
 		EmitSoundToAll(g_MeleeHitSounds[GetRandomInt(0, sizeof(g_MeleeHitSounds) - 1)], 0, SNDCHAN_AUTO, 90, _,_,GetRandomInt(80,110),-1,VicLoc);
 	
-		SDKHooks_TakeDamage(victim, weapon, entity, 10.0, DMG_SLASH, weapon, _, _, _, _);
+		SDKHooks_TakeDamage(victim, weapon, entity, 10.0, DMG_SLASH, weapon, CalculateDamageForce(vecForward, 10000.0), VicLoc, _, _);
 	}
 }
 

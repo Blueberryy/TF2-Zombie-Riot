@@ -9,10 +9,8 @@ void StalkerGoggles_OnMapStart()
 	PrecacheModel("models/bots/sniper/bot_sniper.mdl");
 	PrecacheSound("weapons/sniper_railgun_charged_shot_01.wav");
 	PrecacheSound("weapons/sniper_railgun_charged_shot_02.wav");
-	PrecacheSound("#music/bluemelee.mp3");
-	PrecacheSound("#music/bluerange.wav");
-//	PrecacheSoundCustom("#music/bluemelee.mp3");
-//	PrecacheSoundCustom("#music/bluerange.wav");
+	PrecacheSoundCustom("#music/bluemelee.mp3");
+	PrecacheSoundCustom("#music/bluerange.wav");
 }
 
 methodmap StalkerGoggles < StalkerShared
@@ -41,10 +39,12 @@ methodmap StalkerGoggles < StalkerShared
 	
 	public StalkerGoggles(int client, float vecPos[3], float vecAng[3], bool ally)
 	{
-		StalkerGoggles npc = view_as<StalkerGoggles>(CClotBody(vecPos, vecAng, "models/bots/sniper/bot_sniper.mdl", "1.0", "46664666", ally));
+		StalkerGoggles npc = view_as<StalkerGoggles>(CClotBody(vecPos, vecAng, "models/bots/sniper/bot_sniper.mdl", "1.0", "66666666", ally));
 		
 		i_NpcInternalId[npc.index] = STALKER_GOGGLES;
 		i_NpcWeight[npc.index] = 5;
+		fl_GetClosestTargetTimeTouch[npc.index] = 99999.9;
+		b_DoNotChangeTargetTouchNpc[npc.index] = true;
 		
 		FormatEx(c_HeadPlaceAttachmentGibName[npc.index], sizeof(c_HeadPlaceAttachmentGibName[]), "head");
 		SetEntProp(npc.index, Prop_Send, "m_nSkin", 1);
@@ -64,8 +64,8 @@ methodmap StalkerGoggles < StalkerShared
 		Is_a_Medic[npc.index] = true;
 		npc.m_bStaticNPC = true;
 
+		GiveNpcOutLineLastOrBoss(npc.index, false);
 		b_thisNpcHasAnOutline[npc.index] = true; //Makes it so they never have an outline
-		SetEntProp(npc.index, Prop_Send, "m_bGlowEnabled", false);
 
 		Zero(fl_AlreadyStrippedMusic);
 
@@ -223,7 +223,7 @@ public void StalkerGoggles_ClotThink(int iNPC)
 					{
 						if(IsValidClient(client) && GetClientTeam(client) == 2 && TeutonType[client] != TEUTON_WAITING)
 						{
-							GiveNamedItem(client, "Head Equipped Blue Goggles");
+							Items_GiveNamedItem(client, "Head Equipped Blue Goggles");
 							CPrintToChat(client, "{default}You gained his favor, you obtained: {blue}''Head Equipped Blue Goggles''{default}!");
 						}
 					}
@@ -297,7 +297,7 @@ public void StalkerGoggles_ClotThink(int iNPC)
 			{
 				state = 2;
 			}
-			else if(!sniper && distance < (NORMAL_ENEMY_MELEE_RANGE_FLOAT * NORMAL_ENEMY_MELEE_RANGE_FLOAT) && npc.m_flNextMeleeAttack < gameTime)
+			else if(!sniper && distance < NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED && npc.m_flNextMeleeAttack < gameTime)
 			{
 				state = 1;
 			}
@@ -388,7 +388,7 @@ public void StalkerGoggles_ClotThink(int iNPC)
 		{
 			state = -1;
 		}
-		else if(sniper || distance < (NORMAL_ENEMY_MELEE_RANGE_FLOAT * NORMAL_ENEMY_MELEE_RANGE_FLOAT))
+		else if(sniper || distance < NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED)
 		{
 			state = 1;
 		}
@@ -533,7 +533,7 @@ public Action StalkerGoggles_OnTakeDamage(int victim, int &attacker, int &inflic
 		return Plugin_Changed;
 	}
 
-	if(GetEntProp(victim, Prop_Data, "m_iHealth") < 1100000 && Waves_GetRound() < 59)
+	if(GetEntProp(victim, Prop_Data, "m_iHealth") < 26000000 && Waves_GetRound() < 59)
 	{
 		npc.m_bChaseAnger = false;
 		npc.m_iSurrender = 1;

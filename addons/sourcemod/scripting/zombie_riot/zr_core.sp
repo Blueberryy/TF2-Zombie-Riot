@@ -92,9 +92,39 @@ enum
 	WEAPON_MLYNAR = 21,
 	WEAPON_GLADIIA = 22,
 	WEAPON_SPIKELAYER = 23,
+	WEAPON_BLEMISHINE = 24,
+	WEAPON_FANTASY_BLADE = 25,
+	WEAPON_BOOMSTICK = 26,
+	WEAPON_TEUTON_DEAD = 27,
+	WEAPON_MLYNAR_PAP = 28,
+	WEAPON_VAMPKNIVES_1 = 29,
+	WEAPON_VAMPKNIVES_2 = 30,
+	WEAPON_VAMPKNIVES_2_CLEAVER = 31,
+	WEAPON_VAMPKNIVES_3 = 32,
+	WEAPON_VAMPKNIVES_3_CLEAVER = 33,
+	WEAPON_VAMPKNIVES_4 = 34,
+	WEAPON_VAMPKNIVES_4_CLEAVER = 35,
+	WEAPON_SPEEDFISTS = 36,
+	WEAPON_ANCIENT_BANNER = 37,
+	WEAPON_QUINCY_BOW = 38,
+	WEAPON_JUDGE = 39,
+	WEAPON_JUDGE_PAP = 40,
+	WEAPON_BOARD = 41,
+	WEAPON_GERMAN = 42,
+	WEAPON_SENSAL_SCYTHE = 43,
+	WEAPON_SENSAL_SCYTHE_PAP_1 = 44,
+	WEAPON_SENSAL_SCYTHE_PAP_2 = 45,
+	WEAPON_SENSAL_SCYTHE_PAP_3 = 46,
+	WEAPON_HAZARD = 47,
+	WEAPON_HAZARD_UNSTABLE = 48,
+	WEAPON_HAZARD_LUNATIC = 49,
+	WEAPON_HAZARD_CHAOS = 50,
+	WEAPON_HAZARD_STABILIZED = 51,
+	WEAPON_HAZARD_DEMI = 52,
+	WEAPON_HAZARD_PERFECT = 53,
+	WEAPON_FIRE_WAND = 54,
+	WEAPON_CASINO = 55
 }
-
-ArrayList SpawnerList;
 
 //int Bob_To_Player[MAXENTITIES];
 bool Bob_Exists = false;
@@ -159,7 +189,7 @@ int CurrentRound;
 int CurrentWave = -1;
 int StartCash;
 float RoundStartTime;
-char WhatDifficultySetting[64];
+char WhatDifficultySetting[21];
 float healing_cooldown[MAXTF2PLAYERS];
 float Damage_dealt_in_total[MAXTF2PLAYERS];
 int i_Damage_dealt_in_total[MAXTF2PLAYERS];
@@ -183,6 +213,8 @@ int i_SvRollAngle[MAXTF2PLAYERS];
 Handle SyncHud_ArmorCounter;
 	
 int CashSpent[MAXTF2PLAYERS];
+int CashSpentGivePostSetup[MAXTF2PLAYERS];
+bool CashSpentGivePostSetupWarning[MAXTF2PLAYERS];
 int CashSpentTotal[MAXTF2PLAYERS];
 int CashRecievedNonWave[MAXTF2PLAYERS];
 int Scrap[MAXTF2PLAYERS];
@@ -193,7 +225,7 @@ int Ammo_Count_Used[MAXTF2PLAYERS];
 int b_NpcForcepowerupspawn[MAXENTITIES]={0, ...}; 
 
 int Armour_Level_Current[MAXTF2PLAYERS];
-int Armor_Charge[MAXTF2PLAYERS];
+int Armor_Charge[MAXENTITIES];
 
 int Elevators_Currently_Build[MAXTF2PLAYERS]={0, ...};
 int i_SupportBuildingsBuild[MAXTF2PLAYERS]={0, ...};
@@ -246,7 +278,6 @@ int g_CarriedDispenser[MAXPLAYERS+1];
 int i_BeingCarried[MAXENTITIES];
 float f_BuildingIsNotReady[MAXTF2PLAYERS];
 
-float GlobalAntiSameFrameCheck_NPC_SpawnNext;
 //bool b_AllowBuildCommand[MAXPLAYERS + 1];
 
 int Building_Mounted[MAXENTITIES];
@@ -258,7 +289,9 @@ bool b_Doing_Buildingpickup_Handle[MAXPLAYERS + 1]={false, ...};
 int i_PlayerToCustomBuilding[MAXPLAYERS + 1]={0, ...};
 
 float f_DisableDyingTimer[MAXPLAYERS + 1]={0.0, ...};
-int i_DyingParticleIndication[MAXPLAYERS + 1]={-1, ...};
+int i_DyingParticleIndication[MAXPLAYERS + 1][2];
+float f_DyingTextTimer[MAXPLAYERS + 1];
+bool b_DyingTextOff[MAXPLAYERS + 1];
 
 float GlobalCheckDelayAntiLagPlayerScale;
 bool AllowSpecialSpawns;
@@ -279,13 +312,17 @@ bool applied_lastmann_buffs_once = false;
 #include "zombie_riot/database.sp"
 #include "zombie_riot/escape.sp"
 #include "zombie_riot/freeplay.sp"
-#include "zombie_riot/item_gift_rpg.sp"
+#include "zombie_riot/items.sp"
 #include "zombie_riot/music.sp"
+#include "zombie_riot/natives.sp"
 #include "zombie_riot/queue.sp"
+#include "zombie_riot/spawns.sp"
 #include "zombie_riot/tutorial.sp"
 #include "zombie_riot/waves.sp"
 #include "zombie_riot/zombie_drops.sp"
 #include "zombie_riot/rogue.sp"
+#include "zombie_riot/sm_skyboxprops.sp"
+#include "zombie_riot/custom/homing_projectile_logic.sp"
 #include "zombie_riot/custom/building.sp"
 #include "zombie_riot/custom/healing_medkit.sp"
 #include "zombie_riot/custom/weapon_slug_rifle.sp"
@@ -323,10 +360,8 @@ bool applied_lastmann_buffs_once = false;
 #include "zombie_riot/custom/weapon_glitched.sp"
 //#include "zombie_riot/custom/weimage.pngapon_minecraft.sp"
 #include "zombie_riot/custom/arse_enal_layer_tripmine.sp"
-#include "zombie_riot/custom/weapon_serioussam2_shooter.sp"
 #include "zombie_riot/custom/wand/weapon_elemental_staff.sp"
 #include "zombie_riot/custom/wand/weapon_elemental_staff_2.sp"
-#include "zombie_riot/custom/weapon_infinity_blade.sp"
 //#include "zombie_riot/custom/weapon_black_fire_wand.sp"
 #include "zombie_riot/custom/wand/weapon_chlorophite.sp"
 #include "zombie_riot/custom/wand/weapon_chlorophite_heavy.sp"
@@ -356,6 +391,7 @@ bool applied_lastmann_buffs_once = false;
 #include "zombie_riot/custom/weapon_riotshield.sp"
 #include "zombie_riot/custom/escape_sentry_hat.sp"
 #include "zombie_riot/custom/m3_abilities.sp"
+#include "zombie_riot/custom/weapon_health_hose.sp"
 #include "shared/custom/weapon_street_fighter.sp"
 #include "shared/custom/joke_medigun_mod_drain_health.sp"
 #include "shared/custom/weapon_judgement_of_iberia.sp"
@@ -366,15 +402,25 @@ bool applied_lastmann_buffs_once = false;
 #include "zombie_riot/custom/wand/weapon_lantean_wand.sp"
 #include "zombie_riot/custom/weapon_specter.sp"
 #include "zombie_riot/custom/weapon_yamato.sp"
+#include "zombie_riot/custom/wand/weapon_quincy_bow.sp"
+#include "zombie_riot/custom/weapon_fantasy_blade.sp"
 #include "zombie_riot/custom/weapon_saga.sp"
 #include "zombie_riot/custom/wand/weapon_wand_beam_pap.sp"
 #include "zombie_riot/custom/weapon_mlynar.sp"
 #include "zombie_riot/custom/weapon_enforcer.sp"
-#include "zombie_riot/sm_skyboxprops.sp"
+#include "zombie_riot/custom/weapon_blemishine.sp"
+#include "zombie_riot/custom/weapon_gladiia.sp"
+#include "zombie_riot/custom/weapon_vampire_knives.sp"
+#include "zombie_riot/custom/weapon_judge.sp"
+#include "zombie_riot/custom/weapon_board.sp"
+#include "zombie_riot/custom/wand/weapon_german_caster.sp"
+#include "zombie_riot/custom/weapon_sensal.sp"
+#include "zombie_riot/custom/weapon_hazard.sp"
+#include "zombie_riot/custom/weapon_casino.sp"
 
 void ZR_PluginLoad()
 {
-	CreateNative("ZR_GetWaveCount", Native_GetWaveCounts);
+	Natives_PluginLoad();
 }
 
 void ZR_PluginStart()
@@ -387,12 +433,17 @@ void ZR_PluginStart()
 	RegConsoleCmd("sm_shop", Access_StoreViaCommand, "Please Press TAB instad");
 	RegConsoleCmd("sm_afk", Command_AFK, "BRB GONNA CLEAN MY MOM'S DISHES");
 	RegAdminCmd("sm_give_cash", Command_GiveCash, ADMFLAG_ROOT, "Give Cash to the Person");
+	RegAdminCmd("sm_give_scrap", Command_GiveScrap, ADMFLAG_ROOT, "Give scrap to the Person");
 	RegAdminCmd("sm_give_xp", Command_GiveXp, ADMFLAG_ROOT, "Give XP to the Person");
 	RegAdminCmd("sm_give_cash_all", Command_GiveCashAll, ADMFLAG_ROOT, "Give Cash to All");
 	RegAdminCmd("sm_tutorial_test", Command_TestTutorial, ADMFLAG_ROOT, "Test The Tutorial");
 	RegAdminCmd("sm_give_dialog", Command_GiveDialogBox, ADMFLAG_ROOT, "Give a dialog box");
-	RegAdminCmd("sm_afk_knight", Command_AFKKnight, ADMFLAG_GENERIC, "BRB GONNA MURDER MY MOM'S DISHES");
-	RegAdminCmd("sm_spawn_grigori", Command_SpawnGrigori, ADMFLAG_GENERIC, "Forcefully summon grigori");
+	RegAdminCmd("sm_afk_knight", Command_AFKKnight, ADMFLAG_ROOT, "BRB GONNA MURDER MY MOM'S DISHES");
+	RegAdminCmd("sm_spawn_grigori", Command_SpawnGrigori, ADMFLAG_ROOT, "Forcefully summon grigori");
+	
+	RegAdminCmd("sm_spawn_ruina_ion", Command_Spawn_Ruina_Cannon, ADMFLAG_ROOT, "Spawns a ruina Ion Cannon"); 
+	RegAdminCmd("sm_kill_ruina_ion", Command_Kill_Ruina_Cannon, ADMFLAG_ROOT, "Kills all ruina Ion Cannon"); 
+	RegAdminCmd("sm_fake_death_client", Command_FakeDeathCount, ADMFLAG_GENERIC, "Fake Death Count");
 	
 	CookieXP = new Cookie("zr_xp", "Your XP", CookieAccess_Protected);
 	CookieScrap = new Cookie("zr_Scrap", "Your Scrap", CookieAccess_Protected);
@@ -401,8 +452,10 @@ void ZR_PluginStart()
 	if(CvarSvRollagle)
 		CvarSvRollagle.Flags &= ~(FCVAR_NOTIFY | FCVAR_REPLICATED);
 
+	SkyboxProps_OnPluginStart();
 	OnPluginStart_Build_on_Building();
 	Database_PluginStart();
+	Items_PluginStart();
 	Medigun_PluginStart();
 	OnPluginStartMangler();
 	SentryHat_OnPluginStart();
@@ -410,6 +463,7 @@ void ZR_PluginStart()
 	Tutorial_PluginStart();
 	Waves_PluginStart();
 	Rogue_PluginStart();
+	Spawns_PluginStart();
 	Format(WhatDifficultySetting, sizeof(WhatDifficultySetting), "%s", "No Difficulty Selected Yet");
 	
 	for (int ent = -1; (ent = FindEntityByClassname(ent, "info_player_teamspawn")) != -1;) 
@@ -422,6 +476,7 @@ void ZR_PluginStart()
 
 void ZR_MapStart()
 {
+	SkyboxProps_OnMapStart();
 	Rogue_MapStart();
 	Ammo_Count_Ready = 0;
 	ZombieMusicPlayed = false;
@@ -475,6 +530,7 @@ void ZR_MapStart()
 	Zero(f_BuildingIsNotReady);
 	Zero(f_TerroriserAntiSpamCd);
 	Zero(f_DisableDyingTimer);
+	Zero(f_DyingTextTimer);
 	Zero(healing_cooldown);
 	Zero(i_ThisEntityHasAMachineThatBelongsToClientMoney);
 	Zero(f_WasRecentlyRevivedViaNonWave);
@@ -488,7 +544,11 @@ void ZR_MapStart()
 	EscapeSentryHat_MapStart();
 	PrecachePlayerGiveGiveResponseVoice();
 	Mlynar_Map_Precache();
+	Hazard_Map_Precache();
+	Judge_Map_Precache();
 	Reset_stats_Mlynar_Global();
+//	Reset_stats_Casino_Global();
+	Blemishine_Map_Precache();
 	
 	Waves_MapStart();
 	Music_MapStart();
@@ -510,11 +570,11 @@ void ZR_MapStart()
 	Wand_NerosSpell_Map_Precache();
 	Wand_autoaim_Map_Precache();
 	Weapon_Arrow_Shoot_Map_Precache();
+	Weapon_Hose_Precache();
 //	Weapon_Pipe_Shoot_Map_Precache();
 	Building_MapStart();
 	Survival_Knife_Map_Precache();
 	Aresenal_Weapons_Map_Precache();
-	SS2_Map_Precache();
 	Wand_Elemental_Map_Precache();
 	Wand_Elemental_2_Map_Precache();
 	Map_Precache_Zombie_Drops();
@@ -541,6 +601,7 @@ void ZR_MapStart()
 	Wand_Cryo_Precache();
 	Abiltity_Coin_Flip_Map_Change();
 	Wand_Cryo_Precache();
+	Vampire_Knives_Precache();
 	Fusion_Melee_OnMapStart();
 	Atomic_MapStart();
 	SSS_Map_Precache();
@@ -554,16 +615,21 @@ void ZR_MapStart()
 	ResetMapStartOcean();
 	Specter_MapStart();
 	Reset_stats_Yamato_Global();	//acts as a reset/map precache
+	QuincyMapStart();
+	Fantasy_Blade_MapStart();
+	Casino_MapStart();
 	Saga_MapStart();
 	Beam_Wand_Pap_OnMapStart();
+	Gladiia_MapStart();
+	WeaponBoard_Precache();
+	Weapon_German_MapStart();
 	
 	Zombies_Currently_Still_Ongoing = 0;
 	// An info_populator entity is required for a lot of MvM-related stuff (preserved entity)
 //	CreateEntityByName("info_populator");
 	RaidBossActive = INVALID_ENT_REFERENCE;
 	
-	CreateTimer(2.0, GetClosestSpawners, _, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
-	
+	CreateTimer(2.0, GlobalTimer, _, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
 	
 	char_MusicString1[0] = 0;
 	char_MusicString2[0] = 0;
@@ -573,8 +639,23 @@ void ZR_MapStart()
 	i_MusicLength2 = 0;
 	i_RaidMusicLength1 = 0;
 	b_RaidMusicCustom1 = false;
+	ResetMapStartSensalWeapon();
 	
 	//Store_RandomizeNPCStore(true);
+}
+
+public Action GlobalTimer(Handle timer)
+{
+	for(int client=1; client<=MaxClients; client++)
+	{
+		if(IsClientInGame(client))
+		{
+			PlayerApplyDefaults(client);
+		}
+	}
+	Zombie_Delay_Warning();
+	Spawners_Timer();
+	return Plugin_Continue;
 }
 
 void ZR_ClientPutInServer(int client)
@@ -622,6 +703,8 @@ void ZR_ClientDisconnect(int client)
 	Reset_stats_LappLand_Singular(client);
 	Reset_stats_Mlynar_Singular(client);
 	Reset_stats_SpikeLayer_Singular(client);
+	Reset_stats_Blemishine_Singular(client);
+	Reset_stats_Judge_Singular(client);
 	b_HasBeenHereSinceStartOfWave[client] = false;
 	Damage_dealt_in_total[client] = 0.0;
 	Resupplies_Supplied[client] = 0;
@@ -633,6 +716,9 @@ void ZR_ClientDisconnect(int client)
 	i_ExtraPlayerPoints[client] = 0;
 	Timer_Knife_Management[client] = INVALID_HANDLE;
 	Escape_DropItem(client, false);
+	WoodAmount[client] = 0.0;
+	FoodAmount[client] = 0.0;
+	GoldAmount[client] = 0.0;
 	
 	for(int entitycount; entitycount<i_MaxcountBuilding; entitycount++)
 	{
@@ -651,11 +737,6 @@ void ZR_ClientDisconnect(int client)
 			}
 		}
 	}
-}
-
-public any Native_GetWaveCounts(Handle plugin, int numParams)
-{
-	return CurrentRound;
 }
 
 public Action OnReloadCommand(int args)
@@ -794,6 +875,48 @@ public Action Command_GiveCash(int client, int args)
 	
 	return Plugin_Handled;
 }
+public Action Command_GiveScrap(int client, int args)
+{
+	//What are you.
+	if(args < 1)
+    {
+        ReplyToCommand(client, "[SM] Usage: sm_give_scrap <target> <scrap>");
+        return Plugin_Handled;
+    }
+    
+	static char targetName[MAX_TARGET_LENGTH];
+    
+	static char pattern[PLATFORM_MAX_PATH];
+	GetCmdArg(1, pattern, sizeof(pattern));
+	
+	char buf[12];
+	GetCmdArg(2, buf, sizeof(buf));
+	int money = StringToInt(buf); 
+
+	int targets[MAXPLAYERS], matches;
+	bool targetNounIsMultiLanguage;
+	if((matches=ProcessTargetString(pattern, client, targets, sizeof(targets), 0, targetName, sizeof(targetName), targetNounIsMultiLanguage)) < 1)
+	{
+		ReplyToTargetError(client, matches);
+		return Plugin_Handled;
+	}
+	
+	for(int target; target<matches; target++)
+	{
+		if(money > 0)
+		{
+			PrintToChat(targets[target], "You got %i scrap from the admin %N!", money, client);
+			Scrap[targets[target]] += money;
+		}
+		else
+		{
+			PrintToChat(targets[target], "You lost %i scrap due to the admin %N!", money, client);
+			Scrap[targets[target]] += money;			
+		}
+	}
+	
+	return Plugin_Handled;
+}
 
 
 public Action Command_GiveXp(int client, int args)
@@ -912,9 +1035,7 @@ public void OnClientAuthorized(int client)
 	f_LeftForDead_Cooldown[client] = 0.0;
 	
 	if(CurrentRound)
-		CashSpent[client] = RoundToCeil(float(CurrentCash) * 0.20);
-
-	Database_ClientAuthorized(client);
+		CashSpent[client] = RoundToCeil(float(CurrentCash) * 0.10);
 }
 
 void ZR_OnClientDisconnect_Post()
@@ -986,28 +1107,55 @@ public Action Timer_Dieing(Handle timer, int client)
 		
 		if(!b_LeftForDead[client])
 		{
-			int particle = EntRefToEntIndex(i_DyingParticleIndication[client]);
+			int color[4];
+			color[0] = 255;
+			color[1] = 255;
+			color[2] = 0;
+			color[3] = 255;
+				
+			color[0] = GetEntProp(client, Prop_Send, "m_iHealth") * 255  / 210; // red  200 is the max health you can have while dying.
+			color[1] = GetEntProp(client, Prop_Send, "m_iHealth") * 255  / 210;	// green
+					
+			color[0] = 255 - color[0];
+
+			int particle = EntRefToEntIndex(i_DyingParticleIndication[client][0]);
 			if(IsValidEntity(particle))
 			{
-				int color[4];
-				color[0] = 255;
-				color[1] = 255;
-				color[2] = 0;
-				color[3] = 255;
-				
-				color[0] = GetEntProp(client, Prop_Send, "m_iHealth") * 255  / 210; // red  200 is the max health you can have while dying.
-				color[1] = GetEntProp(client, Prop_Send, "m_iHealth") * 255  / 210;	// green
-					
-				color[0] = 255 - color[0];
-				
 				SetVariantColor(color);
 				AcceptEntityInput(particle, "SetGlowColor");
+			}
+			int TextFormat = EntRefToEntIndex(i_DyingParticleIndication[client][1]);
+			if(IsValidEntity(TextFormat))
+			{
+				if(f_DyingTextTimer[client] < GetGameTime())
+				{
+					if(b_DyingTextOff[client])
+					{
+						b_DyingTextOff[client] = false;
+						SetVariantString("DOWNED [R]");
+						AcceptEntityInput(TextFormat, "SetText");
+					}
+					else
+					{
+						SetVariantString("REVIVE [R]");
+						AcceptEntityInput(TextFormat, "SetText");
+						b_DyingTextOff[client] = true;
+					}
+					f_DyingTextTimer[client] = GetGameTime() + 1.0;
+				}
+				SetVariantColor(color);
+				AcceptEntityInput(TextFormat, "SetColor");
 			}
 		}
 			
 		return Plugin_Continue;
 	}
-	int particle = EntRefToEntIndex(i_DyingParticleIndication[client]);
+	int particle = EntRefToEntIndex(i_DyingParticleIndication[client][0]);
+	if(IsValidEntity(particle))
+	{
+		RemoveEntity(particle);
+	}
+	particle = EntRefToEntIndex(i_DyingParticleIndication[client][1]);
 	if(IsValidEntity(particle))
 	{
 		RemoveEntity(particle);
@@ -1036,7 +1184,7 @@ public void Spawn_Bob_Combine(int client)
 	int bob = Npc_Create(BOB_THE_GOD_OF_GODS, client, flPos, flAng, true);
 	Bob_Exists = true;
 	Bob_Exists_Index = EntIndexToEntRef(bob);
-	GiveNamedItem(client, "Bob the Overgod of gods and destroyer of multiverses");
+	Items_GiveNPCKill(client, BOB_THE_GOD_OF_GODS);
 }
 
 public void NPC_Despawn_bob(int entity)
@@ -1070,7 +1218,7 @@ public void Spawn_Cured_Grigori()
 	{
 		if(IsClientInGame(client_Give_item) && GetClientTeam(client_Give_item)==2)
 		{
-			GiveNamedItem(client_Give_item, "Cured Grigori");
+			Items_GiveNPCKill(client_Give_item, CURED_FATHER_GRIGORI);
 		}
 	}
 }
@@ -1221,7 +1369,7 @@ void CheckAlivePlayers(int killed=0, int Hurtviasdkhook = 0)
 					
 					int Extra = 0;
 						
-					Extra = RoundToNearest(Attributes_FindOnPlayer(client, 701));
+					Extra = RoundToNearest(Attributes_FindOnPlayerZR(client, 701));
 					int Armor_Max = MaxArmorCalculation(Extra, client, 1.0);
 
 					Armor_Charge[client] = Armor_Max;
@@ -1313,12 +1461,6 @@ public void SetHealthAfterReviveAgain(int client)
 
 //Set hp spam after normal revive
 
-
-public void NPC_SpawnNextRequestFrame(bool force)
-{
-	NPC_SpawnNext(false, false, false);
-}
-
 stock void UpdatePlayerPoints(int client)
 {
 	int Points;
@@ -1346,7 +1488,7 @@ stock int MaxArmorCalculation(int ArmorLevel = -1, int client, float multiplyier
 {
 	if(ArmorLevel == -1)
 	{
-		ArmorLevel = RoundToNearest(Attributes_FindOnPlayer(client, 701));
+		ArmorLevel = RoundToNearest(Attributes_FindOnPlayerZR(client, 701));
 	}
 
 	int Armor_Max;
@@ -1401,7 +1543,7 @@ stock void GiveArmorViaPercentage(int client, float multiplyier, float MaxMulti)
 	}
 	
 }
-stock void AddAmmoClient(int client, int AmmoType, int AmmoCount = 0, float Multi = 1.0)
+stock void AddAmmoClient(int client, int AmmoType, int AmmoCount = 0, float Multi = 1.0, bool ignoreperk = false)
 {
 	int AmmoToAdd;
 	if(AmmoCount == 0)
@@ -1412,9 +1554,9 @@ stock void AddAmmoClient(int client, int AmmoType, int AmmoCount = 0, float Mult
 	{
 		AmmoToAdd = AmmoCount;
 	}
-	if(i_CurrentEquippedPerk[client] == 7) // Recycle Porier
+	if(i_CurrentEquippedPerk[client] == 7 && !ignoreperk) // Recycle Porier
 	{
-		AmmoToAdd = RoundToCeil(float(AmmoToAdd) * 1.25);
+		AmmoToAdd = RoundToCeil(float(AmmoToAdd) * 1.33);
 	}
 	if(Multi != 1.0)
 	{
@@ -1532,7 +1674,12 @@ void ReviveAll(bool raidspawned = false)
 	{
 		if(IsClientInGame(client))
 		{
-			int glowentity = EntRefToEntIndex(i_DyingParticleIndication[client]);
+			int glowentity = EntRefToEntIndex(i_DyingParticleIndication[client][0]);
+			if(glowentity > MaxClients)
+				RemoveEntity(glowentity);
+
+			
+			glowentity = EntRefToEntIndex(i_DyingParticleIndication[client][1]);
 			if(glowentity > MaxClients)
 				RemoveEntity(glowentity);
 
@@ -1701,4 +1848,41 @@ void GiveXP(int client, int xp)
 			PrintToChat(client, "%t", "None");
 		}
 	}
+}
+
+
+void PlayerApplyDefaults(int client)
+{
+	if(IsPlayerAlive(client) && GetClientTeam(client)==3)
+	{
+		if(IsFakeClient(client))
+		{
+			KickClient(client);	
+		}
+		else
+		{
+			ClientCommand(client, "retry");
+		}
+	}
+	else if(!IsFakeClient(client))
+	{
+		QueryClientConVar(client, "snd_musicvolume", ConVarCallback); //cl_showpluginmessages
+		QueryClientConVar(client, "snd_ducktovolume", ConVarCallbackDuckToVolume); //cl_showpluginmessages
+		QueryClientConVar(client, "cl_showpluginmessages", ConVarCallback_Plugin_message); //cl_showpluginmessages
+		int point_difference = PlayerPoints[client] - i_PreviousPointAmount[client];
+		
+		if(point_difference > 0)
+		{
+			if(Waves_GetRound() +1 > 60)
+			{
+				GiveXP(client, point_difference / 10); //Any round above 60 will give way less xp due to just being xp grind fests. This includes the bloons rounds as the points there get ridicilous at later rounds.
+			}
+			else
+			{
+				GiveXP(client, point_difference);
+			}
+		}
+		
+		i_PreviousPointAmount[client] = PlayerPoints[client];
+    }
 }

@@ -84,7 +84,11 @@ void DHook_Setup()
 
 	DHook_CreateDetour(gamedata, "CTFBuffItem::RaiseFlag", _, Dhook_RaiseFlag_Post);
 	DHook_CreateDetour(gamedata, "CTFBuffItem::BlowHorn", _, Dhook_BlowHorn_Post);
+	DHook_CreateDetour(gamedata, "CTFPlayerShared::PulseRageBuff()", Dhook_PulseFlagBuff,_);
+	//thanks to https://github.com/nosoop/SM-TFCustomAttributeStarterPack/blob/6e8ffcc929553f8906f0b32d92b649c32681cd1e/scripting/attr_buff_override.sp#L53
+	//nosoop
 
+	DHook_CreateDetour(gamedata, "CTFWeaponBaseMelee::DoSwingTraceInternal", DHook_DoSwingTracePre, _);
 	
 	g_DHookGrenadeExplode = DHook_CreateVirtual(gamedata, "CBaseGrenade::Explode");
 	g_DHookGrenade_Detonate = DHook_CreateVirtual(gamedata, "CBaseGrenade::Detonate");
@@ -142,6 +146,13 @@ void DHook_Setup()
 
 	delete gamedata_lag_comp;
 	
+}
+
+//cancel melee, we have our own.
+public MRESReturn DHook_DoSwingTracePre(int entity, DHookReturn returnHook, DHookParam param)
+{
+	returnHook.Value = false;
+	return MRES_Supercede;
 }
 
 void OnWrenchCreated(int entity) 
@@ -565,17 +576,6 @@ void DoGrenadeExplodeLogic(int entity)
 		}
 	}
 }
-//steal from fortress royale
-
-stock int GetOwnerLoop(int entity)
-{
-	
-	int owner = GetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity");
-	if (owner > 0 && owner != entity)
-		return GetOwnerLoop(owner);
-	else
-		return entity;
-}
 
 public MRESReturn DHook_FireballExplodePre(int entity)
 {
@@ -587,23 +587,30 @@ public MRESReturn DHook_FireballExplodePre(int entity)
 	weapon = GetEntPropEnt(entity, Prop_Send, "m_hLauncher");
 	Explode_Logic_Custom(f_CustomGrenadeDamage[entity], owner, entity, weapon, _, _, _, _, _, _, true,_,_,FireBallBonusDamage);
 #endif
-
+	
 #if defined ZR
-		int i, weapon;
-		while(TF2_GetItem(owner, weapon, i))
+	int weapon;
+	weapon = GetEntPropEnt(entity, Prop_Send, "m_hLauncher");
+	if(f_CustomGrenadeDamage[entity] > 0.0)
+	{
+		Explode_Logic_Custom(f_CustomGrenadeDamage[entity], owner, entity, weapon, _, _, _, _, _, _, true);
+	}
+	else
+	{
+		int i, weapon1;
+		while(TF2_GetItem(owner, weapon1, i))
 		{
-			if(GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex") == 939)
+			if(i_CustomWeaponEquipLogic[weapon1] == WEAPON_FIRE_WAND)
 			{
 				float damage = 300.0;
 				
-				Address address = TF2Attrib_GetByDefIndex(weapon, 410);
-				if(address != Address_Null)
-					damage *= TF2Attrib_GetValue(address);
+				damage *= Attributes_Get(weapon1, 410, 1.0);
 				
-				Explode_Logic_Custom(damage, owner, entity, weapon, _, _, _, _, _, _, true);
+				Explode_Logic_Custom(damage, owner, entity, weapon1, _, _, _, _, _, _, true);
 				break;
 			}
 		}
+	}
 #endif
 	}
 
@@ -621,18 +628,29 @@ public MRESReturn DHook_RocketExplodePre(int entity)
 			float original_damage = GetEntDataFloat(entity, FindSendPropInfo("CTFProjectile_Rocket", "m_iDeflected")+4);
 			SetEntDataFloat(entity, FindSendPropInfo("CTFProjectile_Rocket", "m_iDeflected")+4, 0.0, true);
 			int weapon = GetEntPropEnt(entity, Prop_Send, "m_hOriginalLauncher");
-			Explode_Logic_Custom(original_damage, owner, entity, weapon);
+
+			int inflictor = EntRefToEntIndex(h_ArrowInflictorRef[entity]);
+			if(!IsValidEntity(inflictor))
+			{
+				inflictor = 0;
+			}
+			Explode_Logic_Custom(original_damage, owner, entity, weapon,_,_,_,_,_,_,_,_,_,_,inflictor);
 		}
 		else if(owner > MaxClients)
 		{
 			float original_damage = GetEntDataFloat(entity, FindSendPropInfo("CTFProjectile_Rocket", "m_iDeflected")+4);
+			int inflictor = EntRefToEntIndex(h_ArrowInflictorRef[entity]);
+			if(!IsValidEntity(inflictor))
+			{
+				inflictor = 0;
+			}
 			if(GetEntProp(entity, Prop_Data, "m_iTeamNum") != view_as<int>(TFTeam_Red))
 			{
-				Explode_Logic_Custom(original_damage, owner, entity, -1,_,_,_,_,true);	
+				Explode_Logic_Custom(original_damage, owner, entity, -1,_,_,_,_,true,_,_,_,_,_,inflictor);	
 			}
 			else
 			{
-				Explode_Logic_Custom(original_damage, owner, entity, -1,_,_,_,_,false);
+				Explode_Logic_Custom(original_damage, owner, entity, -1,_,_,_,_,false,_,_,_,_,_,inflictor);	
 			}
 		}
 		RemoveEntity(entity);
@@ -646,7 +664,12 @@ public MRESReturn DHook_RocketExplodePre(int entity)
 			float original_damage = GetEntDataFloat(entity, FindSendPropInfo("CTFProjectile_Rocket", "m_iDeflected")+4);
 			SetEntDataFloat(entity, FindSendPropInfo("CTFProjectile_Rocket", "m_iDeflected")+4, 0.0, true);
 			int weapon = GetEntPropEnt(entity, Prop_Send, "m_hOriginalLauncher");
-			Explode_Logic_Custom(original_damage, owner, entity, weapon);
+			int inflictor = EntRefToEntIndex(h_ArrowInflictorRef[entity]);
+			if(!IsValidEntity(inflictor))
+			{
+				inflictor = 0;
+			}
+			Explode_Logic_Custom(original_damage, owner, entity, weapon,_,_,_,_,_,_,_,_,_,_,inflictor);
 		}
 		else if(owner > MaxClients)
 		{
@@ -654,13 +677,18 @@ public MRESReturn DHook_RocketExplodePre(int entity)
 			SetEntDataFloat(entity, FindSendPropInfo("CTFProjectile_Rocket", "m_iDeflected")+4, 0.0, true);
 		//	int weapon = GetEntPropEnt(entity, Prop_Send, "m_hOriginalLauncher");
 		//Important, make them not act as an ai if its on red, or else they are BUSTED AS FUCK.
+			int inflictor = EntRefToEntIndex(h_ArrowInflictorRef[entity]);
+			if(!IsValidEntity(inflictor))
+			{
+				inflictor = 0;
+			}
 			if(GetEntProp(entity, Prop_Data, "m_iTeamNum") != view_as<int>(TFTeam_Red))
 			{
-				Explode_Logic_Custom(original_damage, owner, entity, -1,_,_,_,_,true);	
+				Explode_Logic_Custom(original_damage, owner, entity, -1,_,_,_,_,true,_,_,_,_,_,inflictor);	
 			}
 			else
 			{
-				Explode_Logic_Custom(original_damage, owner, entity, -1,_,_,_,_,false);
+				Explode_Logic_Custom(original_damage, owner, entity, -1,_,_,_,_,false,_,_,_,_,_,inflictor);	
 			}
 		}
 	}
@@ -708,14 +736,15 @@ public bool PassfilterGlobal(int ent1, int ent2, bool result)
 {
 	if(b_IsInUpdateGroundConstraintLogic)
 	{
-		if(b_ThisEntityIsAProjectileForUpdateContraints[ent1])
+		if(b_ThisEntityIsAProjectileForUpdateContraints[ent1] || (ent1 > 0 && ent1 <= MaxClients) || i_IsABuilding[ent1])
 		{
 			return false;
 		}
-		else if(b_ThisEntityIsAProjectileForUpdateContraints[ent2])
+		else if(b_ThisEntityIsAProjectileForUpdateContraints[ent2] || (ent2 > 0 && ent2 <= MaxClients) || i_IsABuilding[ent2])
 		{
 			return false;
 		}
+		//We do not want this entity to step on anything aside from the actual world or entities that are treated as the world
 	}
 	if(b_ThisEntityIgnoredEntirelyFromAllCollisions[ent1] || b_ThisEntityIgnoredEntirelyFromAllCollisions[ent2])
 	{
@@ -736,6 +765,27 @@ public bool PassfilterGlobal(int ent1, int ent2, bool result)
 			entity1 = ent2;
 			entity2 = ent1;			
 		}
+		/*
+		if(!b_NpcHasDied[entity1]) //they ignore brushes.
+		{	
+			if(b_is_a_brush[entity2]) //Dont ignore brushes.
+			{
+			//	
+			//		enum BrushSolidities_e {
+			//		BRUSHSOLID_TOGGLE = 0,
+			//		BRUSHSOLID_NEVER  = 1,
+			//		BRUSHSOLID_ALWAYS = 2,
+			//	};
+				
+				int solidity_type = GetEntProp(entity2, Prop_Data, "m_iSolidity");
+				bool SolidOrNot = view_as<bool>(GetEntProp(entity2, Prop_Data, "m_bSolidBsp"));
+
+				PrintToChatAll("%b",SolidOrNot);
+				if(solidity_type == 2 || (SolidOrNot && solidity_type == 0))
+					return true;
+			}
+		}
+		*/
 #if defined ZR
 		if(b_IsAGib[entity1]) //This is a gib that just collided with a player, do stuff! and also make it not collide.
 		{
@@ -770,18 +820,36 @@ public bool PassfilterGlobal(int ent1, int ent2, bool result)
 		}
 		else if(b_Is_Player_Projectile[entity1])
 		{
-			if(b_ForceCollisionWithProjectile[entity2])
+#if defined ZR
+			if(b_ForceCollisionWithProjectile[entity2] && !b_EntityIgnoredByShield[entity1] && !IsEntitySpike(entity1))
+#else
+			if(b_ForceCollisionWithProjectile[entity2] && !b_EntityIgnoredByShield[entity1])
+#endif
 			{
-				//We sadly cannot force a collision like this, but whatwe can do is manually call the collision with out own code.
-				//This is only used for wands so place beware, we will just delete the entity.
-				RemoveEntity(entity1);
-			//	RequestFrame(Delete_FrameLater, EntIndexToEntRef(entity1));
-			//	b_ThisEntityIgnoredEntirelyFromAllCollisions[entity1] = true;
-				int entity_particle = EntRefToEntIndex(i_WandParticle[entity1]);
-				if(IsValidEntity(entity_particle))
+				int EntityOwner = i_WandOwner[entity2];
+				if(ShieldDeleteProjectileCheck(EntityOwner, entity1))
 				{
-					RemoveEntity(entity_particle);
-				//	RequestFrame(Delete_FrameLater, EntIndexToEntRef(entity_particle));
+					if(i_WandIdNumber[entity1] != 0)
+					{
+						//make it act as if it collided with the world.
+						Wand_Base_StartTouch(entity1, 0);
+					}
+					else
+					{
+						//force a collision
+						
+						//We sadly cannot force a collision like this, but whatwe can do is manually call the collision with out own code.
+						//This is only used for wands so place beware, we will just delete the entity.
+						RemoveEntity(entity1);
+					//	RequestFrame(Delete_FrameLater, EntIndexToEntRef(entity1));
+					//	b_ThisEntityIgnoredEntirelyFromAllCollisions[entity1] = true;
+						int entity_particle = EntRefToEntIndex(i_WandParticle[entity1]);
+						if(IsValidEntity(entity_particle))
+						{
+							RemoveEntity(entity_particle);
+						//	RequestFrame(Delete_FrameLater, EntIndexToEntRef(entity_particle));
+						}						
+					}
 				}
 				return false;
 			}
@@ -814,6 +882,15 @@ things i tried
 	All collision groups
 
 */
+			else if (i_WandIdNumber[entity1] == 19 && !i_IsABuilding[entity2] && !b_Is_Player_Projectile[entity2]) //Health Hose projectiles
+			{
+				Hose_Touch(entity1, entity2);
+				return false;
+			}
+			else if (i_WandIdNumber[entity1] == 21 && !i_IsABuilding[entity2] && !b_Is_Player_Projectile[entity2])
+			{
+				return Vamp_CleaverHit(entity1, entity2);
+			}
 			else if(i_WandIdNumber[entity1] == 11)
 			{
 		//		//Have to use this here, please check wand_projectile for more info!
@@ -840,12 +917,24 @@ things i tried
 			{
 				return false;
 			}
+			else if(IsEntityTowerDefense(entity1) && !DoingLagCompensation) //allow players to go through enemies here.
+			{
+				if(entity2 > 0 && entity2 <= MaxClients) 
+				{
+					return false;
+				}
+			}
 			else if(b_Is_Blue_Npc[entity2])
 			{
 				return false;
 			}
 			else if (b_DoNotUnStuck[entity2])
 			{
+				return false;
+			}
+			else if((entity2 <= MaxClients && entity2 > 0) && f_AntiStuckPhaseThrough[entity2] > GetGameTime())
+			{
+				//if a player needs to get unstuck.
 				return false;
 			}
 		}
@@ -1754,17 +1843,9 @@ public MRESReturn OnHealingBoltImpactTeamPlayer(int healingBolt, Handle hParams)
 	if(ammo_amount_left > 0)
 	{
 		float HealAmmount = 20.0;
-		Address address = TF2Attrib_GetByDefIndex(originalLauncher, 8);
-		if(address != Address_Null)
-		{
-			HealAmmount *= TF2Attrib_GetValue(address);
-		}
-		else
-		{
-			HealAmmount = 20.0;
-		}
 
-		HealAmmount *= Attributes_FindOnPlayer(owner, 8, true, 1.0);
+		HealAmmount *= Attributes_GetOnPlayer(owner, 8, true, true);
+
 		
 		float GameTime = GetGameTime();
 		if(f_TimeUntillNormalHeal[target] > GameTime)
@@ -1864,11 +1945,15 @@ void Hook_DHook_UpdateTransmitState(int entity)
 
 public MRESReturn DHook_UpdateTransmitState(int entity, DHookReturn returnHook) //BLOCK!!
 {   
-	if(b_IsEntityNeverTranmitted[entity])
+	if(b_IsAlliedNpc[entity])
+	{
+		returnHook.Value = SetEntityTransmitState(entity, FL_EDICT_ALWAYS);
+	}
+	else if(b_IsEntityNeverTranmitted[entity])
 	{
 		returnHook.Value = SetEntityTransmitState(entity, FL_EDICT_DONTSEND);
 	}
-	if(b_IsEntityAlwaysTranmitted[entity] || b_thisNpcIsABoss[entity])
+	else if(b_IsEntityAlwaysTranmitted[entity] || b_thisNpcIsABoss[entity])
 	{
 		returnHook.Value = SetEntityTransmitState(entity, FL_EDICT_ALWAYS);
 	}
@@ -1919,9 +2004,19 @@ public MRESReturn Detour_MaintainBotQuota(int pThis)
 
 public MRESReturn Dhook_BlowHorn_Post(int entity)
 {
-	TF2Attrib_SetByDefIndex(entity, 698, 1.0); // disable weapon switch
+	Attributes_Set(entity, 698, 1.0); // disable weapon switch
 	return MRES_Ignored;
 }
+
+public MRESReturn Dhook_PulseFlagBuff(Address pPlayerShared)
+{
+	int client = TF2Util_GetPlayerFromSharedAddress(pPlayerShared);
+	if(IsValidClient(client))
+		f_BannerDurationActive[client] = GetGameTime() + 1.1;
+
+	return MRES_Supercede;
+}
+
 public MRESReturn Dhook_RaiseFlag_Post(int entity)
 {
 	int client = GetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity");
@@ -1935,9 +2030,16 @@ public MRESReturn Dhook_RaiseFlag_Post(int entity)
 #if defined ZR
 	//They successfully blew the horn! give them abit of credit for that! they helpinnnnnnn... yay
 	i_ExtraPlayerPoints[client] += 15;
+	int weapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+	if(IsValidEntity(weapon))
+	{
+		AncientBannerActivate(client, weapon);
+		BuffBannerActivate(client, weapon);
+		BuffBattilonsActivate(client, weapon);
+	}
 #endif
 	
-	TF2Attrib_SetByDefIndex(entity, 698, 0.0); // disable weapon switch
+	Attributes_Set(entity, 698, 0.0); // disable weapon switch
 	return MRES_Ignored;
 }
 
@@ -1970,4 +2072,36 @@ public MRESReturn DHook_ManageRegularWeaponsPre(int client, DHookParam param)
 	}
 	TF2_SetPlayerClass(client, CurrentClass[client]);
 	return MRES_Ignored;
+}
+
+#define MAX_YAW_SHIELD_DELETE_SIDEWAY 25.0
+bool ShieldDeleteProjectileCheck(int owner, int enemy)
+{
+	float pos1[3];
+	float pos2[3];
+	float ang3[3];
+	float ang2[3];
+	GetEntPropVector(owner, Prop_Data, "m_vecAbsOrigin", pos1);	
+	GetEntPropVector(enemy, Prop_Data, "m_vecAbsOrigin", pos2);	
+
+	GetVectorAnglesTwoPoints(pos2, pos1, ang3);
+	GetEntPropVector(owner, Prop_Data, "m_angRotation", ang2);
+
+	// fix all angles
+	ang3[0] = fixAngle(ang3[0]);
+	ang3[1] = fixAngle(ang3[1]);
+
+	int Verify = 0;
+
+	if(ang2[0] < 15.0 && ang2[0] > -15.0)
+		Verify++;
+
+	if(!(fabs(ang2[1] - ang3[1]) <= MAX_YAW_SHIELD_DELETE_SIDEWAY ||
+	(fabs(ang2[1] - ang3[1]) >= (360.0-MAX_YAW_SHIELD_DELETE_SIDEWAY))))
+		Verify++;
+
+	if(Verify == 2)
+		return true;
+
+	return false;
 }

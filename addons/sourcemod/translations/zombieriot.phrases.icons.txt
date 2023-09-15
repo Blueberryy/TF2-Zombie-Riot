@@ -23,6 +23,10 @@
 		"en" 		"The Atlantean and great leader Arkantos arrived."
 		"ru" 		"Прибыл Атлант и великий лидер Аркантос."
 	}
+	"Sensal Arrived"
+	{
+		"en" 		"The Expidonsan Sensal reaps."
+	}
 	"Blitzkrieg Spawn"
 	{
 		"en" 		"Blitzkrieg has arrived."
@@ -152,4 +156,13 @@
 		"en"		"The golden bloon is what all monkeys wish to pop..."
 		"ru"		"Золотой шар - это то, о чём мечтают все обезьяны..."
 	}
+	"Donnerkrieg And Schwertkrieg Spawn"
+	{
+		"en"	"Donnerkrieg And Schwertkrieg Have Returned"	//no clue if this is gonna be the actuall line, mostly just here for translations to work within the plugin
+	}
+	"Diversionistico Spawn"
+	{
+		"en"	"Diversionistico Spawn"
+	}
+	
 }

@@ -124,7 +124,7 @@ public void Cryo_CheckBurst(int client, int weapon, bool &result, int slot, floa
 		{
 			if (Ability_Check_Cooldown(client, slot) < 0.0)
 			{
-				Rogue_OnAbilityUse(client, weapon);
+				Rogue_OnAbilityUse(weapon);
 				Cryo_ActivateBurst(client, weapon, result, slot, damage, freezemult, mana_cost, radius);
 			}
 			else
@@ -154,9 +154,7 @@ public void Cryo_ActivateBurst(int client, int weapon, bool &result, int slot, f
 {
 	Ability_Apply_Cooldown(client, slot, Cryo_M2_Cooldown);
 
-	Address address = TF2Attrib_GetByDefIndex(weapon, 410);
-	if(address != Address_Null)
-	damage *= TF2Attrib_GetValue(address);
+	damage *= Attributes_Get(weapon, 410, 1.0);
 	
 	Mana_Regen_Delay[client] = GetGameTime() + 1.0;
 	Mana_Hud_Delay[client] = 0.0;
@@ -265,17 +263,13 @@ static void spawnRing_Vectors(float center[3], float range, float modif_X, float
 public void Weapon_Wand_Cryo_Shoot(int client, int weapon, bool crit, int slot, float damage, int NumParticles, char ParticleName[255], int SlowType)
 {
 	int mana_cost;
-	Address address = TF2Attrib_GetByDefIndex(weapon, 733);
-	if(address != Address_Null)
-	mana_cost = RoundToCeil(TF2Attrib_GetValue(address));
+	mana_cost = RoundToCeil(Attributes_Get(weapon, 733, 1.0));
 	
 	if(mana_cost <= Current_Mana[client])
 	{
 		Current_Mana[client] -= mana_cost;
 		
-		address = TF2Attrib_GetByDefIndex(weapon, 410);
-		if(address != Address_Null)
-		damage *= TF2Attrib_GetValue(address);
+		damage *= Attributes_Get(weapon, 410, 1.0);
 		
 		Mana_Regen_Delay[client] = GetGameTime() + 1.0;
 		Mana_Hud_Delay[client] = 0.0;
@@ -283,27 +277,17 @@ public void Weapon_Wand_Cryo_Shoot(int client, int weapon, bool crit, int slot, 
 		delay_hud[client] = 0.0;
 		
 		float speed = Cryo_M1_Velocity;
-		address = TF2Attrib_GetByDefIndex(weapon, 103);
-		if(address != Address_Null)
-		speed *= TF2Attrib_GetValue(address);
+		speed *= Attributes_Get(weapon, 103, 1.0);
 		
-		address = TF2Attrib_GetByDefIndex(weapon, 104);
-		if(address != Address_Null)
-		speed *= TF2Attrib_GetValue(address);
+		speed *= Attributes_Get(weapon, 104, 1.0);
 		
-		address = TF2Attrib_GetByDefIndex(weapon, 475);
-		if(address != Address_Null)
-		speed *= TF2Attrib_GetValue(address);
+		speed *= Attributes_Get(weapon, 475, 1.0);
 		
 		
 		float time = Cryo_M1_Time/speed;
-		address = TF2Attrib_GetByDefIndex(weapon, 101);
-		if(address != Address_Null)
-		time *= TF2Attrib_GetValue(address);
+		time *= Attributes_Get(weapon, 101, 1.0);
 		
-		address = TF2Attrib_GetByDefIndex(weapon, 102);
-		if(address != Address_Null)
-		time *= TF2Attrib_GetValue(address);
+		time *= Attributes_Get(weapon, 102, 1.0);
 		
 		float Angles[3];
 
@@ -444,104 +428,6 @@ public void Cryo_Touch(int entity, int other)
 		}
 	}
 }
-
-/*
-public Action Cryo_Timer(Handle CryoDMG, int ref)
-{
-	int entity = EntRefToEntIndex(ref);
-	
-	if (IsValidEntity(entity))
-	{	
-		static float angles[3];
-		GetEntPropVector(entity, Prop_Send, "m_angRotation", angles);		
-		float ProjLoc[3], VicLoc[3];
-		float vecForward[3];
-		GetAngleVectors(angles, vecForward, NULL_VECTOR, NULL_VECTOR);
-		GetEntPropVector(entity, Prop_Data, "m_vecAbsOrigin", ProjLoc);
-
-		for(int entitycount; entitycount<i_MaxcountNpc; entitycount++)
-		{
-			int target = EntRefToEntIndex(i_ObjectsNpcs[entitycount]);
-			if(IsValidEntity(target) && !b_NpcHasDied[target] && !Cryo_AlreadyHit[entity][target])
-			{
-				VicLoc = WorldSpaceCenter(target);
-				
-				if (GetVectorDistance(ProjLoc, VicLoc,true) <= Pow(Cryo_M1_Radius, 2.0))
-				{
-					//Code to do damage position and ragdolls
-					//Code to do damage position and ragdolls
-					switch (Cryo_SlowType[entity])
-					{
-						case 0:
-						{
-							if((f_VeryLowIceDebuff[target] - 1.0) < GetGameTime())
-							{
-								f_VeryLowIceDebuff[target] = GetGameTime() + 1.1;
-							}
-						}
-						case 1:
-						{
-							if((f_LowIceDebuff[target] - 1.0) < GetGameTime())
-							{
-								f_LowIceDebuff[target] = GetGameTime() + 1.1;
-							}
-						}
-						case 2:
-						{
-							if((f_HighIceDebuff[target] - 1.0) < GetGameTime())
-							{
-								f_HighIceDebuff[target] = GetGameTime() + 1.1;
-							}
-						}
-					}
-					
-					float Health_Before_Hurt = float(GetEntProp(target, Prop_Data, "m_iHealth"));
-
-					int owner = EntRefToEntIndex(i_WandOwner[entity]);
-					int weapon = EntRefToEntIndex(i_WandWeapon[entity]);
-
-					SDKHooks_TakeDamage(target, owner, owner, f_WandDamage[entity], DMG_PLASMA, weapon, CalculateDamageForce(vecForward, 0.0), VicLoc, _, ZR_DAMAGE_ICE); // 2048 is DMG_NOGIB?
-					
-					float Health_After_Hurt = float(GetEntProp(target, Prop_Data, "m_iHealth"));
-					
-					if (!Cryo_Frozen[target] && !Cryo_Slowed[target] && HasEntProp(target, Prop_Data, "m_iMaxHealth"))
-					{
-						Cryo_FreezeLevel[target] += (Health_Before_Hurt - Health_After_Hurt);
-						float maxHealth = float(GetEntProp(target, Prop_Data, "m_iMaxHealth"));
-						float damageRequiredForFreeze = Cryo_FreezeRequirement;
-						if(IsValidEntity(EntRefToEntIndex(RaidBossActive)))
-						{
-							if(target == EntRefToEntIndex(RaidBossActive))
-							{
-								Cryo_FreezeRequirement *= 0.15; //Reduce way further so its good against raids.
-							}
-						}
-						if (Cryo_FreezeLevel[target] >= maxHealth * Cryo_FreezeRequirement)
-						{
-							Cryo_SlowType_Zombie[target] = Cryo_SlowType[entity];
-							Cryo_FreezeZombie(target);
-						}
-					}
-					
-					Cryo_AlreadyHit[entity][target] = true;
-					f_WandDamage[entity] *= Cryo_M1_ReductionScale;
-					
-					if(f_WandDamage[entity] <= 1.0) //Damage it too low, just delete it.
-					{
-						return Plugin_Stop;
-					}
-				}
-			}
-		}
-	}
-	else
-	{
-		return Plugin_Stop;
-	}
-	
-	return Plugin_Continue;
-}
-*/
 
 public void Cryo_FreezeZombie(int zombie)
 {

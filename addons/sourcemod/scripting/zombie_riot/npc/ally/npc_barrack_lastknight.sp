@@ -5,12 +5,13 @@ methodmap BarrackLastKnight < BarrackBody
 {
 	public BarrackLastKnight(int client, float vecPos[3], float vecAng[3], bool ally)
 	{
-		BarrackLastKnight npc = view_as<BarrackLastKnight>(BarrackBody(client, vecPos, vecAng, "3000", _, _, "0.75"));
+		BarrackLastKnight npc = view_as<BarrackLastKnight>(BarrackBody(client, vecPos, vecAng, "3000", _, _, "0.75",_,"models/pickups/pickup_powerup_regen.mdl"));
 		
 		i_NpcInternalId[npc.index] = BARRACK_LASTKNIGHT;
 		i_NpcWeight[npc.index] = 2;
 		KillFeed_SetKillIcon(npc.index, "spy_cicle");
 		
+		npc.m_bSelectableByAll = true;
 		npc.m_iBleedType = BLEEDTYPE_SEABORN;
 		
 		SDKHook(npc.index, SDKHook_Think, BarrackLastKnight_ClotThink);
@@ -21,9 +22,17 @@ methodmap BarrackLastKnight < BarrackBody
 		SetVariantString("2.5");
 		AcceptEntityInput(npc.m_iWearable1, "SetModelScale");
 
-		npc.m_iWearable2 = npc.EquipItem("partyhat", "models/workshop/player/items/all_class/bak_teufort_knight/bak_teufort_knight_demo.mdl");
+		npc.m_iWearable2 = npc.EquipItem("partyhat", "models/workshop/player/items/all_class/sbox2014_knight_helmet/sbox2014_knight_helmet_demo.mdl");
 		SetVariantString("1.25");
 		AcceptEntityInput(npc.m_iWearable2, "SetModelScale");
+
+		npc.m_iWearable3 = npc.EquipItem("partyhat", "models/workshop/player/items/demo/sf14_deadking_pauldrons/sf14_deadking_pauldrons.mdl");
+		SetVariantString("1.25");
+		AcceptEntityInput(npc.m_iWearable3, "SetModelScale");
+
+		npc.m_iWearable4 = npc.EquipItem("partyhat", "models/workshop/player/items/demo/sbox2014_demo_samurai_armour/sbox2014_demo_samurai_armour.mdl");
+		SetVariantString("1.25");
+		AcceptEntityInput(npc.m_iWearable4, "SetModelScale");
 		
 		return npc;
 	}
@@ -47,13 +56,17 @@ public void BarrackLastKnight_ClotThink(int iNPC)
 			{
 				if(npc.m_flNextMeleeAttack < GameTime || npc.m_flAttackHappenswillhappen)
 				{
+					static int AttackCount;
+
 					if(!npc.m_flAttackHappenswillhappen)
 					{
+						AttackCount++;
+
 						npc.m_flNextRangedSpecialAttack = GameTime + 2.0;
-						npc.AddGesture("ACT_CUSTOM_ATTACK_LUCIAN");
+						npc.AddGesture(AttackCount > 4 ? "ACT_LAST_KNIGHT_ATTACK_2" : "ACT_LAST_KNIGHT_ATTACK_1");
 						npc.PlaySwordSound();
-						npc.m_flAttackHappens = GameTime + 0.45;
-						npc.m_flAttackHappens_bullshit = GameTime + 0.64;
+						npc.m_flAttackHappens = GameTime + (AttackCount > 4 ? 0.35 : 0.25);
+						npc.m_flAttackHappens_bullshit = GameTime + 0.44;
 						npc.m_flNextMeleeAttack = GameTime + (2.0 * npc.BonusFireRate);
 						npc.m_flAttackHappenswillhappen = true;
 					}
@@ -73,8 +86,7 @@ public void BarrackLastKnight_ClotThink(int iNPC)
 							{
 								npc.PlaySwordHitSound();
 
-								static int AttackCount;
-								if(++AttackCount > 4)
+								if(AttackCount > 4)
 								{
 									SDKHooks_TakeDamage(target, npc.index, client, Barracks_UnitExtraDamageCalc(npc.index, GetClientOfUserId(npc.OwnerUserId),8000.0, 0), DMG_CLUB, -1, _, vecHit);
 									Custom_Knockback(npc.index, target, 1000.0);
@@ -97,7 +109,7 @@ public void BarrackLastKnight_ClotThink(int iNPC)
 			}
 		}
 
-		BarrackBody_ThinkMove(npc.index, 150.0, "ACT_PRINCE_IDLE", "ACT_PRINCE_WALK");
+		BarrackBody_ThinkMove(npc.index, 150.0, "ACT_LAST_KNIGHT_WALK", "ACT_LAST_KNIGHT_WALK");
 	}
 }
 

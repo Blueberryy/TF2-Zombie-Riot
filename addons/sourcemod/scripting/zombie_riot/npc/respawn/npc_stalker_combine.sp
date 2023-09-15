@@ -92,7 +92,6 @@ void StalkerCombine_MapStart()
 
 	for(int i; i < sizeof(SoundList); i++)
 	{
-	//	PrecacheSound(SoundList[i]);
 		PrecacheSoundCustom(SoundList[i]);
 	}
 
@@ -200,6 +199,8 @@ methodmap StalkerCombine < StalkerShared
 		
 		i_NpcInternalId[npc.index] = STALKER_COMBINE;
 		i_NpcWeight[npc.index] = 5;
+		fl_GetClosestTargetTimeTouch[npc.index] = 99999.9;
+		b_DoNotChangeTargetTouchNpc[npc.index] = true;
 		
 		FormatEx(c_HeadPlaceAttachmentGibName[npc.index], sizeof(c_HeadPlaceAttachmentGibName[]), "head");
 		
@@ -225,8 +226,8 @@ methodmap StalkerCombine < StalkerShared
 		npc.m_flNextMeleeAttack = 0.0;
 		npc.m_flAttackHappenswillhappen = false;
 		npc.m_bDissapearOnDeath = false;
+		GiveNpcOutLineLastOrBoss(npc.index, false);
 		b_thisNpcHasAnOutline[npc.index] = true; //Makes it so they never have an outline
-		SetEntProp(npc.index, Prop_Send, "m_bGlowEnabled", false);
 		b_NpcIsInvulnerable[npc.index] = true; //Special huds for invul targets
 
 		i_PlayMusicSound = 0;
@@ -325,7 +326,7 @@ public void StalkerCombine_ClotThink(int iNPC)
 							AcceptEntityInput(npc.m_iWearable1, "SetModelScale");
 
 							npc.m_bmovedelay = true;
-							SetEntProp(npc.index, Prop_Send, "m_bGlowEnabled", true);
+							GiveNpcOutLineLastOrBoss(npc.index, true);
 
 							npc.PlaySpecialSound();
 						}
@@ -414,7 +415,7 @@ public void StalkerCombine_ClotThink(int iNPC)
 			{
 				state = -1;
 			}
-			else if(distance < (NORMAL_ENEMY_MELEE_RANGE_FLOAT * NORMAL_ENEMY_MELEE_RANGE_FLOAT * 0.8) && npc.m_flNextMeleeAttack < gameTime)
+			else if(distance < (NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED * 0.8) && npc.m_flNextMeleeAttack < gameTime)
 			{
 				state = 1;
 			}
@@ -531,7 +532,7 @@ public void StalkerCombine_ClotThink(int iNPC)
 		{
 			state = -1;
 		}
-		else if(distance < (NORMAL_ENEMY_MELEE_RANGE_FLOAT * NORMAL_ENEMY_MELEE_RANGE_FLOAT))
+		else if(distance < NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED)
 		{
 			state = 1;
 		}

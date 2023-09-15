@@ -90,6 +90,7 @@ enum struct Vote
 
 static ArrayList Rounds;
 static ArrayList Voting;
+static bool CanReVote;
 static ArrayList MiniBosses;
 static ArrayStack Enemies;
 static Handle WaveTimer;
@@ -104,9 +105,11 @@ static int FogEntity = INVALID_ENT_REFERENCE;
 static int Gave_Ammo_Supply;
 static int VotedFor[MAXTF2PLAYERS];
 static float VoteEndTime;
+static float f_ZombieAntiDelaySpeedUp;
+static int i_ZombieAntiDelaySpeedUp;
 
 static char LastWaveWas[64];
-static char TextStoreItem[48];
+static int WaveGiftItem;
 
 void Waves_PluginStart()
 {
@@ -148,7 +151,7 @@ void Waves_PlayerSpawn(int client)
 
 public Action Waves_ForcePanzer(int client, int args)
 {
-	NPC_SpawnNext(false, true, true); //This will force spawn a panzer.
+	NPC_SpawnNext(true, true); //This will force spawn a panzer.
 	return Plugin_Handled;
 }
 
@@ -212,9 +215,9 @@ bool Waves_CallVote(int client)
 				Format(vote.Name, sizeof(vote.Name), "%s (Cooldown)", vote.Name);
 				menu.AddItem(vote.Config, vote.Name, ITEMDRAW_DISABLED);
 			}
-			else if(Level[client] < vote.Level)
+			else if(Level[client] < vote.Level && Database_IsCached(client))
 			{
-				Format(vote.Name, sizeof(vote.Name), "%s (Lv %d)", vote.Name, Level[client]);
+				Format(vote.Name, sizeof(vote.Name), "%s (Lv %d)", vote.Name, vote.Level);
 				menu.AddItem(vote.Config, vote.Name, ITEMDRAW_DISABLED);
 			}
 			else
@@ -276,7 +279,7 @@ void Waves_DisplayHintVote()
 				{
 					count++;
 
-					if(VotedFor[client] > 0)
+ 					if(VotedFor[client] > 0 && VotedFor[client] <= length)
 						votes[VotedFor[client] - 1]++;
 				}
 			}
@@ -341,12 +344,7 @@ void OnMapEndWaves()
 void Waves_SetupVote(KeyValues map)
 {
 	Cooldown = 0.0;
-	
-	if(Voting)
-	{
-		delete Voting;
-		Voting = null;
-	}
+	delete Voting;
 	
 	KeyValues kv = map;
 	if(kv)
@@ -402,6 +400,8 @@ void Waves_SetupVote(KeyValues map)
 		vote.Level = kv.GetNum("level");
 		Voting.PushArray(vote);
 	} while(kv.GotoNextKey());
+
+	CanReVote = Voting.Length > 1;
 
 	CreateTimer(1.0, Waves_VoteDisplayTimer, _, TIMER_FLAG_NO_MAPCHANGE|TIMER_REPEAT);
 	
@@ -516,14 +516,17 @@ void Waves_SetupWaves(KeyValues kv, bool start)
 	
 	Enemies = new ArrayStack(sizeof(Enemy));
 	
+	char buffer[64], plugin[64];
+
 	b_SpecialGrigoriStore = view_as<bool>(kv.GetNum("grigori_special_shop_logic"));
 	f_ExtraDropChanceRarity = kv.GetFloat("gift_drop_chance_multiplier", 0.5);
-	kv.GetString("complete_item", TextStoreItem, sizeof(TextStoreItem));
+	kv.GetString("complete_item", buffer, sizeof(buffer));
+	WaveGiftItem = buffer[0] ? Items_NameToId(buffer) : -1;
+	bool autoCash = view_as<bool>(kv.GetNum("auto_raid_cash"));
 	
 	Enemy enemy;
 	Wave wave;
 	kv.GotoFirstSubKey();
-	char buffer[64], plugin[64];
 	do
 	{
 		round.Cash = kv.GetNum("cash");
@@ -596,6 +599,8 @@ void Waves_SetupWaves(KeyValues kv, bool start)
 			round.FogDesnity = kv.GetFloat("fogmaxdensity");
 		}
 
+		int nonBosses;
+
 		round.Waves = new ArrayList(sizeof(Wave));
 		if(kv.GotoFirstSubKey())
 		{
@@ -632,6 +637,9 @@ void Waves_SetupWaves(KeyValues kv, bool start)
 						
 						kv.GetString("data", enemy.Data, sizeof(enemy.Data));
 						kv.GetString("spawn", enemy.Spawn, sizeof(enemy.Spawn));
+
+						if(!enemy.Credits)
+							nonBosses++;
 						
 						wave.EnemyData = enemy;
 						round.Waves.PushArray(wave);
@@ -640,6 +648,30 @@ void Waves_SetupWaves(KeyValues kv, bool start)
 			} while(kv.GotoNextKey());
 			
 			kv.GoBack();
+		}
+
+		if(autoCash && nonBosses)
+		{
+			int length = round.Waves.Length;
+			if(length)
+			{
+				float fcash = float(round.Cash) / float(nonBosses);
+				for(int i; i < length; i++)
+				{
+					round.Waves.GetArray(i, wave);
+					if(wave.EnemyData.Credits)
+						continue;
+
+					float count = float(wave.Count);
+					if(count < 1.0)
+						count = 1.0;
+					
+					wave.EnemyData.Credits = fcash / count;
+					round.Waves.SetArray(i, wave);
+				}
+
+				round.Cash = 0;
+			}
 		}
 		
 		Rounds.PushArray(round);
@@ -688,7 +720,10 @@ void Waves_RoundStart()
 	else if(Voting)
 	{
 		float wait = zr_waitingtime.FloatValue;
-		float time = wait - 30.0;
+		if(wait < 90.0)
+			CanReVote = false;
+		
+		float time = wait - (CanReVote ? 60.0 : 30.0);
 		if(time < 20.0)
 			time = 20.0;
 		
@@ -703,8 +738,8 @@ void Waves_RoundStart()
 	}
 	else
 	{
-		SpawnTimer(60.0);
-		CreateTimer(60.0, Waves_RoundStartTimer, _, TIMER_FLAG_NO_MAPCHANGE);
+		SpawnTimer(90.0);
+		CreateTimer(90.0, Waves_RoundStartTimer, _, TIMER_FLAG_NO_MAPCHANGE);
 	}
 
 	if(CurrentCash != StartCash)
@@ -772,46 +807,90 @@ public Action Waves_EndVote(Handle timer, float time)
 				if(IsClientInGame(client))
 				{
 					DoOverlay(client, "");
-					if(VotedFor[client]>0 && GetClientTeam(client)==2)
+					if(VotedFor[client]>0 && VotedFor[client] <= length && GetClientTeam(client)==2)
 					{
 						votes[VotedFor[client]-1]++;
 					}
 				}
 			}
-			
-			int highest;
-			for(int i=1; i<length; i++)
-			{
-				if(votes[i] > votes[highest])
-					highest = i;
-			}
-			
-			//if(votes[highest])
-			{
-				Vote vote;
-				Voting.GetArray(highest, vote);
-				
-				delete Voting;
-				Voting = null;
-				
-				strcopy(LastWaveWas, sizeof(LastWaveWas), vote.Config);
-				PrintToChatAll("%t: %s","Difficulty set to", vote.Name);
 
-				Queue_DifficultyVoteEnded();
-				
-				Format(WhatDifficultySetting, sizeof(WhatDifficultySetting), "FireUser%d", highest + 1);
-				ExcuteRelay("zr_waveselected", WhatDifficultySetting);
-				
-				vote.Name[0] = CharToUpper(vote.Name[0]);
-				strcopy(WhatDifficultySetting, sizeof(WhatDifficultySetting), vote.Name);
-				
-				char buffer[PLATFORM_MAX_PATH];
-				BuildPath(Path_SM, buffer, sizeof(buffer), CONFIG_CFG, vote.Config);
-				KeyValues kv = new KeyValues("Waves");
-				kv.ImportFromFile(buffer);
-				Waves_SetupWaves(kv, false);
-				delete kv;
+			if(CanReVote)
+			{
+				int high1 = 0;
+				int high2 = -1;
+				for(int i = 1; i < length; i++)
+				{
+					if(votes[i] > votes[high1])
+					{
+						high2 = high1;
+						high1 = i;
+					}
+					else if(high2 == -1 || votes[i] > votes[high2])
+					{
+						high2 = i;
+					}
+				}
+
+				if(high2 != -1)
+				{
+					high1 = votes[high2];
+					for(int i = length - 1; i >= 0; i--)
+					{
+						if(votes[i] < high1)
+						{
+							Voting.Erase(i);
+						}
+					}
+				}
+
+				Zero(VotedFor);
+				CanReVote = false;
+				VoteEndTime = GetGameTime() + 30.0;
+				CreateTimer(30.0, Waves_EndVote, _, TIMER_FLAG_NO_MAPCHANGE);
 			}
+			else
+			{
+				int highest;
+				for(int i=1; i<length; i++)
+				{
+					if(votes[i] > votes[highest])
+						highest = i;
+				}
+				
+				//if(votes[highest])
+				{
+					Vote vote;
+					Voting.GetArray(highest, vote);
+					
+					delete Voting;
+					
+					strcopy(LastWaveWas, sizeof(LastWaveWas), vote.Config);
+					PrintToChatAll("%t: %s","Difficulty set to", vote.Name);
+
+					Queue_DifficultyVoteEnded();
+					Native_OnDifficultySet(highest);
+					
+					if(highest > 3)
+						highest = 3;
+					
+					Format(WhatDifficultySetting, sizeof(WhatDifficultySetting), "FireUser%d", highest + 1);
+					ExcuteRelay("zr_waveselected", WhatDifficultySetting);
+					
+					vote.Name[0] = CharToUpper(vote.Name[0]);
+					strcopy(WhatDifficultySetting, sizeof(WhatDifficultySetting), vote.Name);
+					
+					char buffer[PLATFORM_MAX_PATH];
+					BuildPath(Path_SM, buffer, sizeof(buffer), CONFIG_CFG, vote.Config);
+					KeyValues kv = new KeyValues("Waves");
+					kv.ImportFromFile(buffer);
+					Waves_SetupWaves(kv, false);
+					delete kv;
+				}
+			}
+		}
+		else
+		{
+			delete Voting;
 		}
 	}
 	return Plugin_Continue;
@@ -827,12 +906,10 @@ void Waves_Progress()
 {
 	if(InSetup || !Rounds || CvarNoRoundStart.BoolValue || Cooldown > GetGameTime())
 		return;
+
+	Cooldown = GetGameTime();
 		
-	if(WaveTimer)
-	{
-		KillTimer(WaveTimer);
-		WaveTimer = null;
-	}
+	delete WaveTimer;
 	
 	Round round;
 	Wave wave;
@@ -859,7 +936,7 @@ void Waves_Progress()
 			{
 				playercount = 0.70;
 			}
-
+			
 			float multi = Pow(1.08, playercount);
 
 			multi -= 0.31079601; //So if its 4 players, it defaults to 1.0, and lower means abit less! meaning if alone you fight 70% instead of 50%
@@ -872,9 +949,10 @@ void Waves_Progress()
 			if(Is_a_boss == 2)
 			{
 				Raidboss_Clean_Everyone();
-				ReviveAll(true);
 				Music_EndLastmann();
+				ReviveAll(true);
 				CheckAlivePlayers();
+				WaveEndLogicExtra();
 			}
 			
 			int count = wave.Count;
@@ -916,31 +994,34 @@ void Waves_Progress()
 			
 			if(Is_a_boss >= 1 || Is_Health_Scaling >= 1)
 			{			
-				float multi_health;
-				
-				
-				if(ScaleWithHpMore)
+				float multiBoss;
+				//note: do not use exponential formulars
+				/*
+					They are just too unbalanced.
+					Lets treat each player as just more hp flat.
+				*/
+				if(playercount > 12)
 				{
-					multi_health = 1.12;
+					if(ScaleWithHpMore)
+					{
+						multiBoss = playercount * 0.4;
+					}
 				}
 				else
 				{
-					multi_health = 1.07;
+					if(ScaleWithHpMore)
+					{
+						multiBoss = playercount * 0.34;
+					}
 				}
 
-				multi = Pow(multi_health, playercount);
-
-				//Do not downscale boss hp! Makes bosses a joke on low player counts, unless its a raid, then do that!
-				if(ScaleWithHpMore)
+				if(!ScaleWithHpMore)
 				{
-					multi -= 0.2544; //So if its 2 players, it defaults to 1.0 or less if alone.
-				}
-				else //do not save if its not a boss.
-				{
-					MultiGlobalHealth = multi;
+					multiBoss = playercount * 0.2;
+					MultiGlobalHealth = multiBoss;
 				}
 				
-				int Tempomary_Health = RoundToNearest(float(wave.EnemyData.Health) * multi);
+				int Tempomary_Health = RoundToNearest(float(wave.EnemyData.Health) * multiBoss);
 				wave.EnemyData.Health = Tempomary_Health;
 			}
 		
@@ -950,12 +1031,11 @@ void Waves_Progress()
 			}
 			
 			if(wave.Delay > 0.0)
-				WaveTimer = CreateTimer(wave.Delay * MultiGlobal, Waves_ProgressTimer);
+				WaveTimer = CreateTimer(wave.Delay * (MultiGlobal * 0.75), Waves_ProgressTimer);
 		}
 		else
 		{
-			SeaFounder_ClearnNethersea();
-			
+			WaveEndLogicExtra();
 			CreateTimer(1.0, DeleteEntitiesInHazards, _, TIMER_FLAG_NO_MAPCHANGE);
 			CurrentCash += round.Cash;
 			if(round.Cash)
@@ -977,14 +1057,14 @@ void Waves_Progress()
 					if(GetClientTeam(client_Penalise)!=2)
 					{
 						SetGlobalTransTarget(client_Penalise);
-						PrintToChat(client_Penalise, "%t", "You have only gained 80%% due to not being in-game");
-						CashSpent[client_Penalise] += RoundToCeil(float(round.Cash) * 0.20);
+						PrintToChat(client_Penalise, "%t", "You have only gained 90%% due to not being in-game");
+						CashSpent[client_Penalise] += RoundToCeil(float(round.Cash) * 0.10);
 					}
 					else if (TeutonType[client_Penalise] == TEUTON_WAITING)
 					{
 						SetGlobalTransTarget(client_Penalise);
-						PrintToChat(client_Penalise, "%t", "You have only gained 90 %% due to being a non-player player, but still helping");
-						CashSpent[client_Penalise] += RoundToCeil(float(round.Cash) * 0.10);
+						PrintToChat(client_Penalise, "%t", "You have only gained 95 %% due to being a non-player player, but still helping");
+						CashSpent[client_Penalise] += RoundToCeil(float(round.Cash) * 0.05);
 					}
 				}
 			}
@@ -1064,15 +1144,21 @@ void Waves_Progress()
 
 			if(round.FogChange)
 			{
-				int entity = -1;
-				if(FogEntity == INVALID_ENT_REFERENCE)
-					entity = EntRefToEntIndex(FogEntity);
+				if(FogEntity != INVALID_ENT_REFERENCE)
+				{
+					int entity = EntRefToEntIndex(FogEntity);
+					if(entity > MaxClients)
+						RemoveEntity(entity);
+					
+					FogEntity = INVALID_ENT_REFERENCE;
+				}
 				
-				if(FogEntity == INVALID_ENT_REFERENCE)
-					entity = CreateEntityByName("env_fog_controller");
-				
+				int entity = CreateEntityByName("env_fog_controller");
 				if(entity != -1)
 				{
+					char name[64];
+					FormatEx(name, sizeof(name), "rpg_fortress_envfog_%d", CurrentRound);
+
 					DispatchKeyValue(entity, "fogblend", round.FogBlend);
 					DispatchKeyValue(entity, "fogcolor", round.FogColor1);
 					DispatchKeyValue(entity, "fogcolor2", round.FogColor2);
@@ -1080,22 +1166,19 @@ void Waves_Progress()
 					DispatchKeyValueFloat(entity, "fogend", round.FogEnd);
 					DispatchKeyValueFloat(entity, "fogmaxdensity", round.FogDesnity);
 
-					if(FogEntity == INVALID_ENT_REFERENCE)
-					{
-						DispatchKeyValue(entity, "targetname", "rpg_fortress_envfog");
-						DispatchKeyValue(entity, "fogenable", "1");
-						DispatchKeyValue(entity, "spawnflags", "1");
-						DispatchSpawn(entity);
-						AcceptEntityInput(entity, "TurnOn");
+					DispatchKeyValue(entity, "targetname", name);
+					DispatchKeyValue(entity, "fogenable", "1");
+					DispatchKeyValue(entity, "spawnflags", "1");
+					DispatchSpawn(entity);
+					AcceptEntityInput(entity, "TurnOn");
 
-						FogEntity = EntIndexToEntRef(entity);
-					}
+					FogEntity = EntIndexToEntRef(entity);
 
 					for(int client = 1; client <= MaxClients; client++)
 					{
 						if(IsClientInGame(client))
 						{
-							SetVariantString("rpg_fortress_envfog");
+							SetVariantString(name);
 							AcceptEntityInput(client, "SetFogController");
 						}
 					}
@@ -1120,10 +1203,10 @@ void Waves_Progress()
 				}
 			}
 			
-			if(Zombies_Currently_Still_Ongoing > 0 && (Zombies_Currently_Still_Ongoing - Zombies_alive_still) > 0)
-			{
-				CPrintToChatAll("{crimson}%d zombies have been wasted...", Zombies_Currently_Still_Ongoing - Zombies_alive_still);
-			}
+	//		if(Zombies_Currently_Still_Ongoing > 0 && (Zombies_Currently_Still_Ongoing - Zombies_alive_still) > 0)
+	//		{
+	//			CPrintToChatAll("{crimson}%d zombies have been wasted...", Zombies_Currently_Still_Ongoing - Zombies_alive_still);
+	//		}
 			Zombies_Currently_Still_Ongoing = 0;
 			
 			Zombies_Currently_Still_Ongoing = Zombies_alive_still;
@@ -1283,25 +1366,10 @@ void Waves_Progress()
 						
 						players[total++] = i;
 
-						if(TextStoreItem[0] && PlayerPoints[i] > 500)
+						if(WaveGiftItem != -1 && PlayerPoints[i] > 500)
 						{
-							int length_2 = TextStore_GetItems();
-							for(int a; a < length_2; a++)
-							{
-								static char buffer[48];
-								TextStore_GetItemName(a, buffer, sizeof(buffer));
-								if(StrEqual(buffer, TextStoreItem, false))
-								{
-									TextStore_GetInv(i, a, length_2);
-									if(!length_2)
-									{
-										CPrintToChat(i,"{default}You have found {yellow}%s{default}!", buffer);
-										TextStore_SetInv(i, a, 1);
-									}
-
-									break;
-								}
-							}
+							if(Items_GiveIdItem(i, WaveGiftItem))
+								CPrintToChat(i,"{default}You have found {yellow}%s{default}!", Items_GetNameOfId(WaveGiftItem));
 						}
 					}
 				}
@@ -1353,6 +1421,8 @@ void Waves_Progress()
 			{
 				Cooldown = GetGameTime() + 30.0;
 				
+				InSetup = true;
+
 				SpawnTimer(30.0);
 				CreateTimer(30.0, Waves_RoundStartTimer, _, TIMER_FLAG_NO_MAPCHANGE);
 				
@@ -1360,16 +1430,20 @@ void Waves_Progress()
 			}
 			else
 			{
+				Store_RandomizeNPCStore(false, 99, 1);
 				if(refreshNPCStore)
 					Store_RandomizeNPCStore(false);
 				
 				Waves_Progress();
-				NPC_SpawnNext(false, panzer_spawn, panzer_sound);
+				NPC_SpawnNext(panzer_spawn, panzer_sound);
 				return;
 			}
 
 			if(refreshNPCStore)
 				Store_RandomizeNPCStore(false);
+
+			
+			Store_RandomizeNPCStore(false, 99, 1);
 		}
 	}
 	else if(Rogue_Mode())
@@ -1419,12 +1493,12 @@ void Waves_Progress()
 			if(Freeplay_ShouldMiniBoss() && !rogue) //no miniboss during roguelikes.
 			{
 				panzer_spawn = true;
-				NPC_SpawnNext(false, panzer_spawn, false);
+				NPC_SpawnNext(panzer_spawn, false);
 			}
 			else
 			{
 				panzer_spawn = false;
-				NPC_SpawnNext(false, false, false);
+				NPC_SpawnNext(false, false);
 			}
 			
 			if(Enemies.Empty)
@@ -1436,7 +1510,7 @@ void Waves_Progress()
 		}
 		else
 		{
-			SeaFounder_ClearnNethersea();
+			WaveEndLogicExtra();
 
 			int postWaves = CurrentRound - length;
 			Freeplay_OnEndWave(postWaves, round.Cash);
@@ -1510,10 +1584,15 @@ void Waves_Progress()
 	if(CurrentRound == 0 && !Rogue_Mode())
 	{
 		if(StartCash < 1500)
-			Store_RemoveSellValue();
+		{
+			for(int client=1; client<=MaxClients; client++)
+			{
+				GrantCreditsBack(client);
+			}
+		}
 		
 		Ammo_Count_Ready = 8;
-		if(StartCash < 1500)
+		/*if(StartCash < 1500)
 		{
 			for(int client=1; client<=MaxClients; client++)
 			{
@@ -1528,18 +1607,33 @@ void Waves_Progress()
 			}
 
 			CurrentCash = 0;
-		}
+		}*/
 	}
+	WaveStart_SubWaveStart();
 	if(CurrentWave == 0)
 	{
 		Renable_Powerups();
 		CheckIfAloneOnServer();
 		Ammo_Count_Ready += 1;
+		for (int target = 1; target <= MaxClients; target++)
+		{
+			if(i_CurrentEquippedPerk[target] == 7) //recycle gives extra
+			{
+				Ammo_Count_Used[target] -= 1;
+			}
+		}
 	}
 	else if (Gave_Ammo_Supply > 2)
 	{
 		Ammo_Count_Ready += 1;
 		Gave_Ammo_Supply = 0;
+		for (int target = 1; target <= MaxClients; target++)
+		{
+			if(i_CurrentEquippedPerk[target] == 7) //recycle gives extra
+			{
+				Ammo_Count_Used[target] -= 1;
+			}
+		}
 	}	
 	else
 	{
@@ -1669,4 +1763,96 @@ void Waves_SetSkyName(const char[] skyname = "", int client = 0)
 		CvarSkyName.SetString(SkyNameRestore, true);
 		SkyNameRestore[0] = 0;
 	}
+}
+
+
+void WaveEndLogicExtra()
+{
+	SeaFounder_ClearnNethersea();
+	M3_AbilitiesWaveEnd();
+	Specter_AbilitiesWaveEnd();	
+}
+
+void WaveStart_SubWaveStart()
+{
+//	f_ZombieAntiDelaySpeedUp = Cooldown + 600.0;
+	f_ZombieAntiDelaySpeedUp = Cooldown + 420.0;
+	i_ZombieAntiDelaySpeedUp = 0; //warning off
+}
+
+void Zombie_Delay_Warning()
+{
+	if(InSetup)
+		return;
+
+	switch(i_ZombieAntiDelaySpeedUp)
+	{
+		case 0:
+		{
+			if(f_ZombieAntiDelaySpeedUp < GetGameTime())
+			{
+				i_ZombieAntiDelaySpeedUp = 1;
+				CPrintToChatAll("{crimson}[Zombie-Riot] Enemies grow restless...");
+			}
+		}
+		case 1:
+		{
+			if(f_ZombieAntiDelaySpeedUp + 15.0 < GetGameTime())
+			{
+				i_ZombieAntiDelaySpeedUp = 2;
+				CPrintToChatAll("{crimson}[Zombie-Riot] Enemies grow annoyed and go faster...");
+			}
+		}
+		case 2:
+		{
+			if(f_ZombieAntiDelaySpeedUp + 35.0 < GetGameTime())
+			{
+				i_ZombieAntiDelaySpeedUp = 3;
+				CPrintToChatAll("{crimson}[Zombie-Riot] Enemies grow furious and become even faster...");
+			}
+		}
+		case 3:
+		{
+			if(f_ZombieAntiDelaySpeedUp + 55.0 < GetGameTime())
+			{
+				i_ZombieAntiDelaySpeedUp = 4;
+				CPrintToChatAll("{crimson}[Zombie-Riot] Enemies become pissed off and gain super speed...");
+			}
+		}
+		case 4:
+		{
+			if(f_ZombieAntiDelaySpeedUp + 75.0 < GetGameTime())
+			{
+				i_ZombieAntiDelaySpeedUp = 5;
+				CPrintToChatAll("{crimson}[Zombie-Riot] Enemies become infuriated and will reach you...");
+			}
+		}
+	}
+}
+
+float Zombie_DelayExtraSpeed()
+{
+	if(InSetup)
+		return 1.0;
+	
+	switch(i_ZombieAntiDelaySpeedUp)
+	{
+		case 2:
+		{
+			return 1.15;
+		}
+		case 3:
+		{
+			return 1.35;
+		}
+		case 4:
+		{
+			return 1.5;
+		}
+		case 5:
+		{
+			return 1.75;
+		}
+	}
+	return 1.0;
 }

@@ -35,7 +35,7 @@ static const char g_MeleeAttackSounds[][] =
 	"weapons/demo_sword_swing3.wav"
 };
 
-static bool PeaceKnight;
+static int PeaceKnight;
 
 methodmap LastKnight < CClotBody
 {
@@ -44,33 +44,37 @@ methodmap LastKnight < CClotBody
 		if(this.m_flNextIdleSound > GetGameTime(this.index))
 			return;
 		
-		EmitSoundToAll(g_IdleAlertedSounds[GetRandomInt(0, sizeof(g_IdleAlertedSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 100);
+		EmitSoundToAll(g_IdleAlertedSounds[GetRandomInt(0, sizeof(g_IdleAlertedSounds) - 1)], this.index, SNDCHAN_VOICE, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME, 100);
 		this.m_flNextIdleSound = GetGameTime(this.index) + GetRandomFloat(12.0, 24.0);
 	}
 	public void PlayHurtSound()
 	{
-		EmitSoundToAll(g_HurtSounds[GetRandomInt(0, sizeof(g_HurtSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 100);
+		EmitSoundToAll(g_HurtSounds[GetRandomInt(0, sizeof(g_HurtSounds) - 1)], this.index, SNDCHAN_VOICE, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME, 100);
 	}
 	public void PlayDeathSound() 
 	{
-		EmitSoundToAll(g_DeathSounds[GetRandomInt(0, sizeof(g_DeathSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 100);
+		EmitSoundToAll(g_DeathSounds[GetRandomInt(0, sizeof(g_DeathSounds) - 1)], this.index, SNDCHAN_VOICE, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME, 100);
 	}
 	public void PlayMeleeHitSound() 
 	{
-		EmitSoundToAll(g_MeleeHitSounds[GetRandomInt(0, sizeof(g_MeleeHitSounds) - 1)], this.index, _, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME);
+		EmitSoundToAll(g_MeleeHitSounds[GetRandomInt(0, sizeof(g_MeleeHitSounds) - 1)], this.index, _, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME);
 	}
 	public void PlayMeleeSound() 
 	{
-		EmitSoundToAll(g_MeleeAttackSounds[GetRandomInt(0, sizeof(g_MeleeAttackSounds) - 1)], this.index, _, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME);
+		EmitSoundToAll(g_MeleeAttackSounds[GetRandomInt(0, sizeof(g_MeleeAttackSounds) - 1)], this.index, _, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME);
 	}
 	
 	public LastKnight(int client, float vecPos[3], float vecAng[3], bool ally, const char[] data)
 	{
-		if(data[0])
+		if(data[0] == 'R')
 		{
-			PeaceKnight = false;
+			PeaceKnight = -1;
 		}
-		else if(PeaceKnight)
+		else if(data[0])
+		{
+			PeaceKnight = 0;
+		}
+		else if(PeaceKnight > 0)
 		{
 			return view_as<LastKnight>(-1);
 		}
@@ -83,7 +87,7 @@ methodmap LastKnight < CClotBody
 		
 		i_NpcInternalId[npc.index] = LASTKNIGHT;
 		i_NpcWeight[npc.index] = 5;
-		npc.SetActivity("ACT_PRINCE_WALK");
+		npc.SetActivity("ACT_LAST_KNIGHT_WALK");
 		KillFeed_SetKillIcon(npc.index, "spy_cicle");
 		
 		npc.m_iBleedType = BLEEDTYPE_SEABORN;
@@ -102,15 +106,23 @@ methodmap LastKnight < CClotBody
 		SetVariantString("5.0");
 		AcceptEntityInput(npc.m_iWearable1, "SetModelScale");
 
-		npc.m_iWearable2 = npc.EquipItem("partyhat", "models/workshop/player/items/all_class/bak_teufort_knight/bak_teufort_knight_demo.mdl");
+		npc.m_iWearable2 = npc.EquipItem("partyhat", "models/workshop/player/items/all_class/sbox2014_knight_helmet/sbox2014_knight_helmet_demo.mdl");
 		SetVariantString("1.25");
 		AcceptEntityInput(npc.m_iWearable2, "SetModelScale");
+
+		npc.m_iWearable3 = npc.EquipItem("partyhat", "models/workshop/player/items/demo/sf14_deadking_pauldrons/sf14_deadking_pauldrons.mdl");
+		SetVariantString("1.25");
+		AcceptEntityInput(npc.m_iWearable3, "SetModelScale");
+
+		npc.m_iWearable4 = npc.EquipItem("partyhat", "models/workshop/player/items/demo/sbox2014_demo_samurai_armour/sbox2014_demo_samurai_armour.mdl");
+		SetVariantString("1.25");
+		AcceptEntityInput(npc.m_iWearable4, "SetModelScale");
 
 		float vecMe[3]; vecMe = WorldSpaceCenter(npc.index);
 		vecMe[2] += 100.0;
 
-		npc.m_iWearable4 = ParticleEffectAt(vecMe, "powerup_icon_reflect", -1.0);
-		SetParent(npc.index, npc.m_iWearable4);
+		npc.m_iWearable5 = ParticleEffectAt(vecMe, "powerup_icon_reflect", -1.0);
+		SetParent(npc.index, npc.m_iWearable5);
 		
 		return npc;
 	}
@@ -147,29 +159,31 @@ public void LastKnight_ClotThink(int iNPC)
 	if(npc.m_flNextThinkTime > gameTime)
 		return;
 	
-	npc.m_flNextThinkTime = gameTime + 0.1;
-
-	if(npc.m_iTarget && !IsValidEnemy(npc.index, npc.m_iTarget))
-		npc.m_iTarget = 0;
-	
 	if(b_NpcIsInvulnerable[npc.index])
 	{
 		b_NpcIsInvulnerable[npc.index] = false;
 		npc.SetActivity("ACT_RIDER_RUN");
 		KillFeed_SetKillIcon(npc.index, "vehicle");
+		npc.m_flNextThinkTime = gameTime + 0.4;
 
-		if(!IsValidEntity(npc.m_iWearable3))
+		if(!IsValidEntity(npc.m_iWearable6))
 		{
-			npc.m_iWearable3 = npc.EquipItem("partyhat", "models/workshop/player/items/engineer/hwn2022_pony_express/hwn2022_pony_express.mdl");
+			npc.m_iWearable6 = npc.EquipItem("partyhat", "models/workshop/player/items/engineer/hwn2022_pony_express/hwn2022_pony_express.mdl");
 			SetVariantString("1.1");
-			AcceptEntityInput(npc.m_iWearable4, "SetModelScale");
+			AcceptEntityInput(npc.m_iWearable6, "SetModelScale");
 
-			SetEntityRenderMode(npc.index, RENDER_TRANSCOLOR);
-			SetEntityRenderColor(npc.index, 55, 55, 55, 255);
+			SetEntityRenderMode(npc.m_iWearable6, RENDER_TRANSCOLOR);
+			SetEntityRenderColor(npc.m_iWearable6, 55, 55, 55, 255);
 		}
+		return;
 	}
+	
+	npc.m_flNextThinkTime = gameTime + 0.1;
 
-	bool aggressive = CitizenRunner_WasKilled();
+	if(npc.m_iTarget && !IsValidAlly(npc.index, npc.m_iTarget) && !IsValidEnemy(npc.index, npc.m_iTarget))
+		npc.m_iTarget = 0;
+
+	bool aggressive = (PeaceKnight < 0 || CitizenRunner_WasKilled());
 
 	if(!npc.m_iTarget || npc.m_flGetClosestTargetTime < gameTime)
 	{
@@ -189,7 +203,7 @@ public void LastKnight_ClotThink(int iNPC)
 
 			if(!found)
 			{
-				PeaceKnight = true;
+				PeaceKnight = 1;
 				CPrintToChatAll("{gray}The Last Knight{default}: You have proven yourself, you're against the ocean, and you're not my enemy.");
 
 				int owner;
@@ -228,7 +242,7 @@ public void LastKnight_ClotThink(int iNPC)
 		if(npc.m_iTarget < 1)
 		{
 			// No nearby targets, kill the ocean
-			npc.m_iTarget = GetClosestAlly(npc.index, 100.0);
+			npc.m_iTarget = GetClosestAlly(npc.index, 10000.0);
 		}
 
 		// Won't attack runners, find players
@@ -238,8 +252,8 @@ public void LastKnight_ClotThink(int iNPC)
 
 	if(aggressive)
 	{
-		npc.m_flMeleeArmor = 0.5;
-		npc.m_flRangedArmor = 0.5;
+		npc.m_flMeleeArmor = 0.4;
+		npc.m_flRangedArmor = 0.4;
 	}
 	
 	if(npc.m_iTarget > 0)
@@ -273,9 +287,15 @@ public void LastKnight_ClotThink(int iNPC)
 					if(target > 0)
 					{
 						float damage = 1000.0;
+						// 2000 x 0.5
+						
 						if(target > MaxClients)
 						{
-							damage = 3000.0;
+							if(ShouldNpcDealBonusDamage(target))
+								damage *= 20.0;
+							
+							if(team == GetEntProp(target, Prop_Send, "m_iTeamNum"))
+								damage *= 10.0;
 
 							if(f_TimeFrozenStill[target] > gameTime)
 								damage *= 1.75;
@@ -318,9 +338,9 @@ public void LastKnight_ClotThink(int iNPC)
 					npc.m_flNextMeleeAttack = gameTime + 1.75;
 					npc.PlayMeleeSound();
 
-					npc.AddGesture("ACT_CUSTOM_ATTACK_LUCIAN");
-					npc.m_flAttackHappens = gameTime + 0.45;
-					npc.m_flDoingAnimation = gameTime + 0.55;
+					npc.AddGesture("ACT_LAST_KNIGHT_ATTACK_1");
+					npc.m_flAttackHappens = gameTime + 0.25;
+					npc.m_flDoingAnimation = gameTime + 0.75;
 				}
 			}
 		}
@@ -356,20 +376,43 @@ void LastKnight_OnTakeDamage(int victim, int attacker, float &damage, int weapon
 {
 	LastKnight npc = view_as<LastKnight>(victim);
 
+	if(attacker < 1)
+		return;
+
 	if(b_NpcIsInvulnerable[npc.index])
 	{
 		damage = 0.0;
 		return;
 	}
 
-	if(attacker < 1)
-		return;
-
 	float gameTime = GetGameTime(npc.index);
 	if(npc.m_flHeadshotCooldown < gameTime)
 	{
 		npc.m_flHeadshotCooldown = gameTime + DEFAULT_HURTDELAY;
 		npc.m_blPlayHurtAnimation = true;
+	}
+
+	int ratio = GetEntProp(npc.index, Prop_Data, "m_iHealth") * 5 / GetEntProp(npc.index, Prop_Data, "m_iMaxHealth");
+	switch(npc.m_iPhase)
+	{
+		case 0:
+		{
+			if(ratio < 3)
+				npc.m_iPhase = 1;
+		}
+		case 1:
+		{
+			if(ratio < 1)
+			{
+				npc.m_iPhase = 2;
+				npc.m_flSpeed = 75.0;
+				Change_Npc_Collision(npc.index, VIPBuilding_Active() ? num_ShouldCollideEnemyTDIgnoreBuilding : num_ShouldCollideEnemyIngoreBuilding);
+				b_NpcIsInvulnerable[npc.index] = true;
+				npc.AddGesture("ACT_LAST_KNIGHT_REVIVE");
+				npc.m_flNextThinkTime = gameTime + 8.3;
+				npc.StopPathing();
+			}
+		}
 	}
 
 	gameTime = GetGameTime();
@@ -381,7 +424,7 @@ void LastKnight_OnTakeDamage(int victim, int attacker, float &damage, int weapon
 		{
 			char buffer[36];
 			if(GetEntityClassname(weapon, buffer, sizeof(buffer)) && !StrContains(buffer, "tf_weap"))
-				ApplyTempAttrib(weapon, 6, 0.9, npc.m_iPhase ? 2.0 : 1.0);
+				ApplyTempAttrib(weapon, 6, 1.2, npc.m_iPhase ? 2.0 : 1.0);
 		}
 	}
 	else if(f_LowIceDebuff[attacker] < gameTime)
@@ -393,7 +436,7 @@ void LastKnight_OnTakeDamage(int victim, int attacker, float &damage, int weapon
 		{
 			char buffer[36];
 			if(GetEntityClassname(weapon, buffer, sizeof(buffer)) && !StrContains(buffer, "tf_weap"))
-				ApplyTempAttrib(weapon, 6, 0.9, npc.m_iPhase ? 2.0 : 1.0);
+				ApplyTempAttrib(weapon, 6, 1.2, npc.m_iPhase ? 2.0 : 1.0);
 		}
 	}
 	else if(f_HighIceDebuff[attacker] < gameTime)
@@ -406,7 +449,7 @@ void LastKnight_OnTakeDamage(int victim, int attacker, float &damage, int weapon
 		{
 			char buffer[36];
 			if(GetEntityClassname(weapon, buffer, sizeof(buffer)) && !StrContains(buffer, "tf_weap"))
-				ApplyTempAttrib(weapon, 6, 0.9, npc.m_iPhase ? 2.0 : 1.0);
+				ApplyTempAttrib(weapon, 6, 1.2, npc.m_iPhase ? 2.0 : 1.0);
 		}
 	}
 	else if(attacker > MaxClients)
@@ -422,29 +465,7 @@ void LastKnight_OnTakeDamage(int victim, int attacker, float &damage, int weapon
 		{
 			char buffer[36];
 			if(GetEntityClassname(weapon, buffer, sizeof(buffer)) && !StrContains(buffer, "tf_weap"))
-				ApplyTempAttrib(weapon, 6, 0.75, f_HighIceDebuff[attacker] - gameTime);
-		}
-	}
-
-	int ratio = GetEntProp(npc.index, Prop_Data, "m_iHealth") * 5 / GetEntProp(npc.index, Prop_Data, "m_iMaxHealth");
-
-	switch(npc.m_iPhase)
-	{
-		case 0:
-		{
-			if(ratio < 3)
-				npc.m_iPhase = 1;
-		}
-		case 1:
-		{
-			if(ratio < 1)
-			{
-				npc.m_iPhase = 2;
-				npc.m_flSpeed = 75.0;
-				Change_Npc_Collision(npc.index, 1);	// Ignore buildings
-				b_NpcIsInvulnerable[npc.index] = true;
-				FreezeNpcInTime(npc.index, 5.0);
-			}
+				ApplyTempAttrib(weapon, 6, 1.4, f_HighIceDebuff[attacker] - gameTime);
 		}
 	}
 }
@@ -468,4 +489,10 @@ void LastKnight_NPCDeath(int entity)
 
 	if(IsValidEntity(npc.m_iWearable4))
 		RemoveEntity(npc.m_iWearable4);
+
+	if(IsValidEntity(npc.m_iWearable5))
+		RemoveEntity(npc.m_iWearable5);
+
+	if(IsValidEntity(npc.m_iWearable6))
+		RemoveEntity(npc.m_iWearable6);
 }

@@ -101,6 +101,26 @@
 		"en"		"Archetype: Base Caster"
 		"ru"		"Архетип: Базовый заклинатель"
 	}
+	"Mythic Caster"
+	{
+		"en"		"Archetype: Mythic Caster"
+	}
+	"Abyssal Hunter"
+	{
+		"en"		"Archetype: Abyssal Hunter"
+	}
+	"Kazimierz"
+	{
+		"en"		"Archetype: Kazimierz"
+	}
+	"Bloodletter"
+	{
+		"en"		"Archetype: Bloodletter"
+	}
+	"Bloody Butcher"
+	{
+		"en"		"Archetype: Bloody Butcher"
+	}
 	"Syringe Gun Desc"
 	{
 		"en"		"Low Damage but very high bleed duration"
@@ -179,9 +199,9 @@
 	
 	"Huntsman Desc"
 	{
-		"en"		"Can headshot. Press R To fire a barrage"
-		"ru"		"Может стрелять в голову. Нажмите R, чтобы открыть шквальный огонь."
-		"chi"       "可以造成爆头伤害！按下R键发射多个弓箭"
+		"en"		"Can headshot. Press M2 To fire a barrage"
+		"ru"		"Может стрелять в голову. Нажмите M2, чтобы открыть шквальный огонь."
+		"chi"       "可以造成爆头伤害！按下M2键发射多个弓箭"
 	}
 	"Huntsman Pap 1"
 	{
@@ -194,6 +214,11 @@
 		"en"		"Increased damage and attackspeed, m2 ability buffed.\nBase attack now shoots 3 arrows."
 		"ru"		"Увеличенный урон и скорость атаки, усиление способности на М2.\nСтреляет 3-я стрелами (обычная)."
 		"chi"       "增加伤害和攻击速度，鼠标右键可以激活技能。普通攻击现在发射3支箭。"
+	}
+	
+	"Huntsman Pap 3"
+	{
+		"en"		"Increased damage and attackspeed."
 	}
 	
 	"Deagle Desc"
@@ -249,7 +274,7 @@
 	}
 	"Grenade Launcher Pap 2"
 	{
-		"en"		"Reduced damage and attackspeed."
+		"en"		"Reduced damage but higher attackspeed attack speed and reload speed."
 		"ru"		"Уменьшенный урон и скорость атаки."
 		"chi"       "增加伤害和攻击速度。"
 	}
@@ -384,21 +409,24 @@
 	
 	"Boomstick Desc"
 	{
-		"en"		"Load 4 bullets and shoot all at once"
-		"ru"		"Зарядите 4 патрона и выстрелите всеми сразу."
-		"chi"       "4颗子弹一起射击"
+		"en"		"Load 4 bullets and shoot all at once\nDeals 2x dmg against raids."
 	}
+	
 	"Boomstick Pap 1"
 	{
 		"en"		"Increased damage and attackspeed, loads up to 6 shells."
 		"ru"		"Увеличенный урон и скорость атаки, заряжает до 6 патронов."
 		"chi"       "增加伤害和攻击速度，子弹装载量增加到6发。"
 	}
+	"Boomstick Pap 3"
+	{
+		"en"		"Increased damage and attackspeed."
+		"ru"		"Увеличенный урон и скорость атаки."
+		"chi"       "增加伤害和攻击速度."
+	}
 	"Boomstick Pap 2"
 	{
-		"en"		"Less Damage but bullets turn into piercing lasers with damage falloff."
-		"ru"		"Урон меньше, но пули превращаются в пронзительные лазеры с падением урона на расстоянии."
-		"chi"       "伤害减少，但子弹变成穿透激光，伤害随着穿透目标数量下降。"
+		"en"		"Bullets turn into piercing lasers with damage falloff.\nDamage stays the same on full hits but it is easier to hit as you dont have to headshot."
 	}
 	
 	"Terroriser Bomb Implanter Sniperrifle Desc"
@@ -406,6 +434,10 @@
 		"en"	"Implant a bomb onto the target you hit, press R to detonate them.\nImplant multiple for more dmg. More charge = more bombs, headshot = more bombs"
 		"ru"	"Устанавливает бомбу на цель, в которую вы попали, нажмите R, чтобы взорвать её.\nУстановите несколько бомб для большего урона. Больше зарядов = больше бомб, выстрел в голову = больше бомб."
 		"chi"   "射击将会发出黏弹，按R引爆它们。\n部下多颗黏弹可造成更多伤害.更多的冲锋=更多的炸弹，爆头=更多的炸弹"
+	}
+	"Terroriser Bomb Implanter Sniperrifle Desc PaP 1"
+	{
+		"en"	"Increaces firerare, chargetime, and bombs planted at once"
 	}
 	
 	"Rampager Automatic Rifle Desc"
@@ -515,9 +547,7 @@
 	
 	"Grenade Desc"
 	{
-		"en"	"1000 Dmg Grenade"
-		"ru"	"Граната с уроном в 1000 единиц."
-		"chi"   "造成1000伤害的手榴弹"
+		"en"	"High Dmg Grenade"
 	}
 	"Grenade Pap 1"
 	{
@@ -731,9 +761,7 @@
 	
 	"Knife Desc"
 	{
-		"en"	"Can backstab and inflicts bleed for a LONG time"
-		"ru"	"Может ударить в спину и наносит кровотечение в течение ДЛИТЕЛЬНОГО времени."
-		"chi"   "背刺会造成流血"
+		"en"	"Can backstab and inflicts bleed for a LONG time\n2x backstab dmg against raids."
 	}
 	"Knife Pap 1"
 	{
@@ -756,14 +784,12 @@
 	
 	"Ubersaw Desc"
 	{
-		"en"	"Get 10%% uber per melee hit"
-		"ru"	"Получайте 10%% убер-заряда за каждый удар в ближнем бою."
-		"chi"   "每次近战攻击将获得10%%的超能力"
+		"en"	"Get 10%% uber per melee hit.\nIts uber is split between mediguns if they arent full."
 	}
 	
 	"Hammer Pap 1"
 	{
-		"en"	"Increased damage"
+		"en"	"Increased damage and attackspeed"
 		"ru"	"Увеличенный урон."
 	}
 	"Hammer Pap 2"
@@ -815,9 +841,7 @@
 	}
 	"Kunai Desc"
 	{
-		"en"	"Can backstab and bleed, backstab gives health, no matter if it kills or not."
-		"ru"	"Может нанести удар в спину и кровотечение, удар в спину даёт здоровье, независимо от того, убивает он или нет."
-		"chi"   "背刺可以造成流血，背刺成功后将吸收生命，无论目标是否死亡。"
+		"en"	"Can backstab and bleed, backstab gives health, no matter if it kills or not.\nKills reward 2x heal, Raids heal 2x the hp, against raids backstabs deal 2x dmg overall."
 	}
 	"Kunai Pap 1"
 	{
@@ -846,14 +870,39 @@
 	}
 	"Fractured Ark Pap 2"
 	{
-		"en"	"Increased damage and attackspeed, Even more projectiles, parry reflect power increased"
-		"ru"	"Увеличенный урон и скорость атаки, ещё больше снарядов, сила отражения парирования увеличена."
-		"chi"   "增加伤害和攻击速度，可以格挡更多的炮弹，格挡的力量增加"
+		"en"	"Increased damage, attackspeed, and ability power."
 	}
 	"Fractured Ark Pap 3"
 	{
-		"en"	"Abilities change.\nEach attack silences the enemies for 5 seconds.\nAttacks give charges, melee gives 2x more.\nRanged attacks if melee didnt hit.\nHomes onto enemy that you looked at.\nAbility 2x dmg and ability duration and AOE silence.\nArchetype changes to ''Lord''"
-		"chi"   "能力的改变。每次攻击使敌人沉默5秒。攻击能充能，近战多充能2倍。如果近战没有命中，远程攻击。你所看到的敌人。2倍伤害，持续时间和AOE沉默。"
+		"en"	"Abilities change.\nEach attack silences enemies, fires ranged attacks.\nAbility 2x dmg and ability duration and AOE silence.\nArchetype changes to ''Lord''"
+	}
+	"Fractured Ark Pap 4"
+	{
+		"en"	"Attacks are always ranged but with decreased fire rate.\nAbility changes to be able to pull, dealing 150%% of damage.\nArchetype changes to ''Abyssal Hunter''"
+	}
+	"Fractured Ark Pap 5"
+	{
+		"en"	"All Abyssal Hunter weapons gain 7.5%% damage resistance from Seaborn enemies and gain 1.5%% max health per second.\nAbility now charges faster and deals 180%% of damage.\nMain attack has longer projectile lifetime."
+	}
+	"Fractured Ark Pap 6"
+	{
+		"en"	"All Abyssal Hunter weapons now gain 12.5%% damage resistance from Seaborn enemies and gain 2.5%% max health per second.\nAbility now holds a third charge and deals 190%% of damage.\nAttacks deal bonus damage to lightweight enemies."
+	}
+	"Fractured Ark Pap 7"
+	{
+		"en"	"Ability now charges faster, deals 210%% of damage, and pulls significantly more."
+	}
+	"Fractured Ark Pap 8"
+	{
+		"en"	"All Abyssal Hunter weapons now gain 15%% damage resistance from all enemies and gain 3.5%% max health per second.\nAbility now deals ranged damage proportional to the distance the enemy was pulled."
+	}
+	"Fractured Ark Pap 9"
+	{
+		"en"	"Ability pulls heavier enemies."
+	}
+	"Fractured Ark Pap 10"
+	{
+		"en"	"Ability pulls even heavier enemies."
 	}
 	
 	"Longsword Desc"
@@ -883,8 +932,7 @@
 	
 	"Speed Fists Of Speed Desc"
 	{
-		"en"	"Attack incredibly fast, cause bleed for 8 seconds on attack."
-		"ru"	"Атакует невероятно быстро, при атаке вызывает кровотеч. на 8 сек."
+		"en"	"Attack incredibly fast, attack enough times to keep a speed bonus.\nDeals 10%% Extra dmg against raids."
 	}
 	"Speed Fists Of Speed Pap 1"
 	{
@@ -965,9 +1013,15 @@
 	}
 	"Fire Wand Pap 1"
 	{
-		"en"	"Increased damage, fires 3 fireballs in quick succession"
-		"ru"	"Увеличенный урон, выпускает 3 огненных шаров в быстрой последовательности."
-		"chi"   "增加伤害，快速连续发射5个火球"
+		"en"	"Increased damage, fires 2 fireballs in quick succession, subsequent fireballs deal less damage."
+	}
+	"Fire Wand Pap 2"
+	{
+		"en"	"Increased damage, fires 3 fireballs in quick succession, subsequent fireballs deal less damage."
+	}
+	"Fire Wand Pap 3"
+	{
+		"en"	"Increased damage, fires 5 fireballs in quick succession, subsequent fireballs deal less damage."
 	}
 	
 	"Cryo Staff Desc"
@@ -1010,7 +1064,7 @@
 
 	"Lightning Staff Pap 3"
 	{
-		"en"	"Massively increaced Damage.\nYour ability changes to a 2x charged, randomly targetting, multistrike Lighting chaining attack.\nYour attack will also chain across 4 enemies but attack 3x slower, each attack will heavily slow the enemy for a short time.\nArchetype changes to ''Chain Caster''"
+		"en"	"Massively increased Damage.\nYour ability changes to a 2x charged, randomly targetting, multistrike Lighting chaining attack.\nYour attack will also chain across 4 enemies but attack 3x slower, each attack will heavily slow the enemy for a short time.\nArchetype changes to ''Chain Caster''"
 		"ru"	"Значительно увеличенный урон.\nВаша способность изменяется на двойную заряженную, случайную атаку, многоударную цепную атаку молнией.\nВаша атака также будет цепной по 4 врагам, но атаковать в 3 раза медленнее, каждая атака будет сильно замедлять врага на короткое время.\nАрхетип меняется на «Мастер цепей»"
 	}
 	
@@ -1104,9 +1158,7 @@
 	
 	"Ranged Spike Layer Desc"
 	{
-		"en"	"The more senty damage you have, the more damage this weapon does.\nWeapon upgrades such as damage will not affect this." 
-		"ru"	"Чем больше у вашей турели урона, тем больше урона наносит это оружие.\nУлучшения оружия, такие как урон, не влияют на это."
-		"chi"   "你的自动哨兵伤害越大，这个武器的伤害就越大。武器升级不会带来改变"
+		"en"	"The more senty damage you have, the more damage this weapon does.\nWeapon upgrades such as damage will not affect this.\nPress m2 while looking up twice to pick up all your spikes at once." 
 	}
 	
 	"Aresenal's Tripmine Layer Desc"
@@ -1605,9 +1657,9 @@
 	
 	"Minigun Sentry Desc"
 	{
-		"en"	"10%% less damage, 1.15x Attack speed, 0.5x range for sentry guns and alike"
-		"ru"	"На 10%% меньше урона, 1,15-кратная скорость атаки, 0,5-кратная дальность стрельбы для всех турелей"
-		"chi"   "伤害减少10%%，但攻击速度提高1.15倍，哨兵的射程增加0.5倍"
+		"en"	"10%% less damage, 1.4x Attack speed, 0.5x range for sentry guns and alike"
+		"ru"	"На 10%% меньше урона, 1,4-кратная скорость атаки, 0,5-кратная дальность стрельбы для всех турелей"
+		"chi"   "伤害减少10%%，但攻击速度提高1.4倍，哨兵的射程增加0.5倍"
 	}
 	
 	"Glass Cannon Blueprints Desc"
@@ -1660,16 +1712,16 @@
 	
 	"Android Desc"
 	{
-		"en"	"You take 5%% less damage overall but have -50 health."
-		"ru"	"Вы получаете на 5%% меньше общего урона, но имеете -50 здоровья."
-		"chi"   "你受到的伤害减少5%%，但生命值-50。"
+		"en"	"You take 5%% less damage overall but have -100 health."
+		"ru"	"Вы получаете на 5%% меньше общего урона, но имеете -100 здоровья."
+		"chi"   "你受到的伤害减少5%%，但生命值-100。"
 	}
 	
 	"Soft Shoes Desc"
 	{
-		"en"	"Take 35%% less fall damage!"
-		"ru"	"Получайте на 35%% меньше урона при падении!"
-		"chi"   "减少35%%的掉落伤害!"
+		"en"	"Take 10%% less fall damage!"
+		"ru"	"Получайте на 10%% меньше урона при падении!"
+		"chi"   "减少10%%的掉落伤害!"
 	}
 	
 	"Hardened Stance Desc"
@@ -1778,9 +1830,7 @@
 	
 	"Irene Weapon Desc"
 	{
-		"en"	"You double attack with each attack.\nHitting any enemy 64 times will give you an ability.\nThis ability kicks enemies into the air and bombards them with AOE attacks."
-		"ru"	"Вы удваиваете атаку при каждой атаке.\nУдарив любого врага 64 раза, вы получите способность.\nСпособность подбрасывает врагов в воздух и бомбардирует их атаками с уроном по области."
-		"chi"   "每次攻击都是双倍攻击。\n击中任何敌人64次将获得一个技能。\n此技能将敌人踢到空中并用AOE攻击轰炸他们。"
+		"en"	"You double attack with each attack.\nHitting any enemy 42 times will give you an ability.\nThis ability kicks enemies into the air and bombards them with AOE attacks.\nIf seaborn enemies exist, gain 15%% bonus attackspeed."
 	}
 	
 	"Cosmic Terror Desc"
@@ -1872,8 +1922,10 @@
 	"Buildable Barracks Desc"
 	{
 		"en"	"Allows training allies to fight for you.\nRepair upgrades provides more resources.\nBuilding upgrades provides stronger allies.\nPress R on your troops to give more commands."
-		"ru"	"Позволяет обучать союзников.\nРемонт даёт больше ресурсов.\nУлучшение строения даёт более сильных союзников.\nНажмите R на своих войсках для командования."
-		"chi"   "允许训练战士为你而战。\n建筑修复属性升级会影响这一点。\n建筑升级属性提供更强大的战士。在你的战士上按R键可以发出更多命令。"
+	}
+	"Buildable Barracks Desc Extra"
+	{
+		"en"	"Quick revive: auto regen\nWidows Wine: debuff on attacking enemy\nDeadshot: 1.25x more ranged dmg\nDouble Tap: 1.15x attackspeed\nSpeed cola: 1.25x movement speed\nRecycle Porier: 1.25x resource gain\nJuggernog: 1.3x more health and 1.15x resistance"
 	}
 	"Militia Desc"
 	{
@@ -1948,8 +2000,8 @@
 	}
 	"Fish Melee Desc"
 	{
-		"en" 	"Heals allies slowly around you and gives them a 10% dmg buff.\nScales with medigun upgrades.\nM1 Casts an extra heal onto allies.\nM2 Applies a stronger 25% dmg buff to all allies for 15 sec."
-		"ru" 	"Медленно исцеляет союзников вокруг вас и даёт им 10% усиление урона.\nУвеличивается с улучшением медицинской пушки.\nM1 - доп. исцеление на союзников.\nM2 - более сильное усиление урона на 25% на всех союзников на 15 сек."
+		"en" 	"Heals allies slowly around you and gives them a 10%% dmg buff.\nScales with medigun upgrades.\nM1 Casts an extra heal onto allies.\nM2 Applies a stronger 25%% dmg buff to all allies for 15 sec."
+		"ru" 	"Медленно исцеляет союзников вокруг вас и даёт им 10%% усиление урона.\nУвеличивается с улучшением медицинской пушки.\nM1 - доп. исцеление на союзников.\nM2 - более сильное усиление урона на 25%% на всех союзников на 15 сек."
 		"chi"   "可以缓慢治疗你附近的队友，并给予他们10%%的伤害buff。\n收到医疗属性升级影响。\nM1对盟友施放额外治疗值。M2释放光波对所有队友添加25%%的伤害加成buff，持续15秒。"
 	}
 	"Lantean Staff Desc"
@@ -1966,9 +2018,7 @@
 	}
 	"Specter Pap 1"
 	{
-		"en"	"Attacks slower but hits two targets at once.\nArchetype changes to ''Crusher''"
-		"ru"	"Атакует медленнее, но поражает сразу две цели.\nАрхетип меняется на «Дробитель»"
-		"chi"   "攻击速度较慢，但能同时击中两个目标"
+		"en"	"Attacks slower but hits two targets at once.\nDeals 25%% more damage againts raids.\nArchetype changes to ''Abyssal Hunter''"
 	}
 	"Specter Pap 2a"
 	{
@@ -1990,7 +2040,7 @@
 	}
 	"Specter Pap 4"
 	{
-		"en"	"Increased damage and gains the ability to self revive if enough damage is dealt"
+		"en"	"Increased damage and gains the ability to self revive if enough damage is dealt\nAll Abyssal Hunter weapons gain +200 max health."
 		"ru"	"Увеличение урона и способность к самовозрождению при получении достаточного урона."
 		"chi"   "增加伤害，并获得自我复活能力，如果造成足够的伤害"
 	}
@@ -2132,6 +2182,10 @@
 		"en"	"Gain 30%% damage & 50%% less knockback, 10%% slower\nYou cannot attack normally and reflect damage onto enemies depending on your damage\nYou charge damage by standing around, standing near enemies and being hurt.\nWeapon has no damage falloff with more enemies hit."
 		"ru"	"Урон на 30%% и на 50%% меньше, отдача на 10% медл.\nВы не можете нормально атаковать и отражаете урон во врагов в зависимости от своего урона.\nВы накапл. урон, стоя рядом с врагами и получая повреждения.\nУ оружия нет спада урона на расстоянии при большем кол-ве поражённых врагов."
 	}
+	"Mlynar Sword Desc pap"
+	{
+		"en"	"Gain increaced Resistance, damage, parry damage, and less penalty after hurting a raid or killing enemies."
+	}
 	"Barracks Railgunner Desc"
 	{
 		"en"	"A long ranged Sniper unit, fragile!"
@@ -2187,4 +2241,173 @@
 		"en"		"A medic with a long ranged crusaders crossbow... fragile!"
 		"ru"		"Медик с дальнобойным арбалетом крестоносца... хрупкий!"
 	}
+	"Scientific Witchery Desc"
+	{
+		"en"		"The Ultimate Ranged Unit, combining all known reaserch on magic, and the latest tech, to create the ultimate mage. Costs 2 supply units"
+	}
+	"Steel Dagger Desc"
+	{
+		"en"		"Slow attacking Steel Dagger, provides overall resistances."
+	}
+	"Steel Dagger Desc 1"
+	{
+		"en"		"increased resistances and damage, gain m2 ability to heal allies over time with 'heal on kill' statt, stun enemies around you on ability use.\nYou gain resistances and damage during ability usage, you always deal 35%% more damage against stunned enemies."
+	}
+	"Steel Dagger Desc 2"
+	{
+		"en"		"increased resistances and damage."
+	}
+	"Steel Dagger Desc 3"
+	{
+		"en"		"increased resistances and damage, m2 ability gains extra damage and stun duration, provides extra heal on hit for all your surrounding allies during ability usage."
+	}
+	"Fantasy Blade pap 0"
+	{
+		"en"	"A blade of those who dare to Fantasize and dream...\nHold mouse 2 to fire a Fantasmal wave forward.\nThis action requires ''Shards'', you gain them by hitting stuff"
+	}
+	"Fantasy Blade pap 1"
+	{
+		"en"	"You feel as is the Fantasy is slowly becoming real...\nYou can now hold R+Mouse 2 to fire a long ranged Fantasmal wave\nYou also gain a Fantasmal Halo"
+	}
+	"Fantasy Blade pap 2"
+	{
+		"en"	"Fantasy and reality, its all the same\nBy Crouching And pressing Mouse 2 you can teleport to a npc, Costs 3 shards to use\nNote: This ability WILL only work if you are looking at an enemy\nYou gain wings of Fantasy\n(They don't allow you to fly unfortunately)"
+	}
+	"Ancient Banner Desc"
+	{
+		"en"	"Give everyone 25%% more attackspeed, reloadspeed and healspeed during the duration of the banner."
+	}
+	"quincy pap0"	//todo: make the desc's abit cooler sounding
+	{
+		"en"	"Your weapon has the ability to specialise into 2 tress's, Charge rate and Battery capacity\nWith higher battery - more damage but longer charge time\nWith charge - Dmg potential is lower but faster charge rate\nHold MOUSE2 and press RELOAD on a pap to open a menu"
+	}
+	"quincy pap1"
+	{
+		"en"	"General stat boost, you also gain a skill point\nTo spend these skill points hold Mouse 2 and press RELOAD on a pap"
+	}
+	"quincy pap2"
+	{
+		"en"	"General stat boost, you also gain a skill point\nTo spend these skill points hold Mouse 2 and press RELOAD on a pap"
+	}
+	"quincy pap3"
+	{
+		"en"	"General stat boost, you also gain a skill point\nTo spend these skill points hold Mouse 2 and press RELOAD on a pap"
+	}
+	"quincy pap4"
+	{
+		"en"	"General stat boost, you also gain a skill point\nTo spend these skill points hold Mouse 2 and press RELOAD on a pap"
+	}
+	"quincy pap5"
+	{
+		"en"	"General stat boost, you also gain a skill point\nTo spend these skill points hold Mouse 2 and press RELOAD on a pap"
+	}
+	"quincy pap6"
+	{
+		"en"	"General stat boost, you also gain a skill point\nTo spend these skill points hold Mouse 2 and press RELOAD on a pap"
+	}
+	"Taurus Judge Desc 1"
+	{
+		"en"	"This weapon comes with remarkable strength and deploys 30%% faster!\nUnfortunately, it only reloads when not equipped and fires slowly.\nGuranteed Gibs on kill if possible."
+	}
+	"Taurus Judge Desc Pap 1"
+	{
+		"en"	"Improved handling allows for 50%% faster deploy speed, faster reload, more firepower and faster shooting."
+	}
+	"Old Wooden Board Desc"
+	{
+		"en"	"A ''shield'' that let's you absorb damage and parry enemies for damage.\nScales with melee upgrades and attackspeed.\nDefence rating: ★✬☆☆☆"
+	}
+	"Spike Shield Desc"
+	{
+		"en"	"A weapon pretending to be a shield - Parrying boasts higher damage.\nDefence rating: ★☆☆☆☆"
+	}
+	"Leaf Shield Desc"
+	{
+		"en"	"A shield that was born - Parrying heals you.\nDefence rating: ★★★☆☆"
+	}
+	"Rookie Shield Desc"
+	{
+		"en"	"A regular shield - Parries and lets you switch weapons faster.\nDefence rating: ★★☆☆☆"
+	}
+	"Punishment Desc"
+	{
+		"en"	"A weapon and a shield, given form - Parrying becomes AOE.\nDefence rating: ★★★☆☆\nArchetype changes to ''Crusher''"
+	}
+	"Rampart Desc"
+	{
+		"en"	"An abomination, given life. You can feel it's breath - Parrying gives you additional, but temporary max HP.\nDefence rating: ★★★★★"
+	}
+	"Cudgel Desc"
+	{
+		"en"	"A standard issue shield, given purpose - Parrying debuffs the enemy.\nDefence rating: ★★★★☆"
+	}
+	"The Standchen Desc"
+	{
+		"en"	"Speichert bis zu drei Angriffe, unleash by letting go of attack. Stored shots deal bonus damage.\nAbility increases damage, fire rate, and stores another shot but, kann nur Elite- oder Riesengegner treffen, ability can be canceled."
+	}
+	"The Standchen Desc Pap"
+	{
+		"en"	"Speichert bis zu vier Angriffe."
+	}
+	"Sensal Desc"
+	{
+		"en"	"Borrowed from sensal straight out of expidonsa."
+	}
+	"Sensal Desc 1"
+	{
+		"en"	"Gain the ability to shoot projetiles with m2, they home onto targets.\nthey will focus the target you look at when using this ability.\nCharges with melee hits\nA certain battery will double its capacity..."
+	}
+	"Sensal Desc 2"
+	{
+		"en"	"Increaced damage and resistance, gain 1 more scythe with your ability.\nYour ability charges faster aswell."
+	}
+	"Sensal Desc 3"
+	{
+		"en"	"Increaced damage and resistance, you gain the ability to summon after images which fire lasers onto targets.\nAttacks targets you look at, if they arent valid, then its any close enemy."
+	}
+	"Hazard Desc"
+	{
+		"en"	"A bonesaw powered by a strange core. It's aura feels weak.\nAttacks deal random damage, has a low chance to hit [JACKPOT]"
+	}
+	"Hazard Unstable Desc"
+	{
+		"en"	"The core grows wild.\nIncreased and more randomized damage."
+	}
+	"Hazard Lunatic Desc"
+	{
+		"en"	"The core has taken in the Improbability drive, nothing makes sense anymore.\nDamage is completely randomized alongside attack speed."
+	}
+	"Hazard Chaos Desc"
+	{
+		"en"	"Chaos has been achieved. Complete anarchy.\nDamage, attack speed, speed, damage resistance, [JACKPOT]...\nHave all been randomized."
+	}
+	"Hazard Stabilized Desc"
+	{
+		"en"	"Safety measures for the core have calmed it down.\nDamage is slightly less randomized, [JACKPOT] has a higher chance of happening."
+	}
+	"Hazard Demi Desc"
+	{
+		"en"	"Reaching the finality, it will soon be over.\nYou gain an ability that increases your luck, which lets you deal more damage and get [JACKPOT] more often"
+	}
+	"Hazard Perfect Desc"
+	{
+		"en"	"Full maturity, the fruit of our labour.\n[JACKPOT] has a higher chance to occur, ability is improved and a hidden power has awakened..."
+	}
+	"Casino Desc"
+	{
+		"en"	"Killing and hitting enemies rewards you with dollars.\nPress M2 to spend 7 dollars and roll the slots!\nRolling the slots: Chance to gain a special effect/buff.\n''The game was rigged from the start''."
+	}
+	"Flush Desc"
+	{
+		"en"	"Stats are increased and you gain more dollars.\nRoll the slots: buffs have been improved.\n''Take it or leave it.''"
+	}
+	"Straight Desc"
+	{
+		"en"	"Stats are increased and you gain more dollars.\nRoll the slots: buffs have been improved.\n''ALL IN BABY!''"
+	}
+	"Royal Desc"
+	{
+		"en"	"Stats are increased and you gain more dollars.\nRoll the slots: buffs have been improved.\n''You should probably get your mental health checked.''"
+	}
 }
+

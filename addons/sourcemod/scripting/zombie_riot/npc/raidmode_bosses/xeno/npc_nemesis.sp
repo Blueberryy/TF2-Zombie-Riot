@@ -239,8 +239,9 @@ methodmap RaidbossNemesis < CClotBody
 		i_GunMode[npc.index] = 0;
 		i_GunAmmo[npc.index] = 0;
 		fl_StopDodgeCD[npc.index] = GetGameTime(npc.index) + 25.0;
+		CPrintToChatAll("{green}Nemesis: S.T.A.R.S ...");
 		
-		Citizen_MiniBossSpawn(npc.index);
+		Citizen_MiniBossSpawn();
 		Building_RaidSpawned(npc.index);
 		npc.StartPathing();
 		return npc;
@@ -276,6 +277,10 @@ public void RaidbossNemesis_ClotThink(int iNPC)
 	{
 		npc.PlayHurtSound();
 		npc.m_blPlayHurtAnimation = false;
+	}
+	if(i_GunAmmo[npc.index] > 0)
+	{
+		i_GunMode[npc.index] = 1;
 	}
 	
 	if(f_NemesisSpecialDeathAnimation[npc.index])
@@ -381,7 +386,7 @@ public void RaidbossNemesis_ClotThink(int iNPC)
 		float flPos[3]; // original
 		float flAng[3]; // original
 		npc.GetAttachment("RightHand", flPos, flAng);
-		Nemesis_DoInfectionThrow(npc.index, 5, flPos);
+		Nemesis_DoInfectionThrow(npc.index, 5);
 		ParticleEffectAt(flPos, "duck_collect_blood_green", 1.0);
 	}
 
@@ -417,7 +422,7 @@ public void RaidbossNemesis_ClotThink(int iNPC)
 			float flPos[3]; // original
 			float flAng[3]; // original
 			npc.GetAttachment("RightHand", flPos, flAng);
-			Nemesis_DoInfectionThrow(npc.index, 10, flPos);
+			Nemesis_DoInfectionThrow(npc.index, 10);
 			ParticleEffectAt(flPos, "duck_collect_blood_green", 1.0);
 			f_NemesisCauseInfectionBox[npc.index] = 0.0;
 		}
@@ -585,7 +590,7 @@ public void RaidbossNemesis_ClotThink(int iNPC)
 			{
 				float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
 				float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
-				if(flDistanceToTarget < Pow(NORMAL_ENEMY_MELEE_RANGE_FLOAT * 1.25, 2.0))
+				if(flDistanceToTarget < (NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED * 1.25))
 				{
 					int Enemy_I_See;
 						
@@ -683,7 +688,7 @@ public void RaidbossNemesis_ClotThink(int iNPC)
 				{
 					float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
 					float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
-					if(flDistanceToTarget < Pow(NORMAL_ENEMY_MELEE_RANGE_FLOAT * 2.0, 2.0))
+					if(flDistanceToTarget < (NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED * 2.0))
 					{
 
 						if(npc.m_iChanged_WalkCycle != 3) 
@@ -771,11 +776,11 @@ public void RaidbossNemesis_ClotThink(int iNPC)
 		}
 		else if(i_GunMode[npc.index] == 0)
 		{
-			if(flDistanceToTarget < Pow(NORMAL_ENEMY_MELEE_RANGE_FLOAT * 1.50, 2.0) && npc.m_flNextMeleeAttack < GetGameTime(npc.index))
+			if(flDistanceToTarget < (NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED * 1.50) && npc.m_flNextMeleeAttack < GetGameTime(npc.index))
 			{
 				ActionToTake = 1;
 			}
-			else if(flDistanceToTarget > Pow(NORMAL_ENEMY_MELEE_RANGE_FLOAT * 1.50, 2.0) && npc.m_flNextRangedAttack < GetGameTime(npc.index))
+			else if(flDistanceToTarget > (NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED * 1.50) && npc.m_flNextRangedAttack < GetGameTime(npc.index))
 			{
 				ActionToTake = 2;
 			}
@@ -923,7 +928,7 @@ public void RaidbossNemesis_OnTakeDamagePost(int victim, int attacker, int infli
 		}
 		i_GunMode[npc.index] = 1;
 		i_GunAmmo[npc.index] = 250;
-		fl_StopDodgeCD[npc.index] = GetGameTime(npc.index) + 25.0;
+		fl_StopDodgeCD[npc.index] = GetGameTime(npc.index) + 50.0;
 		f_NemesisSpecialDeathAnimation[npc.index] = GetGameTime(npc.index);
 		npc.PlayBoomSound();
 		npc.Anger = true; //	>:(
@@ -1016,6 +1021,20 @@ public void RaidbossNemesis_NPCDeath(int entity)
 		RemoveEntity(npc.m_iWearable6);
 	if(IsValidEntity(npc.m_iWearable7))
 		RemoveEntity(npc.m_iWearable7);
+
+	GiveProgressDelay(3.0);
+	RaidModeTime += 999.0; //cant afford to delete it, since duo.
+	if(ZR_GetWaveCount()+1 == 65)
+	{
+		for (int client_repat = 0; client_repat < MaxClients; client_repat++)
+		{
+			if(IsValidClient(client_repat) && GetClientTeam(client_repat) == 2 && TeutonType[client_repat] != TEUTON_WAITING)
+			{
+				Items_GiveNamedItem(client_repat, "Nemesis's Heart Piece");
+				CPrintToChat(client_repat, "{default}You cut its heart to ensure his death and gained: {green}''Nemesis's Heart Piece''{default}!");
+			}
+		}
+	}
 		
 //	AcceptEntityInput(npc.index, "KillHierarchy");
 //	npc.Anger = false;
@@ -1309,7 +1328,7 @@ stock float[] Nemesis_DodgeToDirection(CClotBody npc, float extra_backoff = 64.0
 
 #define MAX_TARGETS_HIT_NEMESIS 64
 
-void Nemesis_DoInfectionThrow(int entity, int MaxThrowCount, float StartVec[3])
+void Nemesis_DoInfectionThrow(int entity, int MaxThrowCount)
 {
 	int count;
 	int targets[MAX_TARGETS_HIT_NEMESIS];
@@ -1364,88 +1383,16 @@ void Nemesis_DoInfectionThrow(int entity, int MaxThrowCount, float StartVec[3])
 			count--;	// This decreases the max entries
 			int target = targets[count];	// This grabs the entry at the very end
 			
-			float vecJumpVel[3];
 			float VicLoc[3];
 
 			//poisition of the enemy we random decide to shoot.
 			GetEntPropVector(target, Prop_Data, "m_vecAbsOrigin", VicLoc);
 
-			float gravity = GetEntPropFloat(entity, Prop_Data, "m_flGravity");
-				
-			if(gravity <= 0.0)
-				gravity = FindConVar("sv_gravity").FloatValue;
+			VicLoc[2] += 10.0;
+			spawnRing_Vectors(VicLoc, INFECTION_RANGE * 2.0, 0.0, 0.0, 5.0, "materials/sprites/laserbeam.vmt", 0, 255, 0, 200, 1, INFECTION_DELAY, 5.0, 0.0, 1);	
+			VicLoc[2] -= 5.0;
+			spawnRing_Vectors(VicLoc, 0.0, 0.0, 0.0, 5.0, "materials/sprites/laserbeam.vmt", 0, 255, 0, 200, 1, INFECTION_DELAY, 5.0, 0.0, 1,INFECTION_RANGE * 2.0);	
 			
-			// How fast does the headcrab need to travel to reach the position given gravity?
-			float flActualHeight = VicLoc[2] - StartVec[2];
-			float height = flActualHeight;
-			if ( height < 72 )
-			{
-				height = 72.0;
-			}
-			float additionalHeight = 0.0;
-			
-			if ( height < 35 )
-			{
-				additionalHeight = 50.0;
-			}
-			
-			height += additionalHeight;
-			
-			float speed = SquareRoot( 2 * gravity * height );
-			float time = speed / gravity;
-		
-			time += SquareRoot( (2 * additionalHeight) / gravity );
-			
-			// Scale the sideways velocity to get there at the right time
-			SubtractVectors( VicLoc, StartVec, vecJumpVel );
-			vecJumpVel[0] /= time;
-			vecJumpVel[1] /= time;
-			vecJumpVel[2] /= time;
-		
-			// Speed to offset gravity at the desired height.
-			vecJumpVel[2] = speed;
-			
-			// Don't jump too far/fast.
-			float flJumpSpeed = GetVectorLength(vecJumpVel);
-			float flMaxSpeed = 1250.0;
-			if ( flJumpSpeed > flMaxSpeed )
-			{
-				vecJumpVel[0] *= flMaxSpeed / flJumpSpeed;
-				vecJumpVel[1] *= flMaxSpeed / flJumpSpeed;
-				vecJumpVel[2] *= flMaxSpeed / flJumpSpeed;
-			}
-
-			float direction[3];
-			int prop = CreateEntityByName("prop_physics_multiplayer");
-			if(IsValidEntity(prop))
-			{
-				DispatchKeyValue(prop, "model", INFECTION_MODEL);
-				DispatchKeyValue(prop, "physicsmode", "2");
-				DispatchKeyValue(prop, "solid", "0");
-				DispatchKeyValue(prop, "massScale", "1.0");
-				DispatchKeyValue(prop, "spawnflags", "6");
-
-				DispatchKeyValue(prop, "modelscale", "1.0");
-				DispatchKeyValueVector(prop, "origin",	 StartVec);
-				direction[2] -= 180.0;
-				direction[1] = GetRandomFloat(-180.0, 180.0);
-				DispatchKeyValueVector(prop, "angles",	 direction);
-				DispatchSpawn(prop);
-				TeleportEntity(prop, NULL_VECTOR, NULL_VECTOR, vecJumpVel);
-				SetEntityRenderMode(prop, RENDER_TRANSCOLOR);
-				SetEntityRenderColor(prop, 0, 200, 0, 255);
-				SetEntityCollisionGroup(prop, 1); //COLLISION_GROUP_DEBRIS_TRIGGER
-				SetEntProp(prop, Prop_Send, "m_usSolidFlags", 12); 
-				SetEntProp(prop, Prop_Data, "m_nSolidType", 6); 
-				CreateTimer(1.0, Timer_RemoveEntity, EntIndexToEntRef(prop), TIMER_FLAG_NO_MAPCHANGE);
-				
-			//	int particle = ParticleEffectAt(StartVec, "spellbook_minor_fire", 1.0);
-			//	SetParent(prop, particle, "");
-
-				spawnRing_Vectors(VicLoc, INFECTION_RANGE * 2.0, 0.0, 0.0, 5.0, "materials/sprites/laserbeam.vmt", 0, 255, 0, 200, 1, INFECTION_DELAY, 5.0, 0.0, 1);	
-				VicLoc[2] -= 5.0;
-				spawnRing_Vectors(VicLoc, 0.0, 0.0, 0.0, 5.0, "materials/sprites/laserbeam.vmt", 0, 255, 0, 200, 1, INFECTION_DELAY, 5.0, 0.0, 1,INFECTION_RANGE * 2.0);	
-			}
 			float damage = 500.0;
 
 			DataPack pack;
@@ -1486,7 +1433,7 @@ void NemesisHitInfection(int entity, int victim, float damage, int weapon)
 	if(f_NemesisImmuneToInfection[victim] < GetGameTime())
 	{
 		//this wont work on npcs, too unfair.
-		if(IsValidClient(victim))
+		if(IsValidClient(victim) && !IsInvuln(victim))
 		{
 			f_NemesisImmuneToInfection[victim] = GetGameTime() + 15.0;
 			float HudY = -1.0;
@@ -1515,6 +1462,7 @@ void NemesisHitInfection(int entity, int victim, float damage, int weapon)
 		}
 	}
 }
+
 public Action Timer_Nemesis_Infect_Allies(Handle timer, DataPack pack)
 {
 	pack.Reset();
@@ -1566,6 +1514,10 @@ public Action Timer_Nemesis_Infect_Allies(Handle timer, DataPack pack)
 		}
 	}
 	int bleed_count = pack.ReadCell();
+	if(IsInvuln(client))
+	{
+		bleed_count = 0;
+	}
 	if(bleed_count < 1)
 	{
 		if(IsValidEntity(Particle_entity))

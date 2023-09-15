@@ -19,30 +19,24 @@ static const char SoundMoabPop[][] =
 
 static float MoabSpeed()
 {
-	/*if(CurrentRound < 80)
+	if(CurrentRound < 80)
 		return 250.0;
 	
 	if(CurrentRound < 100)
 		return 250.0 * (1.0 + (CurrentRound - 79) * 0.02);
 	
-	return 250.0 * (1.0 + (CurrentRound - 70) * 0.02);*/
-	
-	if(CurrentRound < 60)
-		return 250.0;
-	
-	return 250.0 * (1.0 + (CurrentRound - 50) * 0.02);
+	return 250.0 * (1.0 + (CurrentRound - 70) * 0.02);
 }
 
 static int MoabHealth(bool fortified)
 {
 	float value = 20000.0;	// 200 RGB
-	//if(CurrentRound != 39 && CurrentRound != 59 && CurrentRound != 79 && CurrentRound != 99)
-	//	value *= 0.25;
+	value *= 0.5;
 	
 	if(fortified)
 		value *= 2.0;
 	
-	/*if(CurrentRound > 123)
+	if(CurrentRound > 123)
 	{
 		value *= 1.05 + (CurrentRound - 106) * 0.15;
 	}
@@ -53,15 +47,6 @@ static int MoabHealth(bool fortified)
 	else if(CurrentRound > 79)
 	{
 		value *= 1.0 + (CurrentRound - 79) * 0.02;
-	}*/
-	
-	if(CurrentRound > 83)
-	{
-		value *= 1.05 + (CurrentRound - 66) * 0.15;
-	}
-	else if(CurrentRound > 59)
-	{
-		value *= 1.0 + (CurrentRound - 31) * 0.05;
 	}
 	
 	return RoundFloat(value) + (Bloon_Health(fortified, Bloon_Ceramic) * 3);	// 104x3 RGB
@@ -76,7 +61,7 @@ void Moab_MapStart()
 	
 	for(int i; i<sizeof(SoundMoabPop); i++)
 	{
-		PrecacheSoundCustom(SoundMoabHit[i]);
+		PrecacheSoundCustom(SoundMoabPop[i]);
 	}
 	
 	PrecacheModel("models/zombie_riot/btd/boab.mdl");
@@ -239,7 +224,7 @@ public void Moab_ClotThink(int iNPC)
 							}
 							else
 							{
-								SDKHooks_TakeDamage(target, npc.index, npc.index, 85.0, DMG_CLUB, -1, _, vecHit);
+								SDKHooks_TakeDamage(target, npc.index, npc.index, 85.0 * 2.0, DMG_CLUB, -1, _, vecHit);
 							}
 						}
 						else
@@ -250,7 +235,7 @@ public void Moab_ClotThink(int iNPC)
 							}
 							else
 							{
-								SDKHooks_TakeDamage(target, npc.index, npc.index, 65.0, DMG_CLUB, -1, _, vecHit);
+								SDKHooks_TakeDamage(target, npc.index, npc.index, 65.0 * 2.0, DMG_CLUB, -1, _, vecHit);
 							}						
 						}
 					}

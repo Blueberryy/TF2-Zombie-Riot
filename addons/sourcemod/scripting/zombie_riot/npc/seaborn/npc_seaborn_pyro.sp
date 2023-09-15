@@ -65,7 +65,7 @@ methodmap SeabornPyro < CClotBody
 	
 	public SeabornPyro(int client, float vecPos[3], float vecAng[3], bool ally)
 	{
-		SeabornPyro npc = view_as<SeabornPyro>(CClotBody(vecPos, vecAng, "models/player/pyro.mdl", "1.0", "1500", ally));
+		SeabornPyro npc = view_as<SeabornPyro>(CClotBody(vecPos, vecAng, "models/player/pyro.mdl", "1.0", "2225", ally));
 		
 		i_NpcInternalId[npc.index] = SEABORN_PYRO;
 		i_NpcWeight[npc.index] = 1;
@@ -87,7 +87,7 @@ methodmap SeabornPyro < CClotBody
 		npc.m_flAttackHappens = 0.0;
 		
 		SetEntityRenderMode(npc.index, RENDER_TRANSCOLOR);
-		SetEntityRenderColor(npc.index, 155, 155, 255, 255);
+		SetEntityRenderColor(npc.index, 100, 100, 255, 255);
 		
 		npc.m_iWearable1 = npc.EquipItem("head", "models/weapons/c_models/c_rift_fire_axe/c_rift_fire_axe.mdl");
 		npc.m_iWearable2 = npc.EquipItem("head", "models/workshop/player/items/pyro/sbox2014_sole_mate/sbox2014_sole_mate.mdl");
@@ -167,6 +167,7 @@ public void SeabornPyro_ClotThink(int iNPC)
 							else
 							{
 								TF2_AddCondition(target, TFCond_Gas, 1.5);
+								StartBleedingTimer_Against_Client(target, npc.index, 4.0, 20);
 							}
 						}
 						

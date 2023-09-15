@@ -34,7 +34,6 @@ public void Barrack_Alt_Barrager_MapStart()
 }
 
 static int i_ammo_count[MAXENTITIES];
-static bool b_target_close[MAXENTITIES];
 static bool b_we_are_reloading[MAXENTITIES];
 static float fl_idle_timer[MAXENTITIES];
 
@@ -65,7 +64,7 @@ methodmap Barrack_Alt_Barrager < BarrackBody
 	}
 	public Barrack_Alt_Barrager(int client, float vecPos[3], float vecAng[3], bool ally)
 	{
-		Barrack_Alt_Barrager npc = view_as<Barrack_Alt_Barrager>(BarrackBody(client, vecPos, vecAng, "250", "models/player/Soldier.mdl", STEPTYPE_NORMAL));
+		Barrack_Alt_Barrager npc = view_as<Barrack_Alt_Barrager>(BarrackBody(client, vecPos, vecAng, "250", "models/player/Soldier.mdl", STEPTYPE_NORMAL,_,_,"models/pickups/pickup_powerup_precision.mdl"));
 		
 		i_NpcInternalId[npc.index] = ALT_BARRACK_BARRAGER;
 		i_NpcWeight[npc.index] = 1;
@@ -79,7 +78,6 @@ methodmap Barrack_Alt_Barrager < BarrackBody
 		
 		
 		i_ammo_count[npc.index]=10;
-		b_target_close[npc.index]=false;
 		b_we_are_reloading[npc.index]=false;
 		fl_idle_timer[npc.index] = 2.0 + GetGameTime(npc.index);
 		npc.m_iWearable1 = npc.EquipItem("head", "models/weapons/c_models/c_dumpster_device/c_dumpster_device.mdl");
@@ -127,18 +125,11 @@ public void Barrack_Alt_Barrager_ClotThink(int iNPC)
 	{
 		BarrackBody_ThinkTarget(npc.index, true, GameTime);
 		int PrimaryThreatIndex = npc.m_iTarget;
-		if(i_ammo_count[npc.index]==0 && !b_we_are_reloading[npc.index] && !b_target_close[npc.index])	//the npc will prefer to fully reload the clip before attacking, unless the target is too close.
+		if(i_ammo_count[npc.index]==0 && !b_we_are_reloading[npc.index])	//the npc will prefer to fully reload the clip before attacking, unless the target is too close.
 		{
 			b_we_are_reloading[npc.index]=true;
 		}
-		if((b_we_are_reloading[npc.index] || (b_target_close[npc.index] && i_ammo_count[npc.index]<=0)) && npc.m_flReloadIn<GameTime)	//Reload IF. Target too close. Empty clip.
-		{
-			npc.AddGesture("ACT_MP_RELOAD_STAND_PRIMARY");
-			npc.m_flReloadIn = 0.5* npc.BonusFireRate + GameTime;
-			i_ammo_count[npc.index]++;
-			npc.PlayRangedReloadSound();
-		}
-		if(fl_idle_timer[npc.index] <= GameTime && npc.m_flReloadIn<GameTime && !b_we_are_reloading[npc.index] && !b_target_close[npc.index] && i_ammo_count[npc.index]<10)	//reload if not attacking/idle for long
+		if(fl_idle_timer[npc.index] <= GameTime && npc.m_flReloadIn<GameTime && !b_we_are_reloading[npc.index] && i_ammo_count[npc.index]<25)	//reload if not attacking/idle for long
 		{
 			npc.AddGesture("ACT_MP_RELOAD_STAND_PRIMARY");
 			npc.m_flReloadIn = 0.5* npc.BonusFireRate + GameTime;
@@ -154,15 +145,7 @@ public void Barrack_Alt_Barrager_ClotThink(int iNPC)
 			npc.PlayIdleAlertSound();
 			float vecTarget[3]; vecTarget = WorldSpaceCenter(PrimaryThreatIndex);
 			float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
-			if(flDistanceToTarget < 60000)
-			{
-				b_target_close[npc.index]=true;
-			}
-			else
-			{
-				b_target_close[npc.index]=false;
-			}
-			if((i_ammo_count[npc.index]==0 || b_we_are_reloading[npc.index]) && !b_target_close[npc.index])	//Run away if ammo is 0 or we are reloading. Don't run if target is too close
+			if(i_ammo_count[npc.index]==0 || b_we_are_reloading[npc.index])	//Run away if ammo is 0 or we are reloading. Don't run if target is too close
 			{
 				
 				int Enemy_I_See;
@@ -174,9 +157,9 @@ public void Barrack_Alt_Barrager_ClotThink(int iNPC)
 					BarrackBody_ThinkMove(npc.index, 175.0, "ACT_MP_RUN_PRIMARY", "ACT_MP_RUN_PRIMARY", 999999.0, _, false);
 				}
 			}
-			else if(flDistanceToTarget < 120000 && i_ammo_count[npc.index]>0)
+			else if(flDistanceToTarget < 750000 && i_ammo_count[npc.index]>0)
 			{
-				BarrackBody_ThinkMove(npc.index, 200.0, "ACT_MP_RUN_PRIMARY", "ACT_MP_RUN_PRIMARY", 100000.0, _, false);
+				BarrackBody_ThinkMove(npc.index, 200.0, "ACT_MP_RUN_PRIMARY", "ACT_MP_RUN_PRIMARY", 700000.0, _, false);
 				//Look at target so we hit.
 			//	npc.FaceTowards(vecTarget, 1000.0);
 				fl_idle_timer[npc.index] = 2.5 + GameTime;
@@ -196,7 +179,7 @@ public void Barrack_Alt_Barrager_ClotThink(int iNPC)
 						npc.FaceTowards(vecTarget, 20000.0);
 						npc.PlayRangedSound();
 						//npc.FireRocket(vecTarget, 500.0 * npc.BonusDamageBonus, 1200.0, _, _, _, _, GetClientOfUserId(npc.OwnerUserId));
-						npc.FireParticleRocket(vecTarget, Barracks_UnitExtraDamageCalc(npc.index, GetClientOfUserId(npc.OwnerUserId), 500.0, 1) ,  1200.0, 200.0 , "raygun_projectile_blue", true , false, true, flPos,_, GetClientOfUserId(npc.OwnerUserId));
+						npc.FireParticleRocket(vecTarget, Barracks_UnitExtraDamageCalc(npc.index, GetClientOfUserId(npc.OwnerUserId), 375.0, 1) ,  1200.0, 200.0 , "raygun_projectile_blue", true , false, true, flPos,_, GetClientOfUserId(npc.OwnerUserId));
 						npc.m_flNextMeleeAttack = GameTime + 0.45* npc.BonusFireRate;
 						npc.m_flReloadIn = GameTime + 1.25* npc.BonusFireRate;
 						i_ammo_count[npc.index]--;
@@ -205,12 +188,12 @@ public void Barrack_Alt_Barrager_ClotThink(int iNPC)
 			}
 			else
 			{
-				BarrackBody_ThinkMove(npc.index, 200.0, "ACT_MP_RUN_PRIMARY", "ACT_MP_RUN_PRIMARY", 100000.0, _, false);
+				BarrackBody_ThinkMove(npc.index, 200.0, "ACT_MP_RUN_PRIMARY", "ACT_MP_RUN_PRIMARY", 700000.0, _, false);
 			}
 		}
 		else
 		{
-			BarrackBody_ThinkMove(npc.index, 200.0, "ACT_MP_RUN_PRIMARY", "ACT_MP_RUN_PRIMARY", 100000.0, _, false);
+			BarrackBody_ThinkMove(npc.index, 200.0, "ACT_MP_RUN_PRIMARY", "ACT_MP_RUN_PRIMARY", 700000.0, _, false);
 			npc.PlayIdleSound();
 		}
 	}

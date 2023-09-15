@@ -1580,6 +1580,21 @@
 		"ru"		"Святая Кармен"
 		"chi"		"圣徒卡门"
 	}
+	"Pathshaper"
+	{
+		"en"		"Pathshaper"
+		"chi"		"塑路者"
+	}
+	"Pathshaper"
+	{
+		"en"		"Pathshaper"
+		"chi"		"塑路者"
+	}
+	"Pathshaper Fractal"
+	{
+		"en"		"Pathshaper Fractal"
+		"chi"		"塑路者分形"
+	}
 	"Barracks Teutonic Knight"
 	{
 		"en"		"Teutonic Knight"
@@ -1594,5 +1609,188 @@
 	{
 		"en"		"Tower"
 		"ru"		"Башня"
+	}
+	"Tidelinked Bishop"
+	{
+		"en"		"Tidelinked Bishop"
+		"chi"		"接潮主教"
+	}
+	"Tidelinked Archon"
+	{
+		"en"		"Tidelinked Archon"
+		"chi"		"接潮蔑死体"
+	}
+	"Scientific Witchery"
+	{
+		"en"	"Scientific Witchery"
+	}
+	"Ishar'mla, Heart of Corruption"
+	{
+		"en"		"Ishar'mla, Heart of Corruption"
+		"chi"		"伊莎玛拉，腐化之心"
+	}
+	"Seaborn Guard"
+	{
+		"en"		"Seaborn Guard"
+	}
+	"Seaborn Defender"
+	{
+		"en"		"Seaborn Defender"
+	}
+	"Seaborn Vanguard"
+	{
+		"en"		"Seaborn Vanguard"
+	}
+	"Seaborn Caster"
+	{
+		"en"		"Seaborn Caster"
+	}
+	"Seaborn Specialist"
+	{
+		"en"		"Seaborn Specialist"
+	}
+	"Seaborn Supporter"
+	{
+		"en"		"Seaborn Supporter"
+	}
+	"Theocracy"
+	{
+		"en"		"Theocracy"
+	}
+	"Benera"
+	{
+		"en" 		"Benera"
+	}
+	"Pental"
+	{
+		"en" 		"Pental"
+	}
+	"Defanda"
+	{
+		"en" 		"Defanda"
+	}
+	"Selfam Ire"
+	{
+		"en" 		"Selfam Ire"
+	}
+	"Vaus Magica"
+	{
+		"en" 		"Vaus Magica"
+	}
+	"Pistoleer"
+	{
+		"en" 		"Pistoleer"
+	}
+	"Diversionistico"
+	{
+		"en" 		"Diversionistico"
+	}
+	"Adiantum"
+	{
+		"en"	"Adiantum"
+	}
+	"Lanius"
+	{
+		"en"	"Lanius"
+	}
+	"Magia"
+	{
+		"en"	"Magia"
+	}
+	"Heavy Punuel"
+	{
+		"en"	"Heavy Punuel"
+	}
+	"Seargent Ideal"
+	{
+		"en"	"Seargent Ideal"
+	}
+	"VIP Building, The Objective"
+	{
+		"en"	"VIP Building, The Objective"
+	}
+	"Rifal Manu"
+	{
+		"en"	"Rifal Manu"
+	}
+	"Siccerino"
+	{
+		"en"	"Siccerino"
+	}
+	"Soldine Prototype"
+	{
+		"en"	"Soldine Prototype"
+	}
+	"Soldine"
+	{
+		"en"	"Soldine"
+	}
+	"Protecta"
+	{
+		"en"	"Protecta"
+	}
+	"Sniponeer"
+	{
+		"en"	"Sniponeer"
+	}
+	"Ega Bunar"
+	{
+		"en"	"Ega Bunar"
+	}
+	"Enega Kapus"
+	{
+		"en"	"Enega Kapus"
+	}
+	"Captino Agentus"
+	{
+		"en"	"Captino Agentus"
+	}
+	"Sensal"
+	{
+		"en"	"Sensal"
+	}
+	"Dual Rea"
+	{
+		"en"	"Dual Rea"
+	}
+	"Guardus"
+	{
+		"en"	"Guardus"
+	}
+	"Vaus Techicus"
+	{
+		"en"	"Vaus Techicus"
+	}
+	"Minigun Assisa"
+	{
+		"en"	"Minigun Assisa"
+	}
+	"Ignitus"
+	{
+		"en"	"Ignitus"
+	}
+	"Helena"
+	{
+		"en"	"Helena"
+	}
+	"Erasus"
+	{
+		"en"	"Erasus"
+	}
+	"Giant Tankus"
+	{
+		"en"	"Giant Tankus"
+	}
+	"Anfuhrer Eisenhard"
+	{
+		"en"	"Anfuhrer Eisenhard"
+	}
+	"Speedus Adivus"
+	{
+		"en"	"Speedus Adivus"
+	}
+	"Allied Sensal Afterimage"
+	{
+		"en"	"Allied Sensal Afterimage"
 	}
 }

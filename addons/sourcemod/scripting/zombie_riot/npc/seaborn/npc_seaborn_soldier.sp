@@ -37,7 +37,12 @@ static const char g_MeleeHitSounds[][] =
 
 static const char g_MeleeAttackSounds[][] =
 {
-	"weapons/machete_swing.wav"
+	"weapons/samurai/tf_katana_01.wav",
+	"weapons/samurai/tf_katana_02.wav",
+	"weapons/samurai/tf_katana_03.wav",
+	"weapons/samurai/tf_katana_04.wav",
+	"weapons/samurai/tf_katana_05.wav",
+	"weapons/samurai/tf_katana_06.wav",
 };
 
 methodmap SeabornSoldier < CClotBody
@@ -69,7 +74,7 @@ methodmap SeabornSoldier < CClotBody
 	
 	public SeabornSoldier(int client, float vecPos[3], float vecAng[3], bool ally)
 	{
-		SeabornSoldier npc = view_as<SeabornSoldier>(CClotBody(vecPos, vecAng, "models/player/soldier.mdl", "1.0", "3000", ally));
+		SeabornSoldier npc = view_as<SeabornSoldier>(CClotBody(vecPos, vecAng, "models/player/soldier.mdl", "1.0", "4000", ally));
 		
 		i_NpcInternalId[npc.index] = SEABORN_SOLDIER;
 		i_NpcWeight[npc.index] = 2;
@@ -90,7 +95,7 @@ methodmap SeabornSoldier < CClotBody
 		npc.m_flAttackHappens = 0.0;
 		
 		SetEntityRenderMode(npc.index, RENDER_TRANSCOLOR);
-		SetEntityRenderColor(npc.index, 155, 155, 255, 255);
+		SetEntityRenderColor(npc.index, 100, 100, 255, 255);
 		
 		npc.m_iWearable1 = npc.EquipItem("head", "models/weapons/c_models/c_shogun_katana/c_shogun_katana_soldier.mdl");
 

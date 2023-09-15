@@ -38,18 +38,18 @@ static const float BloonSpeeds[] =
 static const int BloonHealth[] =
 {
 //	Health	Type		RGB	Multi
-	100,	// Red		1
-	200,	// Blue		2
-	300,	// Green	3
-	400,	// Yellow	4
-	500,	// Pink		5	x1
-	1100,	// Black	11	x6
-	1100,	// White	11	x6
-	1100,	// Purple	11	x6
-	2300,	// Lead		23	x13
-	2300,	// Zebra	23	x13
-	4700,	// Rainbow	47	x27
-	10400	// Ceramic	104	x64
+	150,	// Red		1
+	300,	// Blue		2
+	450,	// Green	3
+	600,	// Yellow	4
+	750,	// Pink		5	x1
+	1650,	// Black	11	x6
+	1650,	// White	11	x6
+	1650,	// Purple	11	x6
+	3450,	// Lead		23	x13
+	3450,	// Zebra	23	x13
+	7050,	// Rainbow	47	x27
+	15600	// Ceramic	104	x64
 };
 
 static const char Type[] = "12345bwpl789";
@@ -165,7 +165,7 @@ int Bloon_Health(bool fortified, int type)
 	if(type == Bloon_Ceramic)
 		return (BloonHealth[type] * 2) - BloonHealth[Bloon_Rainbow];
 	
-	return BloonHealth[type] * 2;
+	return BloonHealth[type];
 }
 
 void Bloon_MapStart()
@@ -616,11 +616,11 @@ public void Bloon_ClotThink(int iNPC)
 								{
 									if(npc.m_bFortified)
 									{
-										SDKHooks_TakeDamage(target, npc.index, npc.index, 2.0 + float(i) * 4.2, DMG_CLUB, -1, _, vecTarget);
+										SDKHooks_TakeDamage(target, npc.index, npc.index, (2.0 + float(i) * 4.2) * 2.0, DMG_CLUB, -1, _, vecTarget);
 									}
 									else
 									{
-										SDKHooks_TakeDamage(target, npc.index, npc.index, 2.0 + float(i) * 3.0, DMG_CLUB, -1, _, vecTarget);
+										SDKHooks_TakeDamage(target, npc.index, npc.index, (2.0 + float(i) * 3.0) * 2.0, DMG_CLUB, -1, _, vecTarget);
 									}
 								}
 								//delete swingTrace;
@@ -681,6 +681,14 @@ public Action Bloon_OnTakeDamage(int victim, int &attacker, int &inflictor, floa
 		else if((damagetype & DMG_SHOCK) || (i_HexCustomDamageTypes[victim] & ZR_DAMAGE_LASER_NO_BLAST))
 		{
 			magic = true;
+		}
+
+		if(IsValidEntity(weapon))
+		{
+			char buffer[36];
+			GetEntityClassname(weapon, buffer, sizeof(buffer));
+			if(!StrContains(buffer, "tf_weapon_flamethrower"))
+				damage *= 0.5;
 		}
 	}
 	
@@ -753,6 +761,9 @@ public Action Bloon_OnTakeDamage(int victim, int &attacker, int &inflictor, floa
 
 public void Bloon_ClotDamagedPost(int victim, int attacker, int inflictor, float damage, int damagetype, int weapon, const float damageForce[3], const float damagePosition[3], int damagecustom)
 {
+	if(b_NpcHasDied[victim])
+		return;
+		
 	Bloon npc = view_as<Bloon>(victim);
 	npc.UpdateBloonOnDamage();
 }

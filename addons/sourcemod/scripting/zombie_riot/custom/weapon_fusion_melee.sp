@@ -2,10 +2,6 @@
 #pragma newdecls required
 
 #define EMPOWER_RANGE 200.0
-#define EMPOWER_SOUND "items/powerup_pickup_king.wav"
-#define EMPOWER_MATERIAL "materials/sprites/laserbeam.vmt"
-#define EMPOWER_WIDTH 5.0
-#define EMPOWER_HIGHT_OFFSET 20.0
 
 #define NEARL_ACTIVE_SOUND "mvm/mvm_tele_activate.wav"
 #define NEARL_EXTRA_DAMAGE_SOUND "misc/ks_tier_04_kill_01.wav"
@@ -18,6 +14,9 @@ static float f_NearlDurationCheckApply[MAXTF2PLAYERS];
 static float f_NearlThinkDelay[MAXTF2PLAYERS];
 static int i_NearlWeaponUsedWith[MAXTF2PLAYERS];
 
+static float f_SpeedFistsOfSpeed[MAXTF2PLAYERS];
+static int i_SpeedFistsOfSpeedHit[MAXTF2PLAYERS];
+
 public void Fusion_Melee_OnMapStart()
 {
 	Zero(Duration);
@@ -27,6 +26,7 @@ public void Fusion_Melee_OnMapStart()
 	PrecacheSound(NEARL_EXTRA_DAMAGE_SOUND);
 	Zero(f_NearlDurationCheckApply);
 	Zero(f_NearlThinkDelay);
+	Zero(f_SpeedFistsOfSpeed);
 }
 
 public float Npc_OnTakeDamage_Fusion(int victim, float damage, int weapon)
@@ -56,7 +56,7 @@ public void Fusion_Melee_Empower_State(int client, int weapon, bool crit, int sl
 {
 	if (Ability_Check_Cooldown(client, slot) < 0.0)
 	{
-		Rogue_OnAbilityUse(client, weapon);
+		Rogue_OnAbilityUse(weapon);
 		Ability_Apply_Cooldown(client, slot, 60.0); //Semi long cooldown, this is a strong buff.
 
 		Duration[client] = GetGameTime() + 10.0; //Just a test.
@@ -104,7 +104,7 @@ static Action Empower_ringTracker(Handle ringTracker, int client)
 				if (IsValidClient(targ) && IsValidClient(client))
 				{
 					GetClientAbsOrigin(targ, targPos);
-					if (targ != client && GetVectorDistance(chargerPos, targPos, true) <= Pow(EMPOWER_RANGE, 2.0))
+					if (targ != client && GetVectorDistance(chargerPos, targPos, true) <= (EMPOWER_RANGE * EMPOWER_RANGE))
 					{
 						f_EmpowerStateOther[targ] = GetGameTime() + 0.6;
 					}
@@ -118,7 +118,7 @@ static Action Empower_ringTracker(Handle ringTracker, int client)
 				if (IsValidEntity(baseboss_index_allied))
 				{
 					GetEntPropVector(baseboss_index_allied, Prop_Data, "m_vecAbsOrigin", chargerPos);
-					if (GetVectorDistance(chargerPos, targPos, true) <= Pow(EMPOWER_RANGE, 2.0))
+					if (GetVectorDistance(chargerPos, targPos, true) <= (EMPOWER_RANGE * EMPOWER_RANGE))
 					{
 						f_EmpowerStateOther[baseboss_index_allied] = GetGameTime() + 0.6;
 					}
@@ -168,7 +168,6 @@ public void Fusion_Melee_Nearl_Radiant_Knight(int client, int weapon, bool crit,
 {
 	if (Ability_Check_Cooldown(client, slot) < 0.0)
 	{
-		
 		i_NearlWeaponUsedWith[client] = EntIndexToEntRef(weapon);
 		if(f_NearlDurationCheckApply[client] > GetGameTime())
 		{
@@ -180,12 +179,10 @@ public void Fusion_Melee_Nearl_Radiant_Knight(int client, int weapon, bool crit,
 
 			if(validpos)
 			{
-				Rogue_OnAbilityUse(client, weapon);
+				Rogue_OnAbilityUse(weapon);
 				Ability_Apply_Cooldown(client, slot, 60.0); //Semi long cooldown, this is a strong buff.
 				float damage = 500.0;
-				Address address = TF2Attrib_GetByDefIndex(weapon, 2);
-				if(address != Address_Null)
-					damage *= TF2Attrib_GetValue(address);
+				damage *= Attributes_Get(weapon, 2, 1.0);
 
 				i_ExplosiveProjectileHexArray[weapon] = 0;
 				i_ExplosiveProjectileHexArray[weapon] |= EP_DEALS_CLUB_DAMAGE;
@@ -200,7 +197,7 @@ public void Fusion_Melee_Nearl_Radiant_Knight(int client, int weapon, bool crit,
 				int maxhealth = SDKCall_GetMaxHealth(client);
 				maxhealth *= 2; //2x health cus no resistance.
 
-				if(HasNamedItem(client, "Cured Silvester"))
+				if(Items_HasNamedItem(client, "Cured Silvester"))
 				{
 					SetDefaultHudPosition(client, 255, 215, 0, 2.0);
 					SetGlobalTransTarget(client);
@@ -238,7 +235,7 @@ public void Fusion_Melee_Nearl_Radiant_Knight(int client, int weapon, bool crit,
 						if (IsValidEntity(baseboss_index))
 						{
 							GetEntPropVector(baseboss_index, Prop_Data, "m_vecAbsOrigin", EnemyPos);
-							if (GetVectorDistance(EnemyPos, fPos, true) <= Pow(NEARL_STUN_RANGE, 2.0))
+							if (GetVectorDistance(EnemyPos, fPos, true) <= (NEARL_STUN_RANGE * NEARL_STUN_RANGE))
 							{
 								if(!b_thisNpcIsABoss[baseboss_index] && !RaidActive)
 								{
@@ -398,4 +395,26 @@ public Action Nearl_Falling_Shot(Handle timer, int ref)
 		TeleportEntity(particle, position, NULL_VECTOR, NULL_VECTOR);
 	}
 	return Plugin_Handled;
+}
+
+
+void Npc_OnTakeDamage_SpeedFists(int attacker, int victim, float &damage)
+{
+	if(b_thisNpcIsARaid[victim])
+	{
+		damage *= 1.10;
+	}
+	if(f_SpeedFistsOfSpeed[attacker] > GetGameTime())
+	{
+		i_SpeedFistsOfSpeedHit[attacker] += 1;
+		if(i_SpeedFistsOfSpeedHit[attacker] > 10)
+		{
+			TF2_AddCondition(attacker, TFCond_SpeedBuffAlly, 1.0);
+		}
+	}
+	else
+	{
+		i_SpeedFistsOfSpeedHit[attacker] = 1;
+	}
+	f_SpeedFistsOfSpeed[attacker] = GetGameTime() + 0.5;
 }

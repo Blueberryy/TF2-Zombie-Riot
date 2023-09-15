@@ -25,6 +25,13 @@ enum struct Curse
 			LogError("\"%s\" translation does not exist", buffer);
 			strcopy(this.Name, 64, "Missing Rogue Translation");
 		}
+
+		Format(buffer, sizeof(buffer), "%s Lore", this.Name);
+		if(!TranslationPhraseExists(buffer))
+		{
+			LogError("\"%s\" translation does not exist", buffer);
+			strcopy(this.Name, 64, "Missing Rogue Translation");
+		}
 	}
 }
 
@@ -262,6 +269,10 @@ static int CurrentIngots;
 static int BonusLives;
 static int BattleIngots;
 
+static int CurseOne = -1;
+static int CurseTwo = -1;
+static int ExtraStageCount;
+
 // Rogue Items
 bool b_LeaderSquad;
 bool b_GatheringSquad;
@@ -350,7 +361,7 @@ void Rogue_MapStart()
 
 void Rogue_SetupVote(KeyValues kv)
 {
-	PrecacheSound("#music/ravenholm_1.mp3");
+	PrecacheSound("misc/halloween/gotohell.wav");
 
 	InRogueMode = true;
 
@@ -654,6 +665,34 @@ void Rogue_RoundEnd()
 	delete CurrentExclude;
 	delete CurrentCollection;
 	CurrentIngots = 0;
+	
+	if(CurseOne != -1)
+	{
+		Curse curse;
+		Curses.GetArray(CurseOne, curse);
+		if(curse.Func != INVALID_FUNCTION)
+		{
+			Call_StartFunction(null, curse.Func);
+			Call_PushCell(false);
+			Call_Finish();
+		}	
+
+		CurseOne = -1;
+	}
+	
+	if(CurseTwo != -1)
+	{
+		Curse curse;
+		Curses.GetArray(CurseTwo, curse);
+		if(curse.Func != INVALID_FUNCTION)
+		{
+			Call_StartFunction(null, curse.Func);
+			Call_PushCell(false);
+			Call_Finish();
+		}
+
+		CurseTwo = -1;
+	}
 
 	ClearStats();
 }
@@ -817,7 +856,10 @@ void Rogue_NextProgress()
 	{
 		case State_Setup:
 		{
-			Store_RemoveSellValue();
+			for(int client=1; client<=MaxClients; client++)
+			{
+				GrantCreditsBack(client);
+			}
 			
 			Ammo_Count_Ready = 8;
 			int highestLevel;
@@ -825,18 +867,18 @@ void Rogue_NextProgress()
 			{
 				if(IsClientInGame(client) && GetClientTeam(client) == 2)
 				{
-					int cash = StartCash - (Resupplies_Supplied[client] * 10);
-					if(CashSpent[client] < cash)
-						CashSpent[client] = cash;
-					
-					CashSpent[client] -= StartCash;
+					//int cash = StartCash - (Resupplies_Supplied[client] * 10);
+					//if(CashSpent[client] < cash)
+					//	CashSpent[client] = cash;
+					//
+					//CashSpent[client] -= StartCash;
 
 					if(Level[client] > highestLevel)
 						highestLevel = Level[client];
 				}
 			}
 
-			CurrentCash = 0;
+			//CurrentCash = 0;
 			
 			CurrentFloor = 0;
 			CurrentCount = -1;
@@ -913,13 +955,44 @@ void Rogue_NextProgress()
 					floor.Encounters.GetArray(CurrentStage, stage);
 				}
 			}
+
+			int maxRooms = floor.RoomCount + ExtraStageCount;
 			
-			if(CurrentCount > floor.RoomCount)
+			if(CurrentCount > maxRooms)
 			{
 				// Go to next floor
+				if(CurseOne != -1)
+				{
+					Curse curse;
+					Curses.GetArray(CurseOne, curse);
+					if(curse.Func != INVALID_FUNCTION)
+					{
+						Call_StartFunction(null, curse.Func);
+						Call_PushCell(false);
+						Call_Finish();
+					}
+
+					CurseOne = -1;
+				}
+				
+				if(CurseTwo)
+				{
+					Curse curse;
+					Curses.GetArray(CurseTwo, curse);
+					if(curse.Func != INVALID_FUNCTION)
+					{
+						Call_StartFunction(null, curse.Func);
+						Call_PushCell(false);
+						Call_Finish();
+					}
+
+					CurseTwo = -1;
+				}
+
 				CurrentFloor++;
 				CurrentStage = -1;
 				CurrentCount = -1;
+				ExtraStageCount = 0;
 
 				if(CurrentFloor >= Floors.Length)	// All the floors are done
 				{
@@ -955,8 +1028,57 @@ void Rogue_NextProgress()
 
 					strcopy(WhatDifficultySetting, sizeof(WhatDifficultySetting), floor.Name);
 
-					// TODO: Curse Rolls
 					bool cursed;
+					if(!(GetURandomInt() % 5))
+					{
+						int length = Curses.Length;
+						if(length)
+						{
+							cursed = true;
+
+							CurseOne = GetURandomInt() % length;
+							
+							if(length > 1 && !(GetURandomInt() % 4))
+							{
+								CurseTwo = GetURandomInt() % (length - 1);
+								if(CurseTwo >= CurseOne)
+									CurseTwo++;
+							}
+							
+							Curse curse;
+							Curses.GetArray(CurseOne, curse);
+							if(curse.Func != INVALID_FUNCTION)
+							{
+								Call_StartFunction(null, curse.Func);
+								Call_PushCell(true);
+								Call_Finish();
+							}
+
+							char buffer[64];
+							FormatEx(buffer, sizeof(buffer), "%s Desc", curse.Name);
+							CPrintToChatAll("{red}%t{default}: %t", curse.Name, buffer);
+
+							FormatEx(buffer, sizeof(buffer), "%s Lore", curse.Name);
+							CPrintToChatAll("%t", buffer);
+
+							if(CurseTwo != -1)
+							{
+								Curses.GetArray(CurseTwo, curse);
+								if(curse.Func != INVALID_FUNCTION)
+								{
+									Call_StartFunction(null, curse.Func);
+									Call_PushCell(true);
+									Call_Finish();
+								}
+
+								FormatEx(buffer, sizeof(buffer), "%s Desc", curse.Name);
+								CPrintToChatAll("{red}%t{default}: %t", curse.Name, buffer);
+
+								FormatEx(buffer, sizeof(buffer), "%s Lore", curse.Name);
+								CPrintToChatAll("%t", buffer);
+							}
+						}
+					}
 
 					SetHudTextParamsEx(-1.0, -1.0, 8.0, {255, 255, 255, 255}, {255, 200, 155, 255}, 2, 0.1, 0.1);
 					for(int client = 1; client <= MaxClients; client++)
@@ -966,7 +1088,7 @@ void Rogue_NextProgress()
 							SetGlobalTransTarget(client);
 							ShowHudText(client, -1, "%t", floor.Name);
 							Music_Stop_All(client);
-							SetMusicTimer(client, cursed ? 0 : (GetTime() + 7));
+							SetMusicTimer(client, GetTime() + (cursed ? 0 : 7));
 						}
 					}
 
@@ -974,10 +1096,10 @@ void Rogue_NextProgress()
 
 					if(cursed)
 					{
-						strcopy(char_MusicString1, sizeof(char_MusicString1), "#music/ravenholm_1.mp3");
+						strcopy(char_MusicString1, sizeof(char_MusicString1), "misc/halloween/gotohell.wav");
 						char_MusicString2[0] = 0;
 						char_RaidMusicSpecial1[0] = 0;
-						i_MusicLength1 = 30;
+						i_MusicLength1 = 7;
 						b_MusicCustom1 = false;
 					}
 					else
@@ -986,13 +1108,13 @@ void Rogue_NextProgress()
 					}
 				}
 			}
-			else if(CurrentCount == floor.RoomCount)	// Final Stage
+			else if(CurrentCount == maxRooms)	// Final Stage
 			{
 				int id = GetRandomStage(floor, stage, true, false);
 				if(id == -1)
 				{
 					// We somehow don't have a final stage
-					CurrentCount = floor.RoomCount + 1;
+					CurrentCount = maxRooms + 1;
 					Rogue_NextProgress();
 				}
 				else
@@ -1011,6 +1133,16 @@ void Rogue_NextProgress()
 				if(!(GetURandomInt() % 6))
 					count++;
 				
+				if(ExtraStageCount > 0)
+				{
+					if(GetURandomInt() % 2)
+						count++;
+				}
+				else if(ExtraStageCount < 0)
+				{
+					count = 1;
+				}
+				
 				Vote vote;
 				for(int i; i < count; i++)
 				{
@@ -1019,7 +1151,11 @@ void Rogue_NextProgress()
 					{
 						strcopy(vote.Config, sizeof(vote.Config), stage.Name);
 
-						if(stage.Hidden)
+						if(Rogue_Curse_HideNames())
+						{
+							strcopy(vote.Name, sizeof(vote.Name), "Dense Fog");
+						}
+						else if(stage.Hidden)
 						{
 							strcopy(vote.Name, sizeof(vote.Name), "Encounter");
 						}
@@ -1050,7 +1186,7 @@ void Rogue_NextProgress()
 				else	// We somehow ran out of normal rooms
 				{
 					delete Voting;
-					CurrentCount = floor.RoomCount;
+					CurrentCount = maxRooms;
 					Rogue_NextProgress();
 				}
 			}
@@ -1064,7 +1200,7 @@ void Rogue_NextProgress()
 
 static void SetFloorMusic(const Floor floor, bool stop)
 {
-	bool curse;
+	bool curse = CurseOne != -1 || CurseTwo != -1;
 	if(char_RaidMusicSpecial1[0] || !StrEqual(char_MusicString1, curse ? floor.MusicCurse : floor.MusicNormal))
 	{
 		if(stop)
@@ -1309,6 +1445,8 @@ static void StartBattle(const Stage stage, float time = 3.0)
 			}
 		}
 	}
+
+	Rogue_Curse_BattleStart();
 }
 
 static void StartStage(const Stage stage)
@@ -1378,6 +1516,9 @@ static void StartStage(const Stage stage)
 		if(entity != INVALID_ENT_REFERENCE && !i_BeingCarried[entity])
 			SDKHooks_TakeDamage(entity, 0, 0, 99999999.9);
 	}
+
+	if(Rogue_Curse_HideNames())
+		Rogue_AddIngots(1);
 }
 
 static void TeleportToSpawn()
@@ -1749,7 +1890,7 @@ stock bool Rogue_HasNamedArtifact(const char[] name)
 	return false;
 }
 
-void Rogue_GiveNamedArtifact(const char[] name)
+void Rogue_GiveNamedArtifact(const char[] name, bool silent = false)
 {
 	if(!CurrentCollection)
 		CurrentCollection = new ArrayList();
@@ -1761,10 +1902,13 @@ void Rogue_GiveNamedArtifact(const char[] name)
 		Artifacts.GetArray(i, artifact);
 		if(StrEqual(artifact.Name, name, false))
 		{
-			CPrintToChatAll("%t", "New Artifact", artifact.Name);
+			if(!silent)
+			{
+				CPrintToChatAll("%t", "New Artifact", artifact.Name);
 
-			Format(artifact.Name, sizeof(artifact.Name), "%s Desc", artifact.Name);
-			CPrintToChatAll("%t", artifact.Name);
+				Format(artifact.Name, sizeof(artifact.Name), "%s Desc", artifact.Name);
+				CPrintToChatAll("%t", artifact.Name);
+			}
 
 			CurrentCollection.Push(i);
 
@@ -1866,6 +2010,11 @@ void Rogue_SetBattleIngots(int amount)
 	BattleIngots = amount;
 }
 
+void Rogue_AddBattleIngots(int amount)
+{
+	BattleIngots += amount;
+}
+
 stock int Rogue_GetBonusLife()
 {
 	return BonusLives;
@@ -1899,6 +2048,11 @@ int Rogue_GetWave()	// Waves_GetWave()
 int Rogue_GetRoundScale()
 {
 	return Rogue_Started() ? ((CurrentFloor * 15) + (CurrentCount * 2)) : CurrentRound;
+}
+
+void Rogue_AddExtraStage(int count)
+{
+	ExtraStageCount += count;
 }
 
 public void Rogue_Vote_NextStage(const Vote vote)
@@ -1980,10 +2134,8 @@ bool b_BraceletsOfAgility; 				//shield items
 bool b_ElasticFlyingCape; 				//shield items
 bool b_HealingSalve; 					//see sdkhooks think and item_generic
 bool b_HealthyEssence; 					//see stocks for healing and various other healing methods like medigun
-bool b_ChickenNuggetBox; 			 	//see store GiveAll
 bool b_FizzyDrink; 			 			//see npc.sp ontakedamage
 bool b_HoverGlider; 			 		//see npc.sp ontakedamage
-bool b_CrudeFlute; 				 		//see store GiveAll
 bool b_NickelInjectedPack; 				 //see store GiveAll
 bool b_SteelRazor; 				 		
 bool b_SpanishSpecialisedGunpowder; 	
@@ -2006,6 +2158,7 @@ bool IS_MusicReleasingRadio()
 //ROUGELIKE .sp
 //This is only needed for items that are more then just flat stat changes.
 
+#include "roguelike/curses.sp"
 #include "roguelike/encounter_battles.sp"
 #include "roguelike/encounter_items.sp"
 #include "roguelike/item_generic.sp"

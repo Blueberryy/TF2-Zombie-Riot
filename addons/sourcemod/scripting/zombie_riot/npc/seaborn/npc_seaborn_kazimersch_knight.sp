@@ -103,7 +103,7 @@ methodmap KazimierzKnight < CClotBody
 	
 	public KazimierzKnight(int client, float vecPos[3], float vecAng[3], bool ally)
 	{
-		KazimierzKnight npc = view_as<KazimierzKnight>(CClotBody(vecPos, vecAng, COMBINE_CUSTOM_MODEL, "1.15", "1500", ally));
+		KazimierzKnight npc = view_as<KazimierzKnight>(CClotBody(vecPos, vecAng, COMBINE_CUSTOM_MODEL, "1.15", "8000", ally));
 		
 		SetVariantInt(4);
 		AcceptEntityInput(npc.index, "SetBodyGroup");
@@ -305,7 +305,7 @@ public void KazimierzKnight_ClotThink(int iNPC)
 		{
 			npc.m_iState = -1;
 		}
-		else if(flDistanceToTarget < Pow(NORMAL_ENEMY_MELEE_RANGE_FLOAT, 2.0) && npc.m_flNextMeleeAttack < gameTime)
+		else if(flDistanceToTarget < NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED && npc.m_flNextMeleeAttack < gameTime)
 		{
 			npc.m_iState = 1; //Engage in Close Range Destruction.
 		}

@@ -118,7 +118,7 @@ methodmap Addicition < CClotBody
 		if(data[0])
 			npc.SetHalfLifeStats();
 
-		Citizen_MiniBossSpawn(npc.index);
+		Citizen_MiniBossSpawn();
 		
 		return npc;
 	}
@@ -298,14 +298,14 @@ public void Addicition_ClotThink(int iNPC)
 public void Addicition_ClotThink(int iNPC)
 {
 	Addicition npc = view_as<Addicition>(iNPC);
-	/*
+	
 	if(npc.m_flNextDelayTime > GetGameTime(npc.index))
 	{
 		return;
 	}
 	
 	npc.m_flNextDelayTime = GetGameTime(npc.index) + DEFAULT_UPDATE_DELAY_FLOAT;
-	*/
+	
 	npc.Update();
 	
 	

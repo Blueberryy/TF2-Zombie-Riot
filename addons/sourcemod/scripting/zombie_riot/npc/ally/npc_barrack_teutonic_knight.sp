@@ -7,7 +7,7 @@ methodmap BarrackTeuton < BarrackBody
 {
 	public BarrackTeuton(int client, float vecPos[3], float vecAng[3], bool ally)
 	{
-		BarrackTeuton npc = view_as<BarrackTeuton>(BarrackBody(client, vecPos, vecAng, "2000"));
+		BarrackTeuton npc = view_as<BarrackTeuton>(BarrackBody(client, vecPos, vecAng, "1300",_,_,_,_,"models/pickups/pickup_powerup_strength_arm.mdl"));
 		
 		i_NpcInternalId[npc.index] = BARRACKS_TEUTONIC_KNIGHT;
 		i_NpcWeight[npc.index] = 1;
@@ -23,10 +23,11 @@ methodmap BarrackTeuton < BarrackBody
 		npc.m_iWearable2 = npc.EquipItem("partyhat", "models/workshop/player/items/soldier/dec17_brass_bucket/dec17_brass_bucket.mdl");
 		SetVariantString("1.25");
 		AcceptEntityInput(npc.m_iWearable2, "SetModelScale");
-		
+		/*
 		npc.m_iWearable3 = npc.EquipItem("head", "models/workshop/player/items/soldier/bak_caped_crusader/bak_caped_crusader.mdl");
-		SetVariantString("1.25");
+		SetVariantString("1.0");
 		AcceptEntityInput(npc.m_iWearable3, "SetModelScale");
+		*/
 		
 		return npc;
 	}
@@ -74,7 +75,7 @@ public void BarrackTeuton_ClotThink(int iNPC)
 							
 							if(target > 0) 
 							{
-								SDKHooks_TakeDamage(target, npc.index, client, Barracks_UnitExtraDamageCalc(npc.index, GetClientOfUserId(npc.OwnerUserId),12000.0, 0), DMG_CLUB, -1, _, vecHit);
+								SDKHooks_TakeDamage(target, npc.index, client, Barracks_UnitExtraDamageCalc(npc.index, GetClientOfUserId(npc.OwnerUserId),9000.0, 0), DMG_CLUB, -1, _, vecHit);
 								npc.PlaySwordHitSound();
 							} 
 						}

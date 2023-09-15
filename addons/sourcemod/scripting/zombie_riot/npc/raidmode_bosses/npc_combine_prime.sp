@@ -197,6 +197,11 @@ methodmap CombinePrime < CClotBody
 		
 		float amount_of_people = float(CountPlayersOnRed());
 		
+		if(amount_of_people > 12.0)
+		{
+			amount_of_people = 12.0;
+		}
+		
 		amount_of_people *= 0.12;
 		
 		if(amount_of_people < 1.0)
@@ -208,7 +213,7 @@ methodmap CombinePrime < CClotBody
 		
 		//Raid logic
 
-		Citizen_MiniBossSpawn(npc.index);
+		Citizen_MiniBossSpawn();
 		Building_RaidSpawned(npc.index);
 		return npc;
 	}
@@ -331,11 +336,11 @@ public void CombinePrime_ClotThink(int iNPC)
 		//Sadly have to respect enemy npcs so lol.
 		//They are too close to us. Engage in Melee attack.
 		//But we also dont want him to engage in this state when he cant even attack like during a cooldown.
-		if(flDistanceToTarget < Pow(100.0, 2.0) && npc.m_flNextMeleeAttack < gameTime)
+		if(flDistanceToTarget < (100.0 * 100.0) && npc.m_flNextMeleeAttack < gameTime)
 		{
 			npc.m_iState = 1; //Engage in Close Range Destruction.
 		}
-		else if(flDistanceToTarget > Pow(100.0, 2.0) && npc.m_flNextMeleeAttack < gameTime)
+		else if(flDistanceToTarget > (100.0 * 100.0) && npc.m_flNextMeleeAttack < gameTime)
 		{
 			npc.m_iState = 1; //Engage in Close Range Destruction.
 		}

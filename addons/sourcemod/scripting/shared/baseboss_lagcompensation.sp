@@ -2,8 +2,6 @@
 
 #pragma newdecls required
 
-#define MAXTF2PLAYERS	36
-
 /* engine/host.h#L157-L158 */
 #define TIME_TO_TICKS(%1)	RoundToNearest(0.5 + %1 / GetTickInterval())
 #define TICKS_TO_TIME(%1)	(GetTickInterval() * float(%1))
@@ -48,6 +46,7 @@ static StringMap EntityTrack;
 static StringMap EntityRestore;
 static int TickCount[MAXTF2PLAYERS];
 static float ViewAngles[MAXTF2PLAYERS][3];
+static bool b_EntityIsLagComp[MAXENTITIES];
 
 void OnPluginStart_LagComp()
 {
@@ -78,48 +77,64 @@ Action OnPlayerRunCmd_Lag_Comp(int client, float angles[3], int &tickcount)
 	ViewAngles[client] = angles;
 	return Plugin_Continue;
 }
-
 /* Manually remove no longer in use entites */
 void OnEntityDestroyed_LagComp(int entity)
 {
 	if(entity > 0 && entity < MAXENTITIES)
 	{
+		if(!b_EntityIsLagComp[entity])
+		{
+			return;
+		}
+		b_EntityIsLagComp[entity] = false;
+		
 		b_LagCompensationDeletedArrayList[entity] = true;
 		int ref = EntIndexToEntRef(entity);
 		char key[13];
 		IntToString(ref, key, sizeof(key));
 		
 		ArrayList list;
-		EntityTrack.GetValue(key, list);
-		EntityTrack.Remove(key);
-		if(list)
+		if(EntityTrack.GetValue(key, list))
 		{
-			LagRecord record;
-			int length2 = list.Length;
-			for(int a; a<length2; a++)
+			EntityTrack.Remove(key);
+			if(list)
 			{
-				list.GetArray(a, record);
-				if(!b_Map_BaseBoss_No_Layers[entity] && !b_IsAlliedNpc[entity])
+				LagRecord record;
+				int length2 = list.Length;
+				for(int a; a<length2; a++)
 				{
-					if(record.m_layerRecords)
+					list.GetArray(a, record);
+		//			if(!b_Map_BaseBoss_No_Layers[entity] && !b_IsAlliedNpc[entity])
 					{
 						delete record.m_layerRecords;
 					}
 				}
+				delete list;
 			}
-			delete list;
 		}
-	
+	/*
+		static LagRecord restore;
+		if(EntityRestore.GetArray(key, restore, sizeof(restore)))
+		{
+			if(!b_Map_BaseBoss_No_Layers[entity] && !b_IsAlliedNpc[entity])
+			{
+				if(restore.m_layerRecords)
+				{
+					delete restore.m_layerRecords;
+				}
+			}
+			EntityRestore.Remove(key);
+		}
+	*/
 		LagRecord restore;
 		EntityRestore.GetArray(key, restore, sizeof(restore));
-		if(!b_Map_BaseBoss_No_Layers[entity] && !b_IsAlliedNpc[entity])
+	//	if(!b_Map_BaseBoss_No_Layers[entity] && !b_IsAlliedNpc[entity])
 		{
 			if(restore.m_layerRecords)
 			{
 				delete restore.m_layerRecords;
 			}
 		}
-		EntityRestore.Remove(key);
 	}
 }
 
@@ -595,8 +610,10 @@ void LagCompensationThink_Forward()
 			{
 				if(b_LagCompensationDeletedArrayList[entity]) //Is the npc dead?
 				{
+					b_EntityIsLagComp[entity] = true;
 					continue; //This npc has died. We reset it to be sure and dont keep tracking it.
 				}
+				b_EntityIsLagComp[entity] = true;
 				
 				IntToString(EntIndexToEntRef(entity), refchar, sizeof(refchar));
 				if(!EntityTrack.GetValue(refchar, list))
@@ -617,10 +634,7 @@ void LagCompensationThink_Forward()
 						break;
 					
 					// remove tail, get new tail
-					if(!b_Map_BaseBoss_No_Layers[entity] && !b_IsAlliedNpc[entity]) //Filter to make sure it doesnt delete things that dont exist.
-					{
-						delete record.m_layerRecords;
-					}
+					delete record.m_layerRecords;
 					list.Erase(0);
 					length--;
 				}
@@ -660,6 +674,11 @@ void LagCompensationThink_Forward()
 						record.m_masterSequence = GetEntProp(entity, Prop_Data, "m_nSequence");
 						record.m_masterCycle = GetEntPropFloat(entity, Prop_Data, "m_flCycle");
 					}
+					else
+					{
+						record.m_layerRecords = null;
+					}
+
 					list.PushArray(record);
 				}
 			}
@@ -694,3 +713,16 @@ stock float fabs(float value)
 	return value < 0 ? -value : value;
 }
 */
+
+void AddEntityToLagCompList(int entity)
+{
+	b_EntityIsLagComp[entity] = true;
+	for (int i = 0; i < ZR_MAX_LAG_COMP; i++) //Make them lag compensate
+	{
+		if (EntRefToEntIndex(i_Objects_Apply_Lagcompensation[i]) <= 0)
+		{
+			i_Objects_Apply_Lagcompensation[i] = EntIndexToEntRef(entity);
+			i = ZR_MAX_LAG_COMP;
+		}
+	}	
+}

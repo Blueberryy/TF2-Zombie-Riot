@@ -6,7 +6,6 @@ static int i_Particle_4[MAXPLAYERS+1];
 static int i_Laser_1[MAXPLAYERS+1];
 static float f_OceanBuffAbility[MAXPLAYERS+1];
 
-#define LASERBEAM "sprites/laserbeam.vmt"
 #define OCEAN_HEAL_BASE 0.15
 #define OCEAN_SOUND "ambient_mp3/lair/cap_1_tone_metal_movement2.mp3"
 #define OCEAN_SOUND_MELEE "ambient/water/water_splash1.wav"
@@ -101,6 +100,7 @@ void ConnectTwoEntitiesWithMedibeam(int owner, int target)
 
 
 }
+
 void ApplyExtraOceanEffects(int client, bool remove = false)
 {
 	bool do_new = true;
@@ -182,7 +182,13 @@ void ApplyExtraOceanEffects(int client, bool remove = false)
 	{
 		return;
 	}
-	GetBoneAnglesAndPos(client, "effect_hand_r", flPos, flAng);
+	int viewmodelModel;
+	viewmodelModel = EntRefToEntIndex(i_Viewmodel_PlayerModel[client]);
+
+	if(!IsValidEntity(viewmodelModel))
+		return;
+
+	GetBoneAnglesAndPos(viewmodelModel, "effect_hand_r", flPos, flAng);
 	flAng[0] += 80.0;
 
 	float vecSwingForward[3];
@@ -198,13 +204,13 @@ void ApplyExtraOceanEffects(int client, bool remove = false)
 	int particle = ParticleEffectAtOcean(vecSwingEnd, "player_dripsred", 0.0 , _, false);
 
 
-	SetParent(client, particle, "effect_hand_r", _, true);
+	SetParent(viewmodelModel, particle, "effect_hand_r", _, true);
 	i_Particle_1[client] = EntIndexToEntRef(particle);
 
 
 	//Setup first invis particle here.
 	
-	GetBoneAnglesAndPos(client, "effect_hand_r", flPos, flAng);
+	GetBoneAnglesAndPos(viewmodelModel, "effect_hand_r", flPos, flAng);
 	flAng[0] += 70.0;
 
 	GetAngleVectors(flAng, vecSwingForward, NULL_VECTOR, NULL_VECTOR);
@@ -214,7 +220,7 @@ void ApplyExtraOceanEffects(int client, bool remove = false)
 	vecSwingEnd[2] = flPos[2] + (vecSwingForward[2] * OCEAN_SING_OFFSET_UP);
 
 	int particle2 = ParticleEffectAtOcean(vecSwingEnd, "medicgun_beam_red", 0.0 , particle, false);
-	SetParent(client, particle2, "effect_hand_r", _, true);
+	SetParent(viewmodelModel, particle2, "effect_hand_r", _, true);
 
 	char szCtrlParti[128];
 	Format(szCtrlParti, sizeof(szCtrlParti), "tf2ctrlpart%i", EntIndexToEntRef(particle2));
@@ -280,13 +286,11 @@ void DoHealingOcean(int client, int target, float range = 160000.0, float extra_
 {
 	float BannerPos[3];
 	GetEntPropVector(target, Prop_Data, "m_vecOrigin", BannerPos);
-	float flHealMulti;
+	float flHealMulti = 1.0;
 	float flHealMutli_Calc;
-
 	if(!HordingsBuff)
 	{
-		flHealMulti = Attributes_FindOnPlayer(client, 8, true, 1.0, true);
-
+		flHealMulti = Attributes_GetOnPlayer(client, 8, true, true);
 	}
 	else
 	{
@@ -301,15 +305,22 @@ void DoHealingOcean(int client, int target, float range = 160000.0, float extra_
 			GetEntPropVector(ally, Prop_Data, "m_vecAbsOrigin", targPos);
 			if (GetVectorDistance(BannerPos, targPos, true) <= range) // 650.0
 			{
-				bool inore_Heal = false;
+				float healingMulti = 1.0;
 
 				int weapon = GetEntPropEnt(ally, Prop_Send, "m_hActiveWeapon");
-				if(IsValidEntity(weapon) && Panic_Attack[weapon])
+				if(IsValidEntity(weapon))
 				{
-					inore_Heal = true;
+					if(Panic_Attack[weapon])
+					{
+						healingMulti = 0.0;
+					}
+					else if(i_WeaponArchetype[weapon] == 22)	// Abyssal Hunter
+					{
+						healingMulti = 1.0825;
+					}
 				}
 
-				if(!inore_Heal)
+				if(healingMulti > 0.0)
 				{	
 					if(f_TimeUntillNormalHeal[ally] > GetGameTime())
 					{
@@ -319,11 +330,14 @@ void DoHealingOcean(int client, int target, float range = 160000.0, float extra_
 					{
 						flHealMutli_Calc = flHealMulti;
 					} 
-					flHealMutli_Calc *= extra_heal;
+					flHealMutli_Calc *= extra_heal * healingMulti;
 					int healingdone = HealEntityViaFloat(ally, OCEAN_HEAL_BASE * flHealMutli_Calc, 1.0);
 					if(healingdone > 0)
 					{
-						Healing_done_in_total[client] += healingdone;
+						if(client < MaxClients)
+						{
+							Healing_done_in_total[client] += healingdone;
+						}
 						ApplyHealEvent(ally, healingdone);
 					}
 				}
@@ -370,7 +384,10 @@ void DoHealingOcean(int client, int target, float range = 160000.0, float extra_
 						f_Ocean_Buff_Weak_Buff[ally] = GetGameTime() + 0.21;
 					}
 				}
-				Healing_done_in_total[client] += healingdone;
+				if(client < MaxClients)
+				{
+					Healing_done_in_total[client] += healingdone;
+				}
 			}
 		}
 	}
@@ -473,7 +490,7 @@ public void Ocean_song_ability(int client, int weapon, bool crit, int slot)
 {
 	if (Ability_Check_Cooldown(client, slot) < 0.0)
 	{
-		Rogue_OnAbilityUse(client, weapon);
+		Rogue_OnAbilityUse(weapon);
 		Ability_Apply_Cooldown(client, slot, 75.0);
 		f_OceanBuffAbility[client] = GetGameTime() + 15.0;
 		float UserLoc[3];
@@ -517,14 +534,8 @@ public void Weapon_Ocean_Attack(int client, int weapon, bool crit, int slot)
 	TR_GetEndPosition(vecHit, swingTrace);	
 
 	delete swingTrace;
-/*
-	static float belowBossEyes[3];
-	float damage = 65.0;
-	Address	address = TF2Attrib_GetByDefIndex(weapon, 410);
-	if(address != Address_Null)
-		damage *= TF2Attrib_GetValue(address); //massive damage!
-*/
-//	EmitSoundToAll(SOUND_WAND_PASSANGER, client, SNDCHAN_AUTO, 80, _, 0.9, GetRandomInt(95, 110));
+
+
 	if(IsValidAlly(client, target))
 	{
 		int pitch = GetRandomInt(90,110);

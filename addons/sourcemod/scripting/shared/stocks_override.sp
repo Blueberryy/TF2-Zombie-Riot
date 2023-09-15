@@ -6,15 +6,7 @@
 void Stock_TakeDamage(int entity = 0, int inflictor = 0, int attacker = 0, float damage = 0.0, int damageType=DMG_GENERIC, int weapon=-1,const float damageForce[3]=NULL_VECTOR, const float damagePosition[3]=NULL_VECTOR, bool bypassHooks = false, int Zr_damage_custom = 0)
 {
 	i_HexCustomDamageTypes[entity] = Zr_damage_custom;
-	
-	if(IsValidEntity(weapon))
-	{
-		SDKHooks_TakeDamage(entity, inflictor, attacker, damage, damageType, weapon, damageForce, damagePosition, bypassHooks);
-	}
-	else
-	{
-		SDKHooks_TakeDamage(entity, inflictor, attacker, damage, damageType, -1, damageForce, damagePosition, bypassHooks);
-	}
+	SDKHooks_TakeDamage(entity, inflictor, attacker, damage, damageType, IsValidEntity(weapon) ? weapon : -1, damageForce, damagePosition, bypassHooks);
 
 }
 
@@ -36,9 +28,6 @@ bool Stock_IsValidEntity(int entity)
 }
 
 #define IsValidEntity Stock_IsValidEntity
-
-	
-
 /*
 TODO:
 	Instead of setting the colour, try to get the average so gold and blue becomes a fusion of both,
@@ -441,7 +430,20 @@ void Edited_EmitSoundToAll(const char[] sample,
 	*/
 	if(sample[0] != '#')
 	{
-		EmitSoundToAll(sample,entity,channel,level,flags,volume,pitch,speakerentity,origin,dir,updatePos,soundtime);
+
+		for(int client=1; client<=MaxClients; client++)
+		{
+			if(IsClientInGame(client) && !IsFakeClient(client))
+			{
+				float volumeedited = volume;
+				if(entity > 0 && !b_NpcHasDied[entity])
+				{
+					volumeedited *= (f_ZombieVolumeSetting[client] + 1.0);
+				}
+				if(volumeedited > 0.0)
+					EmitSoundToClient(client, sample,entity,channel,level,flags,volumeedited,pitch,speakerentity,origin,dir,updatePos,soundtime);
+			}
+		}		
 	}
 	else
 	{
@@ -458,3 +460,6 @@ void Edited_EmitSoundToAll(const char[] sample,
 
 #define EmitSoundToAll Edited_EmitSoundToAll
 #endif	// ZR
+
+#define TF2Attrib_GetByDefIndex OLD_CODE_FIX_IT
+#define TF2Items_SetAttribute OLD_CODE_FIX_IT

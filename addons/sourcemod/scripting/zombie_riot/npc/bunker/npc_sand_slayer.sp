@@ -66,7 +66,6 @@ static const char g_DuoPootisDeathTheme[][] = {
 	"#freak_fortress_2/pootis_engage/death_bgm1.mp3"
 };*/
 
-#define POOTISOUTROMUSIC "freak_fortress_2/pootis_engage/outromusic_lose.mp3"
 #define POOTISSLAYERSTEAK "freak_fortress_2/pootis_engage/ss_steak.mp3"
 #define POOTISSLAYERCANNON "freak_fortress_2/pootis_engage/ss_cannon.mp3"
 static float fl_AbilityManagement_Timer[MAXENTITIES];
@@ -233,7 +232,7 @@ methodmap SandvichSlayer < CClotBody
 			b_DuoOneTimeStopForExe = false;
 			b_DuoSandSlayerDied = false;
 			RaidModeTime = GetGameTime(npc.index) + 250.0;
-			SetEntProp(npc.index, Prop_Send, "m_bGlowEnabled", true);
+			GiveNpcOutLineLastOrBoss(npc.index, true);
 			for(int client_clear=1; client_clear<=MaxClients; client_clear++)
 			{
 				fl_AlreadyStrippedMusic[client_clear] = 0.0; //reset to 0
@@ -270,7 +269,7 @@ methodmap SandvichSlayer < CClotBody
 		int skin = 0;
 		SetEntProp(npc.index, Prop_Send, "m_nSkin", skin);
 		
-		//Citizen_MiniBossSpawn(npc.index);
+		//Citizen_MiniBossSpawn();
 		
 		return npc;
 	}

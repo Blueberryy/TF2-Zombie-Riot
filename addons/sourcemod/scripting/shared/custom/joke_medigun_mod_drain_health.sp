@@ -113,7 +113,7 @@ static bool gb_medigun_on_reload[MAXTF2PLAYERS]={false, ...};
 public MRESReturn OnAllowedToHealTargetPre(int medigun, Handle hReturn, Handle hParams) {
 	int target = DHookGetParam(hParams, 1);
 	int owner = GetEntPropEnt(medigun, Prop_Send, "m_hOwnerEntity");
-	float What_type_Heal = Attributes_FindOnWeapon(owner, medigun, 2046);
+	float What_type_Heal = Attributes_Get(medigun, 2046, 1.0);
 	
 	
 	if(owner > 0 && owner<=MaxClients && IsValidEntity(target))
@@ -236,7 +236,7 @@ public MRESReturn OnMedigunPostFramePost(int medigun) {
 		medigun_heal_delay[owner] = GetGameTime() + 0.1;
 		int healTarget = GetEntPropEnt(medigun, Prop_Send, "m_hHealingTarget");
 		
-		float What_type_Heal = Attributes_FindOnWeapon(owner, medigun, 2046);
+		float What_type_Heal = Attributes_Get(medigun, 2046, 1.0);
 		
 		if(What_type_Heal == 2.0)
 		{
@@ -263,7 +263,8 @@ public MRESReturn OnMedigunPostFramePost(int medigun) {
 				if (!team)
 				{
 
-					flDrainRate *= Attributes_FindOnWeapon(owner, medigun, 8, true, 1.0);
+					flDrainRate *= Attributes_Get(medigun, 8, 1.0);
+					flDrainRate *= Attributes_GetOnPlayer(owner, 8, true, true);
 #if defined ZR						
 					if(LastMann)	
 						flDrainRate *= 2.0;
@@ -387,25 +388,26 @@ public MRESReturn OnMedigunPostFramePost(int medigun) {
 				
 				if(team)
 				{
-					int healing_Amount;
-					int how_high_is_attribute_medigun = RoundToCeil(Attributes_FindOnWeapon(owner, medigun, 95));
+					float healing_Amount;
+					float how_high_is_attribute_medigun = Attributes_Get(medigun, 95, 1.0);
+					how_high_is_attribute_medigun *= Attributes_GetOnPlayer(owner, 95, true, true);
 					
-					if (how_high_is_attribute_medigun == 0)
-						how_high_is_attribute_medigun = 1;
+					if (how_high_is_attribute_medigun == 0.0)
+						how_high_is_attribute_medigun = 1.0;
 					
 					if(medigun_mode == 0 || medigun_mode == 2)
 					{
 						if(What_Uber_Type == 0)
-							healing_Amount = 36 * how_high_is_attribute_medigun;
+							healing_Amount = 36.0 * how_high_is_attribute_medigun;
 						else if(What_Uber_Type == 2)
-							healing_Amount = 15 * how_high_is_attribute_medigun;
+							healing_Amount = 15.0 * how_high_is_attribute_medigun;
 						else if  (medigun_mode == 2)
-							healing_Amount = 6 * how_high_is_attribute_medigun;
+							healing_Amount = 6.0 * how_high_is_attribute_medigun;
 						else if  (medigun_mode == 0)
-							healing_Amount = 12 * how_high_is_attribute_medigun;
+							healing_Amount = 12.0 * how_high_is_attribute_medigun;
 					}
 					else
-						healing_Amount = 5 * how_high_is_attribute_medigun;
+						healing_Amount = 5.0 * how_high_is_attribute_medigun;
 						
 						
 					if(medigun_mode == 1)
@@ -459,25 +461,26 @@ public MRESReturn OnMedigunPostFramePost(int medigun) {
 						}
 					}
 					*/
-						
+					
+					int i_HealingAmount = RoundToCeil(healing_Amount);
 					int flHealth = GetEntProp(healTarget, Prop_Send, "m_iHealth");
-					int Healing_Value = healing_Amount;
-					int newHealth = flHealth + healing_Amount;
+					int Healing_Value = i_HealingAmount;
+					int newHealth = flHealth + i_HealingAmount;
 					
 					int max_health = GetEntProp(healTarget, Prop_Send, "m_iMaxHealth");
 					
 					if(newHealth >= max_health)
 					{
-						healing_Amount -= newHealth - max_health;
+						i_HealingAmount -= newHealth - max_health;
 						newHealth = max_health;
 					}
 					
-					int Remove_Ammo = healing_Amount / 3;
+					int Remove_Ammo = i_HealingAmount / 3;
 					
 				//	SetEntProp(healTarget, Prop_Send, "m_iHealth", newHealth);
 					if  (medigun_mode == 2)
 					{
-						Remove_Ammo = healing_Amount / 6;
+						Remove_Ammo = i_HealingAmount / 6;
 					}
 					
 					if(Remove_Ammo < 0)
@@ -551,7 +554,8 @@ public MRESReturn OnMedigunPostFramePost(int medigun) {
 						Is_Allied_Npc = true;
 					}
 					
-					float Healing_Value = Attributes_FindOnWeapon(owner, medigun, 8, true, 1.0);
+					float Healing_Value = Attributes_Get(medigun, 8, 1.0);
+					Healing_Value *= Attributes_GetOnPlayer(owner, 8, true, true);
 #if defined ZR					
 					if(b_HealthyEssence)
 						Healing_Value *= 1.25;
@@ -783,8 +787,9 @@ public MRESReturn OnMedigunPostFramePost(int medigun) {
 				if (!team)
 				{
 
-					flDrainRate *= Attributes_FindOnWeapon(owner, medigun, 8, true, 1.0);
-					flDrainRate *= Attributes_FindOnWeapon(owner, medigun, 1, true, 1.0);
+					flDrainRate *= Attributes_Get(medigun, 8, 1.0);
+					flDrainRate *= Attributes_Get(medigun, 1, 1.0);
+					flDrainRate *= Attributes_GetOnPlayer(owner, 8, true, true);
 					//there are some updgras that require medigun damage only!
 #if defined ZR
 					if(LastMann)	
@@ -841,11 +846,10 @@ public MRESReturn OnMedigunPostFramePost(int medigun) {
 				if (flChargeLevel > 0.0) 
 				{
 					float heatrefresh = 0.05;
-					Address address = TF2Attrib_GetByDefIndex(medigun, 314);
-					if(address != Address_Null)
-						heatrefresh *= 1.0+(TF2Attrib_GetValue(address)-9.0)/3;
+
+					heatrefresh = heatrefresh / MedigunGetUberDuration(owner);
 					
-					flChargeLevel -= heatrefresh*GetGameFrameTime();
+					flChargeLevel -= heatrefresh*0.1;
 					
 					if (flChargeLevel < 0.0)
 					{
@@ -866,11 +870,10 @@ public MRESReturn OnMedigunPostFramePost(int medigun) {
 				if (flChargeLevel > 0.0) 
 				{
 					float heatrefresh = 0.05;
-					Address address = TF2Attrib_GetByDefIndex(medigun, 314);
-					if(address != Address_Null)
-						heatrefresh *= 1.0+(TF2Attrib_GetValue(address)-9.0)/3;
+
+					heatrefresh = heatrefresh / MedigunGetUberDuration(owner);
 					
-					flChargeLevel -= heatrefresh*GetGameFrameTime();
+					flChargeLevel -= heatrefresh*0.1;
 					
 					if (flChargeLevel < 0.0)
 					{
@@ -878,7 +881,6 @@ public MRESReturn OnMedigunPostFramePost(int medigun) {
 					}
 					
 					SetEntPropFloat(medigun, Prop_Send, "m_flChargeLevel", flChargeLevel);
-				
 				}
 			}
 			else 
@@ -887,13 +889,12 @@ public MRESReturn OnMedigunPostFramePost(int medigun) {
 						
 				if (flChargeLevel > 0.0) 
 				{
-					float heatrefresh = 0.2;
-					Address address = TF2Attrib_GetByDefIndex(medigun, 314);
-					if(address != Address_Null)
-						heatrefresh *= 1.0+(TF2Attrib_GetValue(address)-9.0)/3;
-					
-					flChargeLevel -= heatrefresh*GetGameFrameTime();
-					
+					float heatrefresh = 0.05;
+
+					heatrefresh = heatrefresh / MedigunGetUberDuration(owner);
+
+					flChargeLevel -= heatrefresh*0.1;
+
 					if (flChargeLevel < 0.0)
 					{
 						flChargeLevel = 0.0;
@@ -904,12 +905,6 @@ public MRESReturn OnMedigunPostFramePost(int medigun) {
 			}
 		}
 	}
-	/*
-	if(!LastMann)
-	{
-		TF2_AddCondition(owner, TFCond_SpeedBuffAlly, 0.0001); // This is the most ugly fix i had to do, but i have no idea how to fix it otherwise.
-	}
-	*/
 	return MRES_Ignored;
 }
 
@@ -926,15 +921,17 @@ public void GB_On_Reload(int client, int weapon, bool crit) {
 	gb_medigun_on_reload[client] = true;
 }
 #if defined ZR
-public void GB_Check_Ball(int client, int weapon, bool crit)
+public void GB_Check_Ball(int owner, int weapon, bool crit)
 {
-	if (gb_medigun_on_reload[client] || GetEntProp(weapon, Prop_Send, "m_bChargeRelease")==1)
+	if (gb_medigun_on_reload[owner] || GetEntProp(weapon, Prop_Send, "m_bChargeRelease")==1)
 	{
-		ClientCommand(client, "playgamesound items/medshotno1.wav");
+		ClientCommand(owner, "playgamesound items/medshotno1.wav");
 		return;
 	}
-	
-	float flChargeLevel = GetEntPropFloat(weapon, Prop_Send, "m_flChargeLevel")+0.06;
+	float heatrefresh = 0.06;
+
+	heatrefresh = heatrefresh / MedigunGetUberDuration(owner);
+	float flChargeLevel = GetEntPropFloat(weapon, Prop_Send, "m_flChargeLevel")+heatrefresh;
 						
 	if (flChargeLevel >= 1.0) 
 	{
@@ -946,7 +943,7 @@ public void GB_Check_Ball(int client, int weapon, bool crit)
 	else
 		SetEntPropFloat(weapon, Prop_Send, "m_flChargeLevel", flChargeLevel);
 	
-	Weapon_GB_Ball(client, weapon, crit);
+	Weapon_GB_Ball(owner, weapon, crit);
 }
 #endif
 
@@ -982,4 +979,40 @@ stock int CreateParticleOnBackPack(const char[] sParticle, int client)
 	ActivateEntity(entity);
 	AcceptEntityInput(entity, "start");
 	return entity;
+}
+
+
+float MedigunGetUberDuration(int owner)
+{
+	//so it starts at 1.0
+	float Attribute = Attributes_GetOnPlayer(owner, 314, true, true) + 3.0;
+	
+	switch(Attribute)
+	{
+		case 1.0:
+		{
+			Attribute = 1.0;
+		}
+		case 2.0:
+		{
+			Attribute = 1.15;
+		}
+		case 3.0:
+		{
+			Attribute = 1.35;
+		}
+		case 4.0:
+		{
+			Attribute = 1.45;
+		}
+		case 5.0:
+		{
+			Attribute = 1.65;
+		}
+	}
+	if(Attribute < 1.0)
+	{
+		Attribute = 1.0;
+	}
+	return Attribute;
 }

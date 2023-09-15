@@ -108,7 +108,7 @@ methodmap KazimierzKnightAssasin < CClotBody
 	
 	public KazimierzKnightAssasin(int client, float vecPos[3], float vecAng[3], bool ally)
 	{
-		KazimierzKnightAssasin npc = view_as<KazimierzKnightAssasin>(CClotBody(vecPos, vecAng, COMBINE_CUSTOM_MODEL, "1.15", "1500", ally));
+		KazimierzKnightAssasin npc = view_as<KazimierzKnightAssasin>(CClotBody(vecPos, vecAng, COMBINE_CUSTOM_MODEL, "1.15", "9000", ally));
 		
 		SetVariantInt(4);
 		AcceptEntityInput(npc.index, "SetBodyGroup");
@@ -309,7 +309,7 @@ public void KazimierzKnightAssasin_ClotThink(int iNPC)
 		{
 			npc.m_iState = -1;
 		}
-		else if(flDistanceToTarget < Pow(NORMAL_ENEMY_MELEE_RANGE_FLOAT, 2.0) && npc.m_flNextMeleeAttack < gameTime)
+		else if(flDistanceToTarget < NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED && npc.m_flNextMeleeAttack < gameTime)
 		{
 			npc.m_iState = 1; //Engage in Close Range Destruction.
 		}
@@ -436,7 +436,7 @@ public bool KazimierzMeleeAssasinRange(KazimierzKnightAssasin npc, float range)
 		{
 			GetEntPropVector(client, Prop_Data, "m_vecAbsOrigin", AllyPos);
 			float flDistanceToTarget = GetVectorDistance(SelfPos, AllyPos, true);
-			if(flDistanceToTarget < Pow(range, 2.0))
+			if(flDistanceToTarget < (range * range))
 			{
 				if(Can_I_See_Enemy_Only(npc.index, client))
 				{
@@ -455,7 +455,7 @@ public bool KazimierzMeleeAssasinRange(KazimierzKnightAssasin npc, float range)
 			{
 				GetEntPropVector(entity_close, Prop_Data, "m_vecAbsOrigin", AllyPos);
 				float flDistanceToTarget = GetVectorDistance(SelfPos, AllyPos, true);
-				if(flDistanceToTarget < Pow(range, 2.0))
+				if(flDistanceToTarget < (range * range))
 				{
 					if(Can_I_See_Enemy_Only(npc.index, entity_close))
 					{

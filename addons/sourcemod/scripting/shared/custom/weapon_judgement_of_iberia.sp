@@ -7,6 +7,7 @@
 
 #define IRENE_JUDGEMENT_MAX_HITS_NEEDED 42 	//Double the amount because we do double hits.
 #define IRENE_JUDGEMENT_MAXRANGE 350.0 		
+#define IRENE_JUDGEMENT_MAXRANGE_SQUARED 122500.0 		
 #define IRENE_JUDGEMENT_EXPLOSION_RANGE 75.0 		
 
 #define IRENE_BOSS_AIRTIME 0.75		
@@ -23,6 +24,7 @@ Handle h_TimerIreneManagement[MAXPLAYERS+1] = {INVALID_HANDLE, ...};
 static float f_Irenehuddelay[MAXTF2PLAYERS];
 static int i_IreneHitsDone[MAXTF2PLAYERS];
 static bool b_WeaponAttackSpeedModified[MAXENTITIES];
+static bool b_WeaponAttackSpeedModifiedSeaborn[MAXENTITIES];
 static int i_IreneTargetsAirborn[MAXTF2PLAYERS][IRENE_MAX_HITUP];
 static float f_TargetAirtime[MAXENTITIES];
 static float f_TargetAirtimeDelayHit[MAXENTITIES];
@@ -32,7 +34,6 @@ static int i_RefWeaponDelete[MAXTF2PLAYERS];
 static float f_WeaponDamageCalculated[MAXTF2PLAYERS];
 
 static int LaserSprite;
-#define SPRITE_SPRITE	"materials/sprites/laserbeam.vmt"
 
 void Npc_OnTakeDamage_Iberia(int attacker, int damagetype)
 {
@@ -86,6 +87,7 @@ void Reset_stats_Irene_Singular(int client) //This is on disconnect/connect
 void Reset_stats_Irene_Singular_Weapon(int weapon) //This is on weapon remake. cannot set to 0 outright.
 {
 	b_WeaponAttackSpeedModified[weapon] = false;
+	b_WeaponAttackSpeedModifiedSeaborn[weapon] = false;
 }
 
 public void Weapon_Irene_DoubleStrike(int client, int weapon, bool crit, int slot)
@@ -119,12 +121,39 @@ public void Weapon_Irene_DoubleStrike(int client, int weapon, bool crit, int slo
 	if(!b_WeaponAttackSpeedModified[weapon]) //The attackspeed is right now not modified, lets save it for later and then apply our faster attackspeed.
 	{
 		b_WeaponAttackSpeedModified[weapon] = true;
-		TF2Attrib_SetByDefIndex(weapon, 6, (attackspeed * 0.15));
+		attackspeed = (attackspeed * 0.15);
+		Attributes_Set(weapon, 6, attackspeed);
 	}
 	else
 	{
 		b_WeaponAttackSpeedModified[weapon] = false;
-		TF2Attrib_SetByDefIndex(weapon, 6, (attackspeed / 0.15)); //Make it really fast for 1 hit!
+		attackspeed = (attackspeed / 0.15);
+		Attributes_Set(weapon, 6, attackspeed); //Make it really fast for 1 hit!
+	}
+
+	//todo: If needed, add a delay so it doesnt happen on every swing
+	bool ThereWasSeaborn = false;
+	for(int entitycount; entitycount<i_MaxcountNpc; entitycount++)
+	{
+		int entity = EntRefToEntIndex(i_ObjectsNpcs[entitycount]);
+		if(IsValidEntity(entity) && i_BleedType[entity] == BLEEDTYPE_SEABORN)
+		{
+			ThereWasSeaborn = true;
+			break;
+		}
+	}
+
+	if(b_WeaponAttackSpeedModifiedSeaborn[weapon] && !ThereWasSeaborn)
+	{
+		attackspeed = (attackspeed / 0.85);
+		Attributes_Set(weapon, 6, attackspeed);
+		b_WeaponAttackSpeedModifiedSeaborn[weapon] = false;
+	}
+	else if(!b_WeaponAttackSpeedModifiedSeaborn[weapon] && ThereWasSeaborn)
+	{
+		attackspeed = (attackspeed * 0.85);
+		Attributes_Set(weapon, 6, attackspeed);
+		b_WeaponAttackSpeedModifiedSeaborn[weapon] = true;
 	}
 }
 
@@ -236,7 +265,7 @@ public void Weapon_Irene_Judgement(int client, int weapon, bool crit, int slot)
 	//This ability has no cooldown in itself, it just relies on hits you do.
 	if(i_IreneHitsDone[client] >= IRENE_JUDGEMENT_MAX_HITS_NEEDED || CvarInfiniteCash.BoolValue)
 	{
-		Rogue_OnAbilityUse(client, weapon);
+		Rogue_OnAbilityUse(weapon);
 		i_IreneHitsDone[client] = 0;
 		//Sucess! You have enough charges.
 		//Heavy logic incomming.
@@ -247,9 +276,7 @@ public void Weapon_Irene_Judgement(int client, int weapon, bool crit, int slot)
 		//Attackspeed wont affect this calculation.
 
 		float damage = 40.0;
-		Address address = TF2Attrib_GetByDefIndex(weapon, 2);
-		if(address != Address_Null)
-			damage *= RoundToCeil(TF2Attrib_GetValue(address));
+		damage *= Attributes_Get(weapon, 2, 1.0);
 
 		f_WeaponDamageCalculated[client] = damage;
 
@@ -281,7 +308,7 @@ public void Weapon_Irene_Judgement(int client, int weapon, bool crit, int slot)
 			{
 				VicLoc = WorldSpaceCenter(target);
 				
-				if (GetVectorDistance(UserLoc, VicLoc,true) <= Pow(IRENE_JUDGEMENT_MAXRANGE, 2.0))
+				if (GetVectorDistance(UserLoc, VicLoc,true) <= IRENE_JUDGEMENT_MAXRANGE_SQUARED)
 				{
 					bool Hitlimit = true;
 					for(int i=1; i <= (MAX_TARGETS_HIT -1 ); i++)
@@ -400,7 +427,7 @@ public void Npc_Irene_Launch_client(int client)
 				{
 					VicLoc = WorldSpaceCenter(enemy);
 					
-					if (GetVectorDistance(UserLoc, VicLoc,true) <= Pow(IRENE_JUDGEMENT_MAXRANGE, 2.0)) //respect max range.
+					if (GetVectorDistance(UserLoc, VicLoc,true) <= IRENE_JUDGEMENT_MAXRANGE_SQUARED) //respect max range.
 					{
 						if(count < MAX_TARGETS_HIT)
 						{

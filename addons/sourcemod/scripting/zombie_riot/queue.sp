@@ -41,7 +41,7 @@ void Queue_DifficultyVoteEnded()
 	{
 		if(IsClientInGame(i))
 		{
-			if(GetClientTeam(i) == 2)
+			if(GetClientTeam(i) == 2 && !IsFakeClient(i))
 			{
 				queue[count++] = i;
 			}
@@ -70,6 +70,8 @@ void Queue_DifficultyVoteEnded()
 			PrintCenterText(queue[i], "Server is full with a maximum of %d players", CalcMaxPlayers());
 			PrintToChat(queue[i], "Server is full with a maximum of %d players", CalcMaxPlayers());
 			PrintToChat(queue[i], "You have been placed in spectator, if you like to join in when a slot is open, join a team. Otherwise you will join in next map change.");
+			PrintToChat(queue[i], "This was done to give place to a player who was waiting in spectator the previous map.");
+			ForcePlayerSuicide(queue[i]);
 		}
 	}
 	else
@@ -128,12 +130,13 @@ void Queue_Menu(int client)
 		menu.AddItem("", buffer, ITEMDRAW_SPACER);
 	}
 	
+	menu.AddItem("0", " ", ITEMDRAW_SPACER);
+	
+	menu.AddItem("sm_encyclopedia", "Encyclopedia");
+	
 	zr_tagblacklist.GetString(buffer, sizeof(buffer));
 	if(StrContains(buffer, "private", false) == -1)
 	{
-		menu.AddItem("0", " ", ITEMDRAW_SPACER);
-		
-		menu.AddItem("sm_encyclopedia", "Encyclopedia");
 		menu.AddItem("sm_idlemine", "Idle Miner");
 		menu.AddItem("sm_tetris", "Tetris");
 		menu.AddItem("sm_snake", "Snake");
@@ -174,7 +177,7 @@ public int Queue_MenuH(Menu menu, MenuAction action, int client, int choice)
 						int count;
 						for(int i=1; i<=MaxClients; i++)
 						{
-							if(i != client && IsClientInGame(i) && GetClientTeam(i) == 2)
+							if(i != client && IsClientInGame(i) && GetClientTeam(i) == 2 && !IsFakeClient(i))
 							{
 								if(++count >= CalcMaxPlayers())
 								{
@@ -206,6 +209,10 @@ public int Queue_MenuH(Menu menu, MenuAction action, int client, int choice)
 						ClientCommand(client,"redirect %s",buffer);
 					}
 				}
+				case 4:
+				{
+					Items_EncyclopediaMenu(client);
+				}
 				default:
 				{
 					if(IsValidClient(client))
@@ -229,7 +236,7 @@ bool Queue_JoinTeam(int client)
 	int count;
 	for(int i=1; i<=MaxClients; i++)
 	{
-		if(i != client && IsClientInGame(i) && GetClientTeam(i) == 2 && !WaitingInQueue[i])
+		if(i != client && IsClientInGame(i) && GetClientTeam(i) == 2 && !IsFakeClient(i) && !WaitingInQueue[i])
 		{
 			if(++count >= CalcMaxPlayers())
 			{
@@ -256,7 +263,7 @@ void Queue_ClientDisconnect(int client)
 	int count;
 	for(int i=1; i<=MaxClients; i++)
 	{
-		if(i != client && IsClientInGame(i) && GetClientTeam(i) == 2 && !WaitingInQueue[i])
+		if(i != client && IsClientInGame(i) && GetClientTeam(i) == 2 && !IsFakeClient(i) && !WaitingInQueue[i])
 		{
 			if(++count >= CalcMaxPlayers())
 				return;
@@ -267,7 +274,7 @@ void Queue_ClientDisconnect(int client)
 	int[] queue = new int[MaxClients];
 	for(int i=1; i<=MaxClients; i++)
 	{
-		if(i != client && WaitingInQueue[i] && IsClientInGame(i) && GetClientTeam(i) > 1)
+		if(i != client && WaitingInQueue[i] && IsClientInGame(i) && GetClientTeam(i) > 1 && !IsFakeClient(i))
 			queue[count++] = i;
 	}
 	
@@ -288,12 +295,13 @@ void Queue_ClientDisconnect(int client)
 
 int CalcMaxPlayers()
 {
-	int playercount = MAX_PLAYER_COUNT;
-
+	int playercount = CvarMaxPlayerAlive.IntValue;
+	/*
 	if(OperationSystem == OS_Linux)
 	{
 		playercount -= 2; //linux is abit shite
 	}
+	*/
 
 	return playercount;
 }

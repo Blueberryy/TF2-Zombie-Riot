@@ -16,10 +16,6 @@ static int Projectile_To_Particle[MAXENTITIES]={0, ...};
 static int Beam_Laser;
 static int Beam_Glow;
 
-#define ENERGY_BALL_MODEL	"models/weapons/w_models/w_drg_ball.mdl"
-#define SOUND_WAND_SHOT 	"weapons/capper_shoot.wav"
-#define SOUND_ZAP "misc/halloween/spell_lightning_ball_impact.wav"
-
 void Charged_Handgun_Map_Precache()
 {
 	PrecacheSound(SOUND_WAND_SHOT);
@@ -56,9 +52,7 @@ public void Weapon_IEM_Launcher(int client, int weapon, const char[] classname, 
 		}
 		
 		float speed = 1100.0;
-		Address address = TF2Attrib_GetByDefIndex(weapon, 103);
-		if(address != Address_Null)
-			speed /= TF2Attrib_GetValue(address);
+		speed /= Attributes_Get(weapon, 103, 1.0);
 		
 		int iRot = CreateEntityByName("func_door_rotating");
 		if(iRot == -1) return;
@@ -78,9 +72,7 @@ public void Weapon_IEM_Launcher(int client, int weapon, const char[] classname, 
 		EmitSoundToAll(SOUND_WAND_SHOT, client, _, 65, _, 0.45);
 		
 		float damage = 50.0;
-		address = TF2Attrib_GetByDefIndex(weapon, 2);
-		if(address != Address_Null)
-			damage *= TF2Attrib_GetValue(address);
+		damage *= Attributes_Get(weapon, 2, 1.0);
 		
 		Wand_Launch_IEM(client, iRot, speed, 5.0, damage, false);
 	}
@@ -106,9 +98,7 @@ public void Weapon_IEM_Launcher_PAP(int client, int weapon, const char[] classna
 		}
 		
 		float speed = 1100.0;
-		Address address = TF2Attrib_GetByDefIndex(weapon, 103);
-		if(address != Address_Null)
-			speed /= TF2Attrib_GetValue(address);
+		speed /= Attributes_Get(weapon, 103, 1.0);
 		
 		int iRot = CreateEntityByName("func_door_rotating");
 		if(iRot == -1) return;
@@ -128,9 +118,7 @@ public void Weapon_IEM_Launcher_PAP(int client, int weapon, const char[] classna
 		EmitSoundToAll(SOUND_WAND_SHOT, client, _, 65, _, 0.45);
 		
 		float damage = 50.0;
-		address = TF2Attrib_GetByDefIndex(weapon, 2);
-		if(address != Address_Null)
-			damage *= TF2Attrib_GetValue(address);
+		damage *= Attributes_Get(weapon, 2, 1.0);
 		
 		Wand_Launch_IEM(client, iRot, speed, 5.0, damage, true);
 	}
@@ -147,13 +135,10 @@ public void Weapon_Charged_Handgun(int client, int weapon, const char[] classnam
 		}
 		else 
 		{
-			Address address = TF2Attrib_GetByDefIndex(weapon, 670);
-			if(address != Address_Null)
-				base_chargetime[client] = TF2Attrib_GetValue(address);
+			base_chargetime[client] = Attributes_Get(weapon, 670, 1.0);
 				
-			address = TF2Attrib_GetByDefIndex(weapon, 466);
-			if(address != Address_Null)
-				base_chargetime[client] = TF2Attrib_GetValue(address);
+			if(Attributes_Has(weapon,466))
+				base_chargetime[client] = Attributes_Get(weapon, 466, 1.0);
 			
 			float flMultiplier = GetGameTime(); // 4.0 is the default one
 			
@@ -185,16 +170,13 @@ public void Weapon_Charged_Handgun(int client, int weapon, const char[] classnam
 		
 		Handle_on[client] = true;
 		
-		Address address = TF2Attrib_GetByDefIndex(weapon, 670);
-		if(address != Address_Null)
-			TF2Attrib_SetByDefIndex(weapon, 670, -1.0);
+		if(Attributes_Has(weapon, 670))
+			Attributes_Set(weapon, 670, -1.0);
 		else
-			TF2Attrib_SetByDefIndex(weapon, 466, -1.0);
+			Attributes_Set(weapon, 466, -1.0);
 		
 		float speed = 1100.0;
-		address = TF2Attrib_GetByDefIndex(weapon, 103);
-		if(address != Address_Null)
-			speed *= TF2Attrib_GetValue(address);
+		speed *= Attributes_Get(weapon, 103, 1.0);
 		
 		int iRot = CreateEntityByName("func_door_rotating");
 		if(iRot == -1) return;
@@ -217,9 +199,7 @@ public void Weapon_Charged_Handgun(int client, int weapon, const char[] classnam
 		if (HasEntProp(weapon, Prop_Send, "m_flChargeBeginTime"))
 			damage = 120.0;
 		
-		address = TF2Attrib_GetByDefIndex(weapon, 2);
-		if(address != Address_Null)
-			damage *= TF2Attrib_GetValue(address);
+		damage *= Attributes_Get(weapon, 2, 1.0);
 		
 		Wand_Launch(client, iRot, speed, 2.0, damage);
 	}
@@ -511,8 +491,7 @@ public Action Timer_Electric_Think_PAP(Handle timer, int iCarrier)
 						GetAngleVectors(angles, vecForward, NULL_VECTOR, NULL_VECTOR);
 						//Code to do damage position and ragdolls
 						
-						float distance_1 = GetVectorDistance(flCarrierPos, targPos);
-						float damage_1 = Custom_Explosive_Logic(client, distance_1, 0.75, Damage_Tornado[iCarrier], TORNADO_Radius[client]+1.0);				
+						float damage_1 = Damage_Tornado[iCarrier];
 						damage_1 /= Damage_Reduction[iCarrier];
 						
 						SDKHooks_TakeDamage(baseboss_index, client, client, damage_1, DMG_PLASMA, -1, CalculateDamageForce(vecForward, 10000.0), targPos);
@@ -629,8 +608,7 @@ public Action Timer_Electric_Think(Handle timer, int iCarrier)
 						GetAngleVectors(angles, vecForward, NULL_VECTOR, NULL_VECTOR);
 						//Code to do damage position and ragdolls
 						
-						float distance_1 = GetVectorDistance(flCarrierPos, targPos);
-						float damage_1 = Custom_Explosive_Logic(client, distance_1, 0.75, Damage_Tornado[iCarrier], TORNADO_Radius[client]+1.0);				
+						float damage_1 = Damage_Tornado[iCarrier];			
 						damage_1 /= Damage_Reduction[iCarrier];
 						
 						SDKHooks_TakeDamage(baseboss_index, client, client, damage_1, DMG_PLASMA, -1, CalculateDamageForce(vecForward, 10000.0), targPos, _ , ZR_DAMAGE_LASER_NO_BLAST);
@@ -698,12 +676,12 @@ public Action Reset_weapon_charged_handgun(Handle cut_timer, DataPack pack)
 			GetEntityClassname(weapon, buffer, sizeof(buffer));
 			if(TF2_GetClassnameSlot(buffer) == TFWeaponSlot_Secondary)
 			{
-				TF2Attrib_SetByDefIndex(weapon, 670, base_chargetime[client]);
+				Attributes_Set(weapon, 670, base_chargetime[client]);
 				ClientCommand(client, "playgamesound items/medshotno1.wav");
 			}
 			else 
 			{
-				TF2Attrib_SetByDefIndex(weapon, 466, base_chargetime[client]);
+				Attributes_Set(weapon, 466, base_chargetime[client]);
 				ClientCommand(client, "playgamesound items/medshotno1.wav");
 			}
 		}

@@ -20,6 +20,9 @@ SO HOW THIS CODE WORKS CAN HEAVILY VARY FROM FILE TO FILE!!!
 
 **YOU MUST USE SOURCEMOD 1.12 FOR THIS PLUGIN!!!!!!!!!!!!!!!**
 
+Use build 7031 or older, DO NOT USE NEWER.
+It breaks float values for some god forsaken reason.
+
 If you wish to use this plugin for your own server, please keep all the credits that are here or i WILL cry.
 Do not go above 14 players(you can have 32 slots, i recommend 16+) but dont allow more inside the plugin itself (Inside queue.sp), as the server doesnt support that interms of performance, the npc's are limited at 32 for a reason.
 The performance heavy things are Lagcompensation and pathfinder, but i tried to optimise those as much as i could.
@@ -56,6 +59,15 @@ Main Server:
  
 "zr_viewshakeonlowhealth" = "1" ( def. "1" )
  - Should the view shake when low on health?
+
+"sv_visiblemaxplayers" = "24" ( def. "24" )
+ - This is a default cvar from tf2, but i recomend setting it to 24 on a 32 player server.
+ - it sets the max slots to 24 so players wont join, but bots can for killfeed reasons.
+
+"zr_maxplayersplaying" = "14" ( def. "14" )
+-Max players allowed to play at once, it should be set lower on linux due to performance drops on it
+-You may set it to any value, but i recomment 14-20
+
  
  
  
@@ -102,10 +114,10 @@ The SourceMod plugins / extensions listed below are required for TF2 Zombie Riot
 - [CollisionHook](https://github.com/Adrianilloo/Collisionhook)
 - [TFEconData](https://github.com/nosoop/SM-TFEconData)
 - [CBaseNpc](https://github.com/TF2-DMB/CBaseNPC) 
-- [lambda](https://github.com/Batfoxkid/lambda)
+~~- [lambda](https://github.com/Batfoxkid/lambda)~~ currently is kown to cause crashes. do not use. and its not used currently either.
 - [Timescale Windows Fix](https://forums.alliedmods.net/showthread.php?t=324264) Not needed if you are on linux.
 - [TF2Utils](https://github.com/nosoop/SM-TFUtils)
-- [File Network](https://github.com/Batfoxkid/File-Network)
+- [File Network](https://forums.alliedmods.net/showthread.php?t=341953)
 
 ### Supported
 
@@ -141,8 +153,14 @@ Compile both listen.so and envnav.sp so you can edit the navmesh live on the ser
 Credits go to - [Arthurdead](https://github.com/arthurdead) for the original plugin nav plugin
 I just got windows gamedata.
 To edit the nav live, do sm_nav_edit_mode 
+
 BEWARE, THIS SETS sv_cheats TO 1, Do it again to disable, you must also run sm_rcon for any nav command
 (Zr will hide that sv_cheats got set and other stuff, and will also hide it from players, i will in the future code an anti cheat in zr to prevent this)
 The server WILL crashwhen editing, beware, no idea how to fix it, too lazy.
 
 Just dont announce that youll do it.
+
+
+If you wish to donate to support this project then concider subscribing to the patron
+
+[Patreon](https://www.patreon.com/user?u=95717000)

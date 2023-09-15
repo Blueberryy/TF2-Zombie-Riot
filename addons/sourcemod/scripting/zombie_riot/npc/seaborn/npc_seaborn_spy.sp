@@ -68,7 +68,7 @@ methodmap SeabornSpy < CClotBody
 	
 	public SeabornSpy(int client, float vecPos[3], float vecAng[3], bool ally)
 	{
-		SeabornSpy npc = view_as<SeabornSpy>(CClotBody(vecPos, vecAng, "models/player/spy.mdl", "1.0", "1250", ally));
+		SeabornSpy npc = view_as<SeabornSpy>(CClotBody(vecPos, vecAng, "models/player/spy.mdl", "1.0", "1500", ally));
 		
 		i_NpcInternalId[npc.index] = SEABORN_SPY;
 		i_NpcWeight[npc.index] = 1;
@@ -86,10 +86,10 @@ methodmap SeabornSpy < CClotBody
 		npc.m_flGetClosestTargetTime = 0.0;
 		npc.m_flNextMeleeAttack = 0.0;
 		npc.m_flAttackHappens = 0.0;
-		npc.m_flNextRangedAttack = GetGameTime(npc.index) + 4.0;
+		npc.m_flNextRangedAttack = GetGameTime(npc.index) + 2.5;
 		
 		SetEntityRenderMode(npc.index, RENDER_TRANSALPHA);
-		SetEntityRenderColor(npc.index, 155, 155, 255, 255);
+		SetEntityRenderColor(npc.index, 100, 100, 255, 255);
 		
 		npc.m_iWearable1 = npc.EquipItem("head", "models/weapons/c_models/c_knife/c_knife.mdl");
 		SetEntityRenderMode(npc.m_iWearable1, RENDER_TRANSALPHA);
@@ -129,11 +129,7 @@ public void SeabornSpy_ClotThink(int iNPC)
 		Building_CamoOrRegrowBlocker(npc.index, camo);
 		if(camo)
 		{
-			npc.m_bCamo = false;
-		}
-		else
-		{
-			alpha = RoundFloat((npc.m_flNextRangedAttack - gameTime) * 200.0);
+			alpha = 255 - RoundFloat((gameTime - npc.m_flNextRangedAttack) * 350.0);
 			if(NpcStats_IsEnemySilenced(npc.index))
 			{
 				if(alpha < 50)
@@ -142,14 +138,18 @@ public void SeabornSpy_ClotThink(int iNPC)
 					npc.m_bCamo = false;
 				}
 			}
-			else if(alpha < 0)
+			else if(alpha < 1)
 			{
-				alpha = 0;
+				alpha = 1;
 				npc.m_bCamo = true;
 			}
 		}
+		else
+		{
+			npc.m_bCamo = false;
+		}
 		
-		SetEntityRenderColor(npc.index, 155, 155, 255, alpha);
+		SetEntityRenderColor(npc.index, 100, 100, 255, alpha);
 	}
 
 	if(npc.m_iTarget && !IsValidEnemy(npc.index, npc.m_iTarget))
@@ -195,18 +195,18 @@ public void SeabornSpy_ClotThink(int iNPC)
 
 						npc.PlayMeleeHitSound();
 						SDKHooks_TakeDamage(target, npc.index, npc.index, npc.m_bCamo ? 300.0 : 100.0, DMG_CLUB);
-						
-						if(npc.m_flNextRangedAttack < gameTime)
-						{
-							SetEntityRenderColor(npc.index, 155, 155, 255, 255);
-							npc.m_bCamo = false;
-						}
-
-						npc.m_flNextRangedAttack = gameTime + 4.0;
 					}
 				}
 
 				delete swingTrace;
+
+				if(npc.m_flNextRangedAttack < gameTime)
+				{
+					SetEntityRenderColor(npc.index, 100, 100, 255, 255);
+					npc.m_bCamo = false;
+				}
+
+				npc.m_flNextRangedAttack = gameTime + 2.0;
 			}
 		}
 

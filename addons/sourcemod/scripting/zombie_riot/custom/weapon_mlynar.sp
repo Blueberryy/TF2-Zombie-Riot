@@ -55,7 +55,6 @@ void Mlynar_EntityCreated(int entity)
 	{
 		f_MlynarReflectCooldown[i][entity] = 0.0;
 	}
-
 }
 void Reset_stats_Mlynar_Singular(int client) //This is on disconnect/connect
 {
@@ -163,17 +162,9 @@ public void Weapon_MlynarAttack_Internal(DataPack pack)
 		
 		float damage = 250.0;
 		
-		Address address = TF2Attrib_GetByDefIndex(weapon, 1);
-		if(address != Address_Null)
-			damage *= TF2Attrib_GetValue(address);
-
-		address = TF2Attrib_GetByDefIndex(weapon, 2);
-		if(address != Address_Null)
-			damage *= TF2Attrib_GetValue(address);	
-			
-		address = TF2Attrib_GetByDefIndex(weapon, 476);
-		if(address != Address_Null)
-			damage *= TF2Attrib_GetValue(address);	
+		damage *= Attributes_Get(weapon, 1, 1.0);
+		damage *= Attributes_Get(weapon, 2, 1.0);
+		damage *= Attributes_Get(weapon, 476, 1.0);
 
 
 		damage *= f_MlynarDmgMultiPassive[client];
@@ -236,7 +227,7 @@ public void Weapon_MlynarAttackM2(int client, int weapon, bool &result, int slot
 	//This melee is too unique, we have to code it in a different way.
 	if (Ability_Check_Cooldown(client, slot) < 0.0 || CvarInfiniteCash.BoolValue)
 	{
-		Rogue_OnAbilityUse(client, weapon);
+		Rogue_OnAbilityUse(weapon);
 		Ability_Apply_Cooldown(client, slot, MYLNAR_MAX_CHARGE_TIME);
 		f_MlynarAbilityActiveTime[client] = GetGameTime() + 15.0;
 		b_MlynarResetStats[client] = true;
@@ -267,12 +258,49 @@ public void Weapon_MlynarAttackM2(int client, int weapon, bool &result, int slot
 	}
 }
 
+
+public void Weapon_MlynarAttackM2_pap(int client, int weapon, bool &result, int slot)
+{
+	//This melee is too unique, we have to code it in a different way.
+	if (Ability_Check_Cooldown(client, slot) < 0.0 || CvarInfiniteCash.BoolValue)
+	{
+		Rogue_OnAbilityUse(weapon);
+		Ability_Apply_Cooldown(client, slot, MYLNAR_MAX_CHARGE_TIME);
+		f_MlynarAbilityActiveTime[client] = GetGameTime() + 15.0;
+		b_MlynarResetStats[client] = true;
+		float flPos[3];
+		GetEntPropVector(client, Prop_Data, "m_vecAbsOrigin", flPos);		
+		int particle_Sing = ParticleEffectAt(flPos, "utaunt_spirit_magical_base", 15.0);
+		SetParent(client, particle_Sing);
+		EmitSoundToAll("items/powerup_pickup_knockout.wav", client, SNDCHAN_AUTO, 75,_,1.0,100);
+		MakePlayerGiveResponseVoice(client, 1); //haha!
+		int weapon_new = Store_GiveSpecificItem(client, "Mlynar's Greatsword Pap");
+		i_RefWeaponDelete[client] = EntIndexToEntRef(weapon_new);
+		SetEntPropEnt(client, Prop_Send, "m_hActiveWeapon", weapon_new);
+		ViewChange_Switch(client, weapon_new, "tf_weapon_sword");
+		SDKUnhook(client, SDKHook_PreThink, Mlynar_Think);
+		SDKHook(client, SDKHook_PreThink, Mlynar_Think);
+	}
+	else
+	{
+		float Ability_CD = Ability_Check_Cooldown(client, slot);
+		
+		if(Ability_CD <= 0.0)
+			Ability_CD = 0.0;
+			
+		ClientCommand(client, "playgamesound items/medshotno1.wav");
+		SetDefaultHudPosition(client);
+		SetGlobalTransTarget(client);
+		ShowSyncHudText(client,  SyncHud_Notifaction, "%t", "Ability has cooldown", Ability_CD);	
+	}
+}
+
 public void Enable_Mlynar(int client, int weapon) 
 {
 	if (h_TimerMlynarManagement[client] != INVALID_HANDLE)
 	{
 		//This timer already exists.
-		if(i_CustomWeaponEquipLogic[weapon] == WEAPON_MLYNAR) 
+		if(i_CustomWeaponEquipLogic[weapon] == WEAPON_MLYNAR || i_CustomWeaponEquipLogic[weapon] == WEAPON_MLYNAR_PAP) 
 		{
 			//Is the weapon it again?
 			//Yes?
@@ -286,7 +314,7 @@ public void Enable_Mlynar(int client, int weapon)
 		return;
 	}
 		
-	if(i_CustomWeaponEquipLogic[weapon] == WEAPON_MLYNAR) //9 Is for Passanger
+	if(i_CustomWeaponEquipLogic[weapon] == WEAPON_MLYNAR || i_CustomWeaponEquipLogic[weapon] == WEAPON_MLYNAR_PAP)  //9 Is for Passanger
 	{
 		DataPack pack;
 		h_TimerMlynarManagement[client] = CreateDataTimer(0.1, Timer_Management_Mlynar, pack, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
@@ -328,7 +356,7 @@ public void Mlynar_Cooldown_Logic(int client, int weapon)
 		
 	if(IsValidEntity(weapon))
 	{
-		if(i_CustomWeaponEquipLogic[weapon] == WEAPON_MLYNAR)
+		if(i_CustomWeaponEquipLogic[weapon] == WEAPON_MLYNAR || i_CustomWeaponEquipLogic[weapon] == WEAPON_MLYNAR_PAP)
 		{
 			int weapon_holding = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
 			if(weapon_holding == weapon) //Only show if the weapon is actually in your hand right now.
@@ -468,7 +496,7 @@ public bool TraceEntityEnumerator_Mlynar(int entity, int filterentity)
 }
 
 
-public float Player_OnTakeDamage_Mlynar(int victim, float &damage, int attacker, int weapon, float damagePosition[3])
+float Player_OnTakeDamage_Mlynar(int victim, float &damage, int attacker, int weapon, int pap = 0)
 {
 	f_MlynarHurtDuration[victim] = GetGameTime() + 1.0;
 	//insert reflect code.
@@ -477,18 +505,13 @@ public float Player_OnTakeDamage_Mlynar(int victim, float &damage, int attacker,
 		f_MlynarReflectCooldown[victim][attacker] = GetGameTime() + 0.35;
 
 		float damageModif = 15.0;
-			
-		Address address = TF2Attrib_GetByDefIndex(weapon, 1);
-		if(address != Address_Null)
-			damageModif *= TF2Attrib_GetValue(address);
-
-		address = TF2Attrib_GetByDefIndex(weapon, 2);
-		if(address != Address_Null)
-			damageModif *= TF2Attrib_GetValue(address);	
-				
-		address = TF2Attrib_GetByDefIndex(weapon, 476);
-		if(address != Address_Null)
-			damageModif *= TF2Attrib_GetValue(address);	
+		if(pap == 1)
+		{
+			damageModif = 20.0;
+		}
+		damageModif *= Attributes_Get(weapon, 1, 1.0);
+		damageModif *= Attributes_Get(weapon, 2, 1.0);
+		damageModif *= Attributes_Get(weapon, 476, 1.0);
 
 		damageModif *= f_MlynarDmgMultiPassive[victim];
 		damageModif *= f_MlynarDmgMultiAgressiveClose[victim];
@@ -502,7 +525,7 @@ public float Player_OnTakeDamage_Mlynar(int victim, float &damage, int attacker,
 		static float Entity_Position[3];
 		Entity_Position = WorldSpaceCenter(attacker);
 
-		SDKHooks_TakeDamage(attacker, victim, victim, damageModif, DMG_CLUB, weapon, _, Entity_Position);
+		SDKHooks_TakeDamage(attacker, victim, victim, damageModif, DMG_CLUB, weapon, {0.0,0.0,1.0}, Entity_Position, _, ZR_DAMAGE_REFLECT_LOGIC);
 	}
 		
 	return damage;
@@ -513,6 +536,7 @@ public void Mlynar_Think(int client)
 	if(GetGameTime() > f_MlynarAbilityActiveTime[client])
 	{
 		Store_RemoveSpecificItem(client, "Mlynar's Greatsword");
+		Store_RemoveSpecificItem(client, "Mlynar's Greatsword Pap");
 		//We are Done, kill think.
 		int TemomaryGun = EntRefToEntIndex(i_RefWeaponDelete[client]);
 		if(IsValidEntity(TemomaryGun))
@@ -526,4 +550,67 @@ public void Mlynar_Think(int client)
 		SDKUnhook(client, SDKHook_PreThink, Mlynar_Think);
 		return;
 	}	
+}
+void MlynarTakeDamagePostRaid(int client, int pap = 0)
+{
+	if(f_MlynarAbilityActiveTime[client] > GetGameTime())
+	{
+		if(pap == 0)
+		{
+			f_MlynarDmgMultiPassive[client] -= 0.025;
+			f_MlynarDmgMultiAgressiveClose[client] -= 0.025;
+			f_MlynarDmgMultiHurt[client] -= 0.025;
+		}
+		else if(pap == 1)
+		{
+			f_MlynarDmgMultiPassive[client] -= 0.015;
+			f_MlynarDmgMultiAgressiveClose[client] -= 0.015;
+			f_MlynarDmgMultiHurt[client] -= 0.015;
+		}
+
+		if(f_MlynarDmgMultiPassive[client] < 1.0)
+		{
+			f_MlynarDmgMultiPassive[client] = 1.0;
+		}
+		if(f_MlynarDmgMultiAgressiveClose[client] < 1.0)
+		{
+			f_MlynarDmgMultiAgressiveClose[client] = 1.0;
+		}
+		if(f_MlynarDmgMultiHurt[client] < 1.0)
+		{
+			f_MlynarDmgMultiHurt[client] = 1.0;
+		}
+	}
+}
+
+void MlynarReduceDamageOnKill(int client, int pap = 0)
+{
+	if(f_MlynarAbilityActiveTime[client] > GetGameTime())
+	{
+		if(pap == 0)
+		{
+			f_MlynarDmgMultiPassive[client] -= 0.05;
+			f_MlynarDmgMultiAgressiveClose[client] -= 0.05;
+			f_MlynarDmgMultiHurt[client] -= 0.05;
+		}
+		else if(pap == 1)
+		{
+			f_MlynarDmgMultiPassive[client] -= 0.03;
+			f_MlynarDmgMultiAgressiveClose[client] -= 0.03;
+			f_MlynarDmgMultiHurt[client] -= 0.03;
+		}
+
+		if(f_MlynarDmgMultiPassive[client] < 1.0)
+		{
+			f_MlynarDmgMultiPassive[client] = 1.0;
+		}
+		if(f_MlynarDmgMultiAgressiveClose[client] < 1.0)
+		{
+			f_MlynarDmgMultiAgressiveClose[client] = 1.0;
+		}
+		if(f_MlynarDmgMultiHurt[client] < 1.0)
+		{
+			f_MlynarDmgMultiHurt[client] = 1.0;
+		}
+	}
 }

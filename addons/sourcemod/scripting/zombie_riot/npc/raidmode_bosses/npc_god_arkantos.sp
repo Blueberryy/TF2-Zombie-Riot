@@ -1,6 +1,7 @@
 #pragma semicolon 1
 #pragma newdecls required
 
+static bool BlockLoseSay;
 
 static const char g_DeathSounds[][] = {
 	"vo/npc/male01/no01.wav",
@@ -72,6 +73,9 @@ public void GodArkantos_OnMapStart()
 static int i_TargetToWalkTo[MAXENTITIES];
 static float f_TargetToWalkToDelay[MAXENTITIES];
 static float f_ArkantosCantDieLimit[MAXENTITIES];
+static bool b_angered_twice[MAXENTITIES];
+static float f_TalkDelayCheck;
+static int i_TalkDelayCheck;
 
 methodmap GodArkantos < CClotBody
 {
@@ -236,6 +240,14 @@ methodmap GodArkantos < CClotBody
 		npc.m_iNpcStepVariation = STEPSOUND_NORMAL;		
 		
 		npc.m_bThisNpcIsABoss = true;
+		f_TalkDelayCheck = 0.0;
+		i_TalkDelayCheck = 0;
+		
+		npc.m_iTeamGlow = TF2_CreateGlow(npc.index);
+		b_angered_twice[npc.index] = false;
+
+		SetVariantColor(view_as<int>({255, 255, 255, 200}));
+		AcceptEntityInput(npc.m_iTeamGlow, "SetGlowColor");
 		
 		RaidModeTime = GetGameTime(npc.index) + 200.0;
 		if(ZR_GetWaveCount()+1 >= 59)
@@ -264,6 +276,11 @@ methodmap GodArkantos < CClotBody
 		
 		float amount_of_people = float(CountPlayersOnRed());
 		
+		if(amount_of_people > 12.0)
+		{
+			amount_of_people = 12.0;
+		}
+		
 		amount_of_people *= 0.12;
 		
 		if(amount_of_people < 1.0)
@@ -285,7 +302,7 @@ methodmap GodArkantos < CClotBody
 		SetVariantString("1.2");
 		AcceptEntityInput(npc.m_iWearable2, "SetModelScale");
 
-		Citizen_MiniBossSpawn(npc.index);
+		Citizen_MiniBossSpawn();
 		Building_RaidSpawned(npc.index);
 		
 		Music_SetRaidMusic("#zombiesurvival/medieval_raid/kazimierz_boss.mp3", 189, true);
@@ -317,8 +334,34 @@ public void GodArkantos_ClotThink(int iNPC)
 		Music_RoundEnd(entity);
 		RaidBossActive = INVALID_ENT_REFERENCE;
 		SDKUnhook(npc.index, SDKHook_Think, GodArkantos_ClotThink);
+		npc.m_bDissapearOnDeath = true;
+		BlockLoseSay = true;
 	}
-
+	if(b_angered_twice[npc.index])
+	{
+		BlockLoseSay = true;
+		int closestTarget = GetClosestTarget(npc.index);
+		if(IsValidEntity(closestTarget))
+		{
+			npc.FaceTowards(WorldSpaceCenter(closestTarget), 100.0);
+		}
+		npc.SetActivity("ACT_IDLE");
+		npc.m_bisWalking = false;
+		npc.StopPathing();
+		for (int client = 0; client < MaxClients; client++)
+		{
+			if(IsValidClient(client) && GetClientTeam(client) == 2 && TeutonType[client] != TEUTON_WAITING)
+			{
+				TF2_StunPlayer(client, 0.5, 0.5, TF_STUNFLAGS_LOSERSTATE);
+			}
+		}
+		if(ArkantosForceTalk())
+		{
+			npc.m_bDissapearOnDeath = true;
+			RequestFrame(KillNpc, EntIndexToEntRef(npc.index));
+		}
+		return;
+	}
 	if(npc.m_flNextDelayTime > gameTime)
 	{
 		return;
@@ -445,12 +488,12 @@ public void GodArkantos_ClotThink(int iNPC)
 		}
 		else if(IsValidEnemy(npc.index, i_TargetToWalkTo[npc.index]))
 		{
-			if(flDistanceToTarget < Pow(500.0, 2.0) && flDistanceToTarget > Pow(250.0, 2.0) && npc.m_flRangedSpecialDelay < GetGameTime(npc.index))
+			if(flDistanceToTarget < (500.0 * 500.0) && flDistanceToTarget > (250.0 * 250.0) && npc.m_flRangedSpecialDelay < GetGameTime(npc.index))
 			{
 				ActionToTake = 1;
 				//first we try to jump to them if close enough.
 			}
-			else if(flDistanceToTarget < Pow(250.0, 2.0) && npc.m_flNextRangedAttack < GetGameTime(npc.index) && ZR_GetWaveCount()+1 > 15)
+			else if(flDistanceToTarget < (250.0 * 250.0) && npc.m_flNextRangedAttack < GetGameTime(npc.index) && ZR_GetWaveCount()+1 > 15)
 			{
 				//We are pretty close, we will do a wirlwind to kick everyone away after a certain amount of delay so they can prepare.
 				ActionToTake = 2;
@@ -458,7 +501,7 @@ public void GodArkantos_ClotThink(int iNPC)
 		}
 		else if(IsValidAlly(npc.index, i_TargetToWalkTo[npc.index]))
 		{
-			if(flDistanceToTarget < Pow(125.0, 2.0) && npc.m_flArkantosBuffEffect < GetGameTime(npc.index) && ZR_GetWaveCount()+1 > 30)
+			if(flDistanceToTarget < (125.0* 125.0) && npc.m_flArkantosBuffEffect < GetGameTime(npc.index) && ZR_GetWaveCount()+1 > 30)
 			{
 				//can only be above wave 15.
 				ActionToTake = -1;
@@ -577,6 +620,30 @@ public Action GodArkantos_OnTakeDamage(int victim, int &attacker, int &inflictor
 		SetEntProp(victim, Prop_Data, "m_iHealth", 1);
 		damage = 0.0;
 		return Plugin_Handled;
+	}
+
+	if(ZR_GetWaveCount()+1 > 55 && !b_angered_twice[npc.index] && !Waves_InFreeplay())
+	{
+		if(damage >= GetEntProp(npc.index, Prop_Data, "m_iHealth"))
+		{
+			SetEntProp(npc.index, Prop_Data, "m_iHealth", 1);
+			b_angered_twice[npc.index] = true;
+			b_ThisEntityIgnoredByOtherNpcsAggro[npc.index] = true; //Make allied npcs ignore him.
+			b_NpcIsInvulnerable[npc.index] = true;
+			b_DoNotUnStuck[npc.index] = true;
+			b_CantCollidieAlly[npc.index] = true;
+			b_CantCollidie[npc.index] = true;
+			SetEntityCollisionGroup(npc.index, 24);
+			b_ThisEntityIgnoredByOtherNpcsAggro[npc.index] = true; //Make allied npcs ignore him.
+			b_NpcIsInvulnerable[npc.index] = true;
+			RemoveNpcFromEnemyList(npc.index);
+			GiveProgressDelay(32.0);
+			damage = 0.0;
+			RaidModeTime += 60.0;
+			f_TalkDelayCheck = GetGameTime() + 4.0;
+			CPrintToChatAll("{lightblue}God Arkantos{default}: Thats it, i will make you listen.");
+			return Plugin_Handled;
+		}
 	}
 	return Plugin_Changed;
 }
@@ -804,7 +871,7 @@ public void GodArkantos_OnTakeDamagePost(int victim, int attacker, int inflictor
 				GodArkantosSpawnEnemy(MEDIVAL_HUSSAR,100000, RoundToCeil(1.0 * MultiGlobal));
 				GodArkantosSpawnEnemy(MEDIVAL_RIDDENARCHER,75000, RoundToCeil(10.0 * MultiGlobal));
 				GodArkantosSpawnEnemy(MEDIVAL_MONK,RoundToCeil(25000.0 * MultiGlobalHealth), 1);
-				GodArkantosSpawnEnemy(MEDIVAL_SON_OF_OSIRIS, RoundToCeil(7500000.0 * MultiGlobalHealth), 1, true);		
+				GodArkantosSpawnEnemy(MEDIVAL_SON_OF_OSIRIS, RoundToCeil(750000.0 * MultiGlobalHealth), 1, true);		
 				GodArkantosSpawnEnemy(MEDIVAL_VILLAGER, RoundToCeil(150000.0 * MultiGlobalHealth), 1, true);		
 			}
 			else
@@ -823,28 +890,31 @@ public void GodArkantos_OnTakeDamagePost(int victim, int attacker, int inflictor
 public void GodArkantos_NPCDeath(int entity)
 {
 	GodArkantos npc = view_as<GodArkantos>(entity);
-	if(!npc.m_bDissapearOnDeath)
+	if(!BlockLoseSay)
 	{
-		npc.PlayDeathSound();
-	}
-	
-	switch(GetRandomInt(0,3))
-	{
-		case 0:
+		if(!npc.m_bDissapearOnDeath)
 		{
-			CPrintToChatAll("{lightblue}God Arkantos{default}: I have failed Atlantis...");
+			npc.PlayDeathSound();
 		}
-		case 1:
+		
+		switch(GetRandomInt(0,3))
 		{
-			CPrintToChatAll("{lightblue}God Arkantos{default}: How was my army defeated..?");
-		}
-		case 2:
-		{
-			CPrintToChatAll("{lightblue}God Arkantos{default}: You dont know what you are doing!!");
-		}
-		case 3:
-		{
-			CPrintToChatAll("{lightblue}God Arkantos{default}: We should be fighting together, not against eachother, the {blue}sea{default} will be your doom...");
+			case 0:
+			{
+				CPrintToChatAll("{lightblue}God Arkantos{default}: I have failed Atlantis...");
+			}
+			case 1:
+			{
+				CPrintToChatAll("{lightblue}God Arkantos{default}: How was my army defeated..?");
+			}
+			case 2:
+			{
+				CPrintToChatAll("{lightblue}God Arkantos{default}: You dont know what you are doing!!");
+			}
+			case 3:
+			{
+				CPrintToChatAll("{lightblue}God Arkantos{default}: We should be fighting together, not against eachother, the {blue}sea{default} will be your doom...");
+			}
 		}
 	}
 
@@ -982,7 +1052,7 @@ void GodArkantosSelfDefense(GodArkantos npc, float gameTime)
 
 			float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
 
-			if(flDistanceToTarget < Pow(NORMAL_ENEMY_MELEE_RANGE_FLOAT * 1.25, 2.0))
+			if(flDistanceToTarget < (NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED * 1.25))
 			{
 				int Enemy_I_See;
 									
@@ -1018,9 +1088,6 @@ void GodArkantosJumpSpecial(GodArkantos npc, float gameTime)
 		static float ThrowPos[3]; 
 		int TargetToLungeTo = GetClosestTarget(npc.index,_,_,_,_,_,_,true); //only visible targets!
 		float Range = 150.0;
-
-		if(LastMann)
-			Range = 85.0; //nerf range alot so the lastman can actuall dodge.
 		
 		if(IsValidEnemy(npc.index,TargetToLungeTo))
 		{
@@ -1140,7 +1207,7 @@ void GodArkantosHurricane(GodArkantos npc, float gameTime)
 			{
 				GetEntPropVector(EnemyLoop, Prop_Send, "m_vecOrigin", EnemyPos);
 				float Distance = GetVectorDistance(pos, EnemyPos, true);
-				if(Distance < Pow(Range, 2.0))
+				if(Distance < (Range * Range))
 				{
 					//only apply the laser if they are near us.
 					if(IsValidClient(EnemyLoop) && Can_I_See_Enemy_Only(npc.index, EnemyLoop) && IsEntityAlive(EnemyLoop))
@@ -1167,6 +1234,12 @@ void GodArkantosHurricane(GodArkantos npc, float gameTime)
 				
 							i_LaserEntityIndex[EnemyLoop] = EntIndexToEntRef(laser);
 							//Im seeing a new target, relocate laser particle.
+						}
+						else
+						{
+							int laser = EntRefToEntIndex(i_LaserEntityIndex[EnemyLoop]);
+							SetEntityRenderColor(laser, red, green, blue, 255);
+							SetEntityRenderMode(laser, RENDER_TRANSCOLOR);
 						}
 					}
 					else
@@ -1202,7 +1275,7 @@ void GodArkantosHurricane(GodArkantos npc, float gameTime)
 				{
 					GetEntPropVector(entity_close, Prop_Send, "m_vecOrigin", EnemyPos);
 					float Distance = GetVectorDistance(pos, EnemyPos, true);
-					if(Distance < Pow(Range, 2.0))
+					if(Distance < (Range * Range))
 					{
 						//only apply the laser if they are near us.
 						if(Can_I_See_Enemy_Only(npc.index, entity_close) && IsEntityAlive(entity_close))
@@ -1229,6 +1302,12 @@ void GodArkantosHurricane(GodArkantos npc, float gameTime)
 					
 								i_LaserEntityIndex[entity_close] = EntIndexToEntRef(laser);
 								//Im seeing a new target, relocate laser particle.
+							}
+							else
+							{
+								int laser = EntRefToEntIndex(i_LaserEntityIndex[entity_close]);
+								SetEntityRenderColor(laser, red, green, blue, 255);
+								SetEntityRenderMode(laser, RENDER_TRANSCOLOR);
 							}
 						}
 						else
@@ -1355,7 +1434,7 @@ void GodArkantosHurricane(GodArkantos npc, float gameTime)
 					{
 						GetEntPropVector(entity_close, Prop_Send, "m_vecOrigin", EnemyPos);
 						float Distance = GetVectorDistance(pos, EnemyPos, true);
-						if(Distance < Pow(Range, 2.0))
+						if(Distance < (Range * Range))
 						{
 							//only apply the laser if they are near us.
 							if(Can_I_See_Enemy_Only(npc.index, entity_close) && IsEntityAlive(entity_close))
@@ -1488,4 +1567,51 @@ void ArkantosSayWords()
 			CPrintToChatAll("{lightblue}God Arkantos{default}: Together for Atlantis! As one and for all!");
 		}
 	}
+}
+
+
+bool ArkantosForceTalk()
+{
+	if(i_TalkDelayCheck == 5)
+	{
+		return true;
+	}
+	if(f_TalkDelayCheck < GetGameTime())
+	{
+		f_TalkDelayCheck = GetGameTime() + 7.0;
+		RaidModeTime += 10.0; //cant afford to delete it, since duo.
+		switch(i_TalkDelayCheck)
+		{
+			case 0:
+			{
+				ReviveAll(true);
+				CPrintToChatAll("{lightblue}God Arkantos{default}: Since you refuse to listen, i will have to restrain you.");
+				i_TalkDelayCheck += 1;
+			}
+			case 1:
+			{
+				CPrintToChatAll("{lightblue}God Arkantos{default}: I am not your enemy and i can revive all my allies, so do not worry.");
+				i_TalkDelayCheck += 1;
+			}
+			case 2:
+			{
+				CPrintToChatAll("{lightblue}God Arkantos{default}: The true enemy is the {blue}sea{default}, if we dont beat them, then were done for. They can infect any one of us.");
+				i_TalkDelayCheck += 1;
+			}
+			case 3:
+			{
+				CPrintToChatAll("{lightblue}God Arkantos{default}: I will hand you a bit of help as youre proven to be a strong foe.");
+				i_TalkDelayCheck = 5;
+				for (int client = 0; client < MaxClients; client++)
+				{
+					if(IsValidClient(client) && GetClientTeam(client) == 2 && TeutonType[client] != TEUTON_WAITING)
+					{
+						Items_GiveNamedItem(client, "Arkantos's Godly assistance");
+						CPrintToChat(client, "{default}You feel something around you... and gained: {lightblue}''Arkantos's Godly assistance''{default}!");
+					}
+				}
+			}
+		}
+	}
+	return false;
 }

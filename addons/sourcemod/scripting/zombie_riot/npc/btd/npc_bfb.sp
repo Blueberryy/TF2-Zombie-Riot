@@ -19,30 +19,24 @@ static const char SoundMoabPop[][] =
 
 static float MoabSpeed()
 {
-	/*if(CurrentRound < 80)
+	if(CurrentRound < 80)
 		return 200.0;
 	
 	if(CurrentRound < 100)
 		return 200.0 * (1.0 + (CurrentRound - 79) * 0.02);
 	
-	return 200.0 * (1.0 + (CurrentRound - 70) * 0.02);*/
-	
-	if(CurrentRound < 60)
-		return 200.0;
-	
-	return 200.0 * (1.0 + (CurrentRound - 50) * 0.02);
+	return 200.0 * (1.0 + (CurrentRound - 70) * 0.02);
 }
 
 static int MoabHealth(bool fortified)
 {
 	float value = 130000.0;	// 200x3 + 700 RGB
-	//if(CurrentRound != 59 && CurrentRound != 79 && CurrentRound != 99)
-	//	value *= 0.25;
+	value *= 0.5;
 	
 	if(fortified)
 		value *= 2.0;
 	
-	/*if(CurrentRound > 123)
+	if(CurrentRound > 123)
 	{
 		value *= 1.05 + (CurrentRound - 106) * 0.15;
 	}
@@ -53,15 +47,6 @@ static int MoabHealth(bool fortified)
 	else if(CurrentRound > 79)
 	{
 		value *= 1.0 + (CurrentRound - 79) * 0.02;
-	}*/
-	
-	if(CurrentRound > 83)
-	{
-		value *= 1.05 + (CurrentRound - 66) * 0.15;
-	}
-	else if(CurrentRound > 59)
-	{
-		value *= 1.0 + (CurrentRound - 31) * 0.05;
 	}
 	
 	return RoundFloat(value) + (Bloon_Health(fortified, Bloon_Ceramic) * 9);	// 104x3x3 RGB
@@ -229,7 +214,7 @@ public void Bfb_ClotThink(int iNPC)
 							}
 							else
 							{
-								SDKHooks_TakeDamage(target, npc.index, npc.index, 80.0, DMG_CLUB, -1, _, vecHit);
+								SDKHooks_TakeDamage(target, npc.index, npc.index, 80.0 * 2.0, DMG_CLUB, -1, _, vecHit);
 							}
 						}
 						else
@@ -240,7 +225,7 @@ public void Bfb_ClotThink(int iNPC)
 							}
 							else
 							{
-								SDKHooks_TakeDamage(target, npc.index, npc.index, 100.0, DMG_CLUB, -1, _, vecHit);
+								SDKHooks_TakeDamage(target, npc.index, npc.index, 100.0 * 2.0, DMG_CLUB, -1, _, vecHit);
 							}
 						}
 					}

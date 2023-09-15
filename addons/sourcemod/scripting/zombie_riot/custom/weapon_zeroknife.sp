@@ -1,6 +1,9 @@
 #pragma semicolon 1
 #pragma newdecls required
 
+#define MAXANGLEPITCH	65.0
+#define MAXANGLEYAW		75.0
+
 //Use ZeroAoeKnife For func_attack and ZeroRage func_attack2
 static int how_many_times_fisted[MAXTF2PLAYERS];
 static int weapon_id[MAXPLAYERS+1]={0, ...};
@@ -24,10 +27,6 @@ static float ability_cooldown[MAXPLAYERS+1]={0.0, ...};
 #define FinalWrathRageUberTimer 1.5 //How long uber is
 #define FinalWrathRagePapSpeed 0.38 //Attack Speed Boost attribute 6
 #define FinalWrathResetSpeedTimer 17.0 //Back to normal Attack speed
-
-//Don't touch these unless you know how to do it
-#define MAXANGLEPITCH	65.0
-#define MAXANGLEYAW		75.0
 
 public void ZeroRage_ClearAll()
 {
@@ -79,17 +78,13 @@ public Action ASX_Timer5(Handle timer, int client)
 				
 				int weapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
 				
-				Address address = TF2Attrib_GetByDefIndex(weapon, 1);
-				if(address != Address_Null)
-					damage *= TF2Attrib_GetValue(address);
-					
-				address = TF2Attrib_GetByDefIndex(weapon, 2);
-				if(address != Address_Null)
-					damage *= TF2Attrib_GetValue(address);
-					
-				address = TF2Attrib_GetByDefIndex(weapon, 476);
-				if(address != Address_Null)
-					damage *= TF2Attrib_GetValue(address);	
+				if(!IsValidEntity(weapon))
+				{
+					return Plugin_Handled;
+				}
+				damage *= Attributes_Get(weapon, 1, 1.0);
+				damage *= Attributes_Get(weapon, 2, 1.0);
+				damage *= Attributes_Get(weapon, 476, 1.0);
 					
 				bool hit = false;
 				float hit_enemies = 1.0;
@@ -170,18 +165,13 @@ public Action ASX_Timer5_pap(Handle timer, int client)
 				float damage = 17.0;
 				
 				int weapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
-				
-				Address address = TF2Attrib_GetByDefIndex(weapon, 1);
-				if(address != Address_Null)
-					damage *= TF2Attrib_GetValue(address);
-					
-				address = TF2Attrib_GetByDefIndex(weapon, 2);
-				if(address != Address_Null)
-					damage *= TF2Attrib_GetValue(address);
-					
-				address = TF2Attrib_GetByDefIndex(weapon, 476);
-				if(address != Address_Null)
-					damage *= TF2Attrib_GetValue(address);	
+				if(!IsValidEntity(weapon))
+				{
+					return Plugin_Handled;
+				}
+				damage *= Attributes_Get(weapon, 1, 1.0);
+				damage *= Attributes_Get(weapon, 2, 1.0);
+				damage *= Attributes_Get(weapon, 476, 1.0);
 					
 				bool hit = false;
 				float hit_enemies = 1.0;
@@ -251,7 +241,7 @@ public void ZeroRage(int client, int weapon, bool crit, int slot)
 	{
 		if (Ability_Check_Cooldown(client, slot) < 0.0)
 		{
-			Rogue_OnAbilityUse(client, weapon);
+			Rogue_OnAbilityUse(weapon);
 			Ability_Apply_Cooldown(client, slot, MultiRageCooldown);
 			
 			weapon_id[client] = weapon;
@@ -279,11 +269,9 @@ public void ZeroRage(int client, int weapon, bool crit, int slot)
 						weapon_id[client] = weapon;
 				
 						float Original_Attackspeed = 1.0;
-						Address address = TF2Attrib_GetByDefIndex(weapon, 6);
-						if(address != Address_Null)
-							Original_Attackspeed = TF2Attrib_GetValue(address);
+						Original_Attackspeed = Attributes_Get(weapon, 6, 1.0);
 
-						TF2Attrib_SetByDefIndex(weapon, 6, Original_Attackspeed * MultiWrathRageSpeed);
+						Attributes_Set(weapon, 6, Original_Attackspeed * MultiWrathRageSpeed);
 						CreateTimer(MultiRageCooldown, Ability_charged, client, TIMER_FLAG_NO_MAPCHANGE);
 			
 						TF2_StunPlayer(client, MultiWrathStunTimer, _, TF_STUNFLAG_BONKSTUCK, 0);
@@ -333,7 +321,7 @@ public void ZeroDefenceRage(int client, int weapon, bool crit, int slot)
 	{
 		if (Ability_Check_Cooldown(client, slot) < 0.0)
 		{
-			Rogue_OnAbilityUse(client, weapon);
+			Rogue_OnAbilityUse(weapon);
 			Ability_Apply_Cooldown(client, slot, FirstDefenceRageCooldown);
 			
 			weapon_id[client] = weapon;
@@ -366,18 +354,16 @@ public void ZeroWrathRage(int client, int weapon, bool crit, int slot)
 	{
 		if (Ability_Check_Cooldown(client, slot) < 0.0)
 		{
-			Rogue_OnAbilityUse(client, weapon);
+			Rogue_OnAbilityUse(weapon);
 			Ability_Apply_Cooldown(client, slot, FinalWrathRageCooldown);
 			
 			weapon_id[client] = weapon;
 			
 			float Original_Attackspeed = 1.0;
 			
-			Address address = TF2Attrib_GetByDefIndex(weapon, 6);
-			if(address != Address_Null)
-				Original_Attackspeed= TF2Attrib_GetValue(address);
+			Original_Attackspeed = Attributes_Get(weapon, 6, 1.0);
 
-			TF2Attrib_SetByDefIndex(weapon, 6, Original_Attackspeed * FinalWrathRagePapSpeed);
+			Attributes_Set(weapon, 6, Original_Attackspeed * FinalWrathRagePapSpeed);
 			
 			TF2_StunPlayer(client, FinalWrathRageStunTimer, _, TF_STUNFLAG_BONKSTUCK, 0);
 			TF2_AddCondition(client, TFCond_UberchargedHidden, FinalWrathRageUberTimer, 0);
@@ -438,11 +424,9 @@ public Action Reset_Attackspeed(Handle cut_timer, int ref)
 		float Original_Atackspeed;
 
 		f_BackstabDmgMulti[weapon] = 1.0;
-		Address address = TF2Attrib_GetByDefIndex(weapon, 6);
-		if(address != Address_Null)
-			Original_Atackspeed = TF2Attrib_GetValue(address);
+		Original_Atackspeed = Attributes_Get(weapon, 6, 1.0);
 
-		TF2Attrib_SetByDefIndex(weapon, 6, Original_Atackspeed / MultiWrathRageSpeed);
+		Attributes_Set(weapon, 6, Original_Atackspeed / MultiWrathRageSpeed);
 	}
 	return Plugin_Handled;
 }
@@ -455,11 +439,9 @@ public Action Reset_Attackspeed_Final(Handle cut_timer, int ref)
 		float Original_Atackspeed;
 
 		f_BackstabDmgMulti[weapon] = 0.65;
-		Address address = TF2Attrib_GetByDefIndex(weapon, 6);
-		if(address != Address_Null)
-			Original_Atackspeed = TF2Attrib_GetValue(address);
+		Original_Atackspeed = Attributes_Get(weapon, 6, 1.0);
 
-		TF2Attrib_SetByDefIndex(weapon, 6, Original_Atackspeed / FinalWrathRagePapSpeed);
+		Attributes_Set(weapon, 6, Original_Atackspeed / FinalWrathRagePapSpeed);
 	}
 	return Plugin_Handled;
 }

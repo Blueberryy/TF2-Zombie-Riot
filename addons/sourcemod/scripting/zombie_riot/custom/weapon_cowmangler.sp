@@ -3,13 +3,6 @@
 
 static float Strength[MAXTF2PLAYERS];
 
-#define MAXENTITIES 2048
-
-
-#define MAX_TARGETS_HIT 10
-#define MAX_SOUND_FILE_LENGTH 80
-#define MAX_EFFECT_NAME_LENGTH 48
-
 static bool BEAM_CanUse[MAXTF2PLAYERS];
 static bool BEAM_IsUsing[MAXTF2PLAYERS];
 static int BEAM_TicksActive[MAXTF2PLAYERS];
@@ -62,13 +55,9 @@ public void Weapon_Mangler(int client, int weapon, const char[] classname, bool 
 			
 			Strength[client] = 112.0;
 					
-			Address address = TF2Attrib_GetByDefIndex(weapon, 1);
-			if(address != Address_Null)
-				Strength[client] *= TF2Attrib_GetValue(address);
+			Strength[client] *= Attributes_Get(weapon, 1, 1.0);
 						
-			address = TF2Attrib_GetByDefIndex(weapon, 2);
-			if(address != Address_Null)
-				Strength[client] *= TF2Attrib_GetValue(address);
+			Strength[client] *= Attributes_Get(weapon, 2, 1.0);
 				
 			//TBB_Ability(client);
 			TBB_Ability_Mangler_1(client);

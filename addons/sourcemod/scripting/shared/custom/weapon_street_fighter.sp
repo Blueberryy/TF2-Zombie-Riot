@@ -184,7 +184,7 @@ static void StreetFighter(int client, int weapon, int slot, int buttons, int CD)
 				}
 				else
 				{
-					Rogue_OnAbilityUse(client, weapon);
+					Rogue_OnAbilityUse(weapon);
 				}
 
 				for(int i = sizeof(LastCombos[]) - 1; i > 0; i--)
@@ -491,9 +491,7 @@ public Action SF_Stack(int client, int entity, int first, int second, int third,
 		{
 			PrintCenterText(client, "Stack!");
 
-			Address address = TF2Attrib_GetByDefIndex(entity, 2);
-			if(address != Address_Null)
-				TF2Attrib_SetValue(address, TF2Attrib_GetValue(address) * 1.1);
+			Attributes_SetMulti(entity, 2, 1.1);
 			
 			ClientCommand(client, "playgamesound items/powerup_pickup_resistance.wav");
 			cooldown += 1.0;

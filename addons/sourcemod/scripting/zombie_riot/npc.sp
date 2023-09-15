@@ -2,7 +2,14 @@
 #pragma newdecls required
 
 #define ITSTILIVES 666
-#define NORMAL_ENEMY_MELEE_RANGE_FLOAT 100.0
+
+#define NORMAL_ENEMY_MELEE_RANGE_FLOAT 110.0
+// 120 * 120
+#define NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED 12100.0
+
+#define GIANT_ENEMY_MELEE_RANGE_FLOAT 150.0
+// 140 * 140
+#define GIANT_ENEMY_MELEE_RANGE_FLOAT_SQUARED 22500.0
 
 static float f_FactionCreditGain;
 static float f_FactionCreditGainReduction[MAXTF2PLAYERS];
@@ -288,7 +295,7 @@ enum
 	SEABORN_MEDIC		= 251,
 	SEABORN_SNIPER		= 252,
 	SEABORN_SPY		= 253,
-	ALT_BARRACKS_SCHWERTKRIEG = 254,	//warp
+	ALT_BARRACKS_SCHWERTKRIEG = 254,
 	ALT_BARRACK_IKUNAGAE = 255,
 	ALT_BARRACK_RAILGUNNER = 256,
 	ALT_BARRACK_BASIC_MAGE = 257,
@@ -306,7 +313,69 @@ enum
 	PATHSHAPER_FRACTAL	= 269,
 	BARRACKS_TEUTONIC_KNIGHT	= 270,
 	BARRACKS_VILLAGER			= 271,
-	BARRACKS_BUILDING			= 272
+	BARRACKS_BUILDING			= 272,
+	TIDELINKED_BISHOP	= 273,
+	TIDELINKED_ARCHON	= 274,
+	ALT_BARRACK_SCIENTIFIC_WITCHERY = 275,
+	SEABORN_GUARD		= 276,
+	SEABORN_DEFENDER	= 277,
+	SEABORN_VANGUARD	= 278,
+	SEABORN_CASTER		= 279,
+	SEABORN_SPECIALIST	= 280,
+	SEABORN_SUPPORTER	= 281,
+	ISHARMLA		= 282,
+	ISHARMLA_TRANS		= 283,
+	
+	//ruina
+	RUINA_THEOCRACY = 284,
+	EXPIDONSA_BENERA = 285,
+	EXPIDONSA_PENTAL = 286,
+	EXPIDONSA_DEFANDA = 287,
+	EXPIDONSA_SELFAM_IRE = 288,
+	EXPIDONSA_VAUSMAGICA = 289,
+	EXPIDONSA_PISTOLEER = 290,
+	EXPIDONSA_DIVERSIONISTICO 	= 291,
+	RUINA_ADIANTUM 				= 292,
+	RUINA_LANIUS				= 293,
+	EXPIDONSA_HEAVYPUNUEL		= 294,
+	RUINA_MAGIA					= 295,
+	EXPIDONSA_SEARGENTIDEAL		= 296,
+
+	SEA_RAIDBOSS_SILVESTER		= 297,
+	SEA_RAIDBOSS_GOGGLES		= 298,
+	SEA_RAIDBOSS_DONNERKRIEG	= 299,
+	SEA_RAIDBOSS_SCHWERTKRIEG	= 300,
+	SEA_RAIDBOSS_GOD_ARKANTOS	= 301,
+	BOB_THE_FIRST			= 302,
+	SEA_ALLY_SILVESTER		= 303,
+	SEA_ALLY_GOGGLES		= 304,
+	SEA_ALLY_DONNERKRIEG		= 305,
+	SEA_ALLY_SCHWERTKRIEG		= 306,
+	SEA_ALLY_GOD_ARKANTOS		= 307,
+	VIP_BUILDING			= 308,
+	EXPIDONSA_RIFALMANU 	= 309,
+	EXPIDONSA_SICCERINO		= 310,
+	EXPIDONSA_SOLDINE_PROTOTYPE		= 311,
+	EXPIDONSA_SOLDINE				= 312,
+	EXPIDONSA_PROTECTA				= 313,
+	EXPIDONSA_SNIPONEER				= 314,
+	EXPIDONSA_EGABUNAR				= 315,
+	EXPIDONSA_ENEGAKAPUS			= 316,
+	EXPIDONSA_CAPTINOAGENTUS		= 317,
+	RAIDMODE_EXPIDONSA_SENSAL		= 318,
+	EXPIDONSA_DUALREA				= 319,
+	EXPIDONSA_GUARDUS				= 320,
+	EXPIDONSA_VAUSTECHICUS			= 321,
+	EXPIDONSA_MINIGUNASSISA			= 322,
+	EXPIDONSA_IGNITUS				= 323,
+	EXPIDONSA_HELENA				= 324,
+
+	EXPIDONSA_ERASUS				= 325,
+	EXPIDONSA_GIANTTANKUS			= 326,
+	EXPIDONSA_ANFUHREREISENHARD		= 327, //not as many gimmics as everything else has a million gimmics
+	EXPIDONSA_SPEEDUSADIVUS			= 328,
+	WEAPON_SENSAL_AFTERIMAGE		= 329
+	
 }
 
 public const char NPC_Names[][] =
@@ -586,7 +655,7 @@ public const char NPC_Names[][] =
 	"Seaborn Medic",
 	"Seaborn Sniper",
 	"Seaborn Spy",
-	"Barracks SchwertKrieg",	//warp
+	"Barracks SchwertKrieg",	
 	"Barracks Ikunagae",
 	"Barracks Railgunner",
 	"Barracks Basic Mage",
@@ -604,7 +673,426 @@ public const char NPC_Names[][] =
 	"Pathshaper Fractal",
 	"Barracks Teutonic Knight",
 	"Barracks Villager",
-	"Barracks Building"
+	"Barracks Building",
+	"Tidelinked Bishop",
+	"Tidelinked Archon",
+	"Scientific Witchery",
+	"Seaborn Guard",
+	"Seaborn Defender",
+	"Seaborn Vanguard",
+	"Seaborn Caster",
+	"Seaborn Specialist",
+	"Seaborn Supporter",
+	"Ishar'mla, Heart of Corruption",
+	"Ishar'mla, Heart of Corruption",
+	"Theocracy",
+	"Benera",
+	"Pental",
+	"Defanda",
+	"Selfam Ire",
+	"Vaus Magica",
+	"Pistoleer",
+	"Diversionistico",
+	"Adiantum",
+	"Lanius",
+	"Heavy Punuel",
+	"Magia",
+	"Seargent Ideal",
+
+	"Silvester",
+	"Blue Goggles",
+	"Donnerkrieg",
+	"Schwertkrieg",
+	"God Arkantos",
+	"Bob",
+	"Seaborn Silvester",
+	"Seaborn Blue Goggles",
+	"Seaborn Donnerkrieg",
+	"Seaborn Schwertkreig",
+	"Seaborn God Arkantos",
+	"VIP Building, The Objective",
+	"Rifal Manu",
+	"Siccerino",
+	"Soldine Prototype",
+	"Soldine",
+	"Protecta",
+	"Sniponeer",
+	"Ega Bunar",
+	"Enega Kapus",
+	"Captino Agentus",
+	"Sensal",
+	"Dual Rea",
+	"Guardus",
+	"Vaus Techicus",
+	"Minigun Assisa",
+	"Ignitus",
+	"Helena",
+	"Erasus",
+	"Giant Tankus",
+	"Anfuhrer Eisenhard",
+	"Speedus Adivus",
+	"Allied Sensal Afterimage"
+};
+// See items.sp for IDs to names
+public const int NPCCategory[] =
+{
+	-1,	// NOTHING 						= 0,	
+	3,	// HEADCRAB_ZOMBIE 				= 1,	
+	3,	// FORTIFIED_HEADCRAB_ZOMBIE 		= 2,	
+	3,	// FASTZOMBIE 						= 3,	
+	3,	// FORTIFIED_FASTZOMBIE 			= 4,
+	3,	// TORSOLESS_HEADCRAB_ZOMBIE 		= 5,	
+	3,	// FORTIFIED_GIANT_POISON_ZOMBIE 	= 6,	
+	3,	// POISON_ZOMBIE 					= 7,	
+	3,	// FORTIFIED_POISON_ZOMBIE 		= 8,	
+	3,	// FATHER_GRIGORI 					= 9,
+	3,	// COMBINE_POLICE_PISTOL			= 10,	
+	3,	// COMBINE_POLICE_SMG				= 11,	
+	3,	// COMBINE_SOLDIER_AR2				= 12,
+	3,	// COMBINE_SOLDIER_SHOTGUN			= 13,	
+	3,	// COMBINE_SOLDIER_SWORDSMAN		= 14,
+	3,	// COMBINE_SOLDIER_ELITE			= 15,
+	3,	// COMBINE_SOLDIER_GIANT_SWORDSMAN	= 16,
+	3,	// COMBINE_SOLDIER_DDT				= 17,
+	3,	// COMBINE_SOLDIER_COLLOSS			= 18, //Hetimus
+	3,	// COMBINE_OVERLORD				= 19, 
+	3,	// SCOUT_ZOMBIE					= 20,
+	3,	// ENGINEER_ZOMBIE					= 21,
+	3,	// HEAVY_ZOMBIE					= 22,
+	3,	// FLYINGARMOR_ZOMBIE				= 23,
+	3,	// FLYINGARMOR_TINY_ZOMBIE			= 24,
+	3,	// KAMIKAZE_DEMO					= 25,
+	3,	// MEDIC_HEALER					= 26,
+	3,	// HEAVY_ZOMBIE_GIANT				= 27,
+	3,	// SPY_FACESTABBER					= 28,
+	3,	// SOLDIER_ROCKET_ZOMBIE			= 29,
+	3,	// SOLDIER_ZOMBIE_MINION			= 30,
+	3,	// SOLDIER_ZOMBIE_BOSS				= 31,
+	3,	// SPY_THIEF						= 32,
+	3,	// SPY_TRICKSTABBER				= 33,
+	3,	// SPY_HALF_CLOACKED				= 34,
+	3,	// SNIPER_MAIN						= 35,
+	3,	// DEMO_MAIN						= 36,
+	3,	// BATTLE_MEDIC_MAIN				= 37,
+	3,	// GIANT_PYRO_MAIN					= 38,
+	3,	// COMBINE_DEUTSCH_RITTER			= 39,
+	3,	// SPY_MAIN_BOSS					= 40,
+
+	5,	// XENO_HEADCRAB_ZOMBIE 				= 41,	
+	5,	// XENO_FORTIFIED_HEADCRAB_ZOMBIE 		= 42,	
+	5,	// XENO_FASTZOMBIE 					= 43,	
+	5,	// XENO_FORTIFIED_FASTZOMBIE 			= 44,
+	5,	// XENO_TORSOLESS_HEADCRAB_ZOMBIE 		= 45,	
+	5,	// XENO_FORTIFIED_GIANT_POISON_ZOMBIE 	= 46,	
+	5,	// XENO_POISON_ZOMBIE 					= 47,	
+	5,	// XENO_FORTIFIED_POISON_ZOMBIE 		= 48,	
+	5,	// XENO_FATHER_GRIGORI 				= 49,
+	5,	// XENO_COMBINE_POLICE_PISTOL			= 50,	
+	5,	// XENO_COMBINE_POLICE_SMG				= 51,	
+	5,	// XENO_COMBINE_SOLDIER_AR2			= 52,
+	5,	// XENO_COMBINE_SOLDIER_SHOTGUN		= 53,	
+	5,	// XENO_COMBINE_SOLDIER_SWORDSMAN		= 54,
+	5,	// XENO_COMBINE_SOLDIER_ELITE			= 55,
+	5,	// XENO_COMBINE_SOLDIER_GIANT_SWORDSMAN	= 56,
+	5,	// XENO_COMBINE_SOLDIER_DDT			= 57,
+	5,	// XENO_COMBINE_SOLDIER_COLLOSS		= 58, //Hetimus
+	5,	// XENO_COMBINE_OVERLORD				= 59, 
+	5,	// XENO_SCOUT_ZOMBIE					= 60,
+	5,	// XENO_ENGINEER_ZOMBIE				= 61,
+	5,	// XENO_HEAVY_ZOMBIE					= 62,
+	5,	// XENO_FLYINGARMOR_ZOMBIE				= 63,
+	5,	// XENO_FLYINGARMOR_TINY_ZOMBIE		= 64,
+	5,	// XENO_KAMIKAZE_DEMO					= 65,
+	5,	// XENO_MEDIC_HEALER					= 66,
+	5,	// XENO_HEAVY_ZOMBIE_GIANT				= 67,
+	5,	// XENO_SPY_FACESTABBER				= 68,
+	5,	// XENO_SOLDIER_ROCKET_ZOMBIE			= 69,
+	5,	// XENO_SOLDIER_ZOMBIE_MINION			= 70,
+	5,	// XENO_SOLDIER_ZOMBIE_BOSS			= 71,
+	5,	// XENO_SPY_THIEF						= 72,
+	5,	// XENO_SPY_TRICKSTABBER				= 73,
+	5,	// XENO_SPY_HALF_CLOACKED				= 74,
+	5,	// XENO_SNIPER_MAIN					= 75,
+	5,	// XENO_DEMO_MAIN						= 76,
+	5,	// XENO_BATTLE_MEDIC_MAIN				= 77,
+	5,	// XENO_GIANT_PYRO_MAIN				= 78,
+	5,	// XENO_COMBINE_DEUTSCH_RITTER			= 79,
+	5,	// XENO_SPY_MAIN_BOSS					= 80,
+
+	1,	// NAZI_PANZER							= 81,
+	0,	// BOB_THE_GOD_OF_GODS					= 82,
+	0,	// NECRO_COMBINE						= 83,
+	0,	// NECRO_CALCIUM						= 84,
+	0,	// CURED_FATHER_GRIGORI				= 85,
+
+	4,	// ALT_COMBINE_MAGE					= 86,
+
+	6,	// BTD_BLOON							= 87,
+	6,	// BTD_MOAB							= 88,
+	6,	// BTD_BFB								= 89,
+	6,	// BTD_ZOMG							= 90,
+	6,	// BTD_DDT								= 91,
+	6,	// BTD_BAD								= 92,
+
+	4,	// ALT_MEDIC_APPRENTICE_MAGE			= 93,
+	1,	// SAWRUNNER							= 94,
+
+	2,	// RAIDMODE_TRUE_FUSION_WARRIOR		= 95,
+	4,	// ALT_MEDIC_CHARGER					= 96,
+	4,	// ALT_MEDIC_BERSERKER					= 97,
+
+	7,	// MEDIVAL_MILITIA						= 98,
+	7,	// MEDIVAL_ARCHER						= 99,
+	7,	// MEDIVAL_MAN_AT_ARMS					= 100,
+	7,	// MEDIVAL_SKIRMISHER					= 101,
+	7,	// MEDIVAL_SWORDSMAN					= 102,
+	7,	// MEDIVAL_TWOHANDED_SWORDSMAN			= 103,
+	7,	// MEDIVAL_CROSSBOW_MAN				= 104,
+	7,	// MEDIVAL_SPEARMEN					= 105,
+	7,	// MEDIVAL_HANDCANNONEER				= 106,
+	7,	// MEDIVAL_ELITE_SKIRMISHER			= 107,
+	2,	// RAIDMODE_BLITZKRIEG					= 108,
+	7,	// MEDIVAL_PIKEMAN						= 109,
+	4,	// ALT_MEDIC_SUPPERIOR_MAGE			= 110,
+	0,	// CITIZEN								= 111,
+
+	7,	// MEDIVAL_EAGLE_SCOUT					= 112,
+	7,	// MEDIVAL_SAMURAI						= 113,
+
+	8,	// THEADDICTION						= 114,
+	8,	// THEDOCTOR							= 115,
+	8,	// BOOKSIMON							= 116,
+	4,	// ALT_KAHMLSTEIN						= 117,
+
+	1,	// L4D2_TANK							= 118,
+	4,	// ALT_COMBINE_DEUTSCH_RITTER			= 119,
+	4,	// ALT_SNIPER_RAILGUNNER				= 120,
+
+	-1,	// BTD_GOLDBLOON	= 121,
+	2,	// BTD_BLOONARIUS	= 122,
+	-1,	// BTD_LYCH		= 123,
+	-1,	// BTD_LYCHSOUL	= 124,
+	-1,	// BTD_VORTEX	= 125,
+
+	7,	// MEDIVAL_RAM	= 126,
+	4,	// ALT_SOLDIER_BARRAGER = 127,
+	4,	// ALT_The_Shit_Slapper = 128,
+
+	0,	// BONEZONE_BASICBONES = 129,
+
+	4,	// ALT_MECHA_ENGINEER			= 130,
+	4,	// ALT_MECHA_HEAVY				= 131,
+	4,	// ALT_MECHA_HEAVYGIANT		= 132,
+	4,	// ALT_MECHA_PYROGIANT			= 133,
+	4,	// ALT_MECHA_SCOUT				= 134,
+	4,	// ALT_DONNERKRIEG				= 135,
+	4,	// ALT_SCHWERTKRIEG			= 136,
+	1,	// PHANTOM_KNIGHT				= 137, //Lucian "Blood diamond"
+	4,	// ALT_MEDIC_HEALER_3			= 138, //3 being the 3rd stage of alt waves.
+
+	-1,	// THE_GAMBLER				= 139,
+	-1,	// PABLO_GONZALES				= 140,
+	-1,	// DOKTOR_MEDICK				= 141,
+	-1,	// KAPTAIN_HEAVY				= 142,
+	-1,	// BOOTY_EXECUTIONIER 			= 143,
+	-1,	// SANDVICH_SLAYER 			= 144,
+	-1,	// PAYDAYCLOAKER				= 145,
+	-1,	// BUNKER_KAHML_VTWO			= 146,
+	-1,	// TRUE_ZEROFUSE				= 147,
+	-1,	// BUNKER_BOT_SOLDIER			= 148,
+	-1,	// BUNKER_BOT_SNIPER			= 149,
+	-1,	// BUNKER_SKELETON				= 150,
+	-1,	// BUNKER_SMALL_SKELETON		= 151,
+	-1,	// BUNKER_KING_SKELETON		= 152,
+	-1,	// BUNKER_HEADLESSHORSE		= 153,
+
+	7,	// MEDIVAL_SCOUT				= 154,
+	1,	// MEDIVAL_VILLAGER			= 155,
+	1,	// MEDIVAL_BUILDING			= 156,
+	7,	// MEDIVAL_CONSTRUCT			= 157,
+	7,	// MEDIVAL_CHAMPION			= 158,
+	7,	// MEDIVAL_LIGHT_CAV			= 159,
+	7,	// MEDIVAL_HUSSAR				= 160,
+	7,	// MEDIVAL_KNIGHT				= 161,
+	7,	// MEDIVAL_OBUCH				= 162,
+	7,	// MEDIVAL_MONK				= 163,
+
+	7,	// BARRACK_MILITIA				= 164,
+	7,	// BARRACK_ARCHER				= 165,
+	7,	// BARRACK_MAN_AT_ARMS			= 166,
+
+	7,	// MEDIVAL_HALB				= 167,
+	7,	// MEDIVAL_BRAWLER				= 168,
+	7,	// MEDIVAL_LONGBOWMEN			= 169,
+	7,	// MEDIVAL_ARBALEST			= 170,
+	7,	// MEDIVAL_ELITE_LONGBOWMEN	= 171,
+
+	7,	// BARRACK_CROSSBOW			= 172,
+	7,	// BARRACK_SWORDSMAN			= 173,
+	7,	// BARRACK_ARBELAST			= 174,
+	7,	// BARRACK_TWOHANDED			= 175,
+	7,	// BARRACK_LONGBOW				= 176,
+	7,	// BARRACK_CHAMPION			= 177,
+	7,	// BARRACK_MONK				= 178,
+	7,	// BARRACK_HUSSAR				= 179,
+
+	7,	// MEDIVAL_CAVALARY			= 180,
+	7,	// MEDIVAL_PALADIN				= 181,
+	7,	// MEDIVAL_CROSSBOW_GIANT		= 182,
+	7,	// MEDIVAL_SWORDSMAN_GIANT		= 183,
+	7,	// MEDIVAL_RIDDENARCHER		= 184,
+	7,	// MEDIVAL_EAGLE_WARRIOR		= 185,
+	7,	// MEDIVAL_EAGLE_GIANT			= 186,
+	7,	// MEDIVAL_SON_OF_OSIRIS		= 187,
+	7,	// MEDIVAL_ACHILLES			= 188,
+	7,	// MEDIVAL_TREBUCHET			= 189,
+
+	4,	// ALT_IKUNAGAE				= 190,
+	4,	// ALT_MECHASOLDIER_BARRAGER	= 191,
+	0,	// NEARL_SWORD					= 192,
+
+	1,	// STALKER_COMBINE		= 193,
+	1,	// STALKER_FATHER		= 194,
+	1,	// STALKER_GOGGLES		= 195,
+
+	2,	// XENO_RAIDBOSS_SILVESTER		= 196,
+	2,	// XENO_RAIDBOSS_BLUE_GOGGLES	= 197,
+	2,	// XENO_RAIDBOSS_SUPERSILVESTER	= 198,
+	2,	// XENO_RAIDBOSS_NEMESIS	= 199,
+
+	9,	// SEARUNNER	= 200,
+	9,	// SEARUNNER_ALT,
+	9,	// SEASLIDER	= 202,
+	9,	// SEASLIDER_ALT,
+	9,	// SEASPITTER	= 204,
+	9,	// SEASPITTER_ALT,
+	9,	// SEAREAPER	= 206,
+	9,	// SEAREAPER_ALT,
+	9,	// SEACRAWLER	= 208,
+	9,	// SEACRAWLER_ALT,
+	9,	// SEAPIERCER	= 210,
+	9,	// SEAPIERCER_ALT,
+	9,	// FIRSTTOTALK	= 212,
+	9,	// UNDERTIDES	= 213,
+	9,	// SEABORN_KAZIMIERZ_KNIGHT	= 214,
+	9,	// SEABORN_KAZIMIERZ_KNIGHT_ARCHER	= 215,
+	9,	// SEABORN_KAZIMIERZ_BESERKER	= 216,
+	9,	// SEABORN_KAZIMIERZ_LONGARCHER	= 217,
+	9,	// REMAINS		= 218,
+	9,	// ENDSPEAKER_1	= 219,
+	-1,	// ENDSPEAKER_2	= 220,
+	-1,	// ENDSPEAKER_3	= 221,
+	-1,	// ENDSPEAKER_4	= 222,
+	9,	// SEAFOUNDER	= 223,
+	9,	// SEAFOUNDER_ALT,
+	9,	// SEAFOUNDER_CARRIER,
+	9,	// SEAPREDATOR	= 226,
+	9,	// SEAPREDATOR_ALT,
+	9,	// SEAPREDATOR_CARRIER,
+	9,	// SEABRANDGUIDER	= 229,
+	9,	// SEABRANDGUIDER_ALT,
+	9,	// SEABRANDGUIDER_CARRIER,
+	9,	// SEABORN_KAZIMIERZ_ASSASIN_MELEE	= 232,
+	9,	// SEASPEWER	= 233,
+	9,	// SEASPEWER_ALT,
+	9,	// SEASPEWER_CARRIER,
+	9,	// SEASWARMCALLER	= 236,
+	9,	// SEASWARMCALLER_ALT,
+	9,	// SEASWARMCALLER_CARRIER,
+	9,	// SEAREEFBREAKER	= 239,
+	9,	// SEAREEFBREAKER_ALT,
+	9,	// SEAREEFBREAKER_CARRIER,
+	0,	// BARRACK_THORNS	= 242,
+	2,	// RAIDMODE_GOD_ARKANTOS = 243,
+	9,	// SEABORN_SCOUT		= 244,
+	9,	// SEABORN_SOLDIER		= 245,
+	0,	// CITIZEN_RUNNER		= 246,
+	9,	// SEABORN_PYRO		= 247,
+	9,	// SEABORN_DEMO		= 248,
+	9,	// SEABORN_HEAVY		= 249,
+	9,	// SEABORN_ENGINEER	= 250,
+	9,	// SEABORN_MEDIC		= 251,
+	9,	// SEABORN_SNIPER		= 252,
+	9,	// SEABORN_SPY		= 253,
+	0,	// ALT_BARRACKS_SCHWERTKRIEG = 254,
+	0,	// ALT_BARRACK_IKUNAGAE = 255,
+	0,	// ALT_BARRACK_RAILGUNNER = 256,
+	0,	// ALT_BARRACK_BASIC_MAGE = 257,
+	0,	// ALT_BARRACK_INTERMEDIATE_MAGE = 258,
+	0,	// ALT_BARRACK_DONNERKRIEG = 259,
+	0,	// ALT_BARRACKS_HOLY_KNIGHT = 260,
+	0,	// ALT_BARRACK_MECHA_BARRAGER = 261,
+	0,	// ALT_BARRACK_BARRAGER = 262,
+	0,	// ALT_BARRACKS_BERSERKER = 263,
+	0,	// ALT_BARRACKS_CROSSBOW_MEDIC = 264,
+	9,	// LASTKNIGHT		= 265,
+	0,	// BARRACK_LASTKNIGHT	= 266,
+	9,	// SAINTCARMEN		= 267,
+	9,	// PATHSHAPER		= 268,
+	9,	// PATHSHAPER_FRACTAL	= 269,
+	0,	// BARRACKS_TEUTONIC_KNIGHT	= 270,
+	0,	// BARRACKS_VILLAGER			= 271,
+	0,	// BARRACKS_BUILDING			= 272,
+	9,	// TIDELINKED_BISHOP	= 273,
+	9,	// TIDELINKED_ARCHON	= 274,
+	0,	// ALT_BARRACK_SCIENTIFIC_WITCHERY = 275,
+	9,	// SEABORN_GUARD		= 276,
+	9,	// SEABORN_DEFENDER	= 277,
+	9,	// SEABORN_VANGUARD	= 278,
+	9,	// SEABORN_CASTER		= 279,
+	9,	// SEABORN_SPECIALIST	= 280,
+	9,	// SEABORN_SUPPORTER	= 281,
+	9,	// ISHARMLA		= 282,
+	9,	// ISHARMLA_TRANS		= 283,
+
+	-1,	// RUINA_THEOCRACY = 284,
+	10,	// EXPIDONSA_BENERA = 285,
+	10,	// EXPIDONSA_PENTAL = 286,
+	10,	// EXPIDONSA_DEFANDA = 287,
+	10,	// EXPIDONSA_SELFAM_IRE = 288,
+	10,	// EXPIDONSA_VAUSMAGICA = 289,
+	10,	// EXPIDONSA_PISTOLEER = 290,
+	10,	// EXPIDONSA_DIVERSIONISTICO 	= 291,
+	-1,	// RUINA_ADIANTUM 				= 292,
+	-1,	// RUINA_LANIUS				= 293,
+	10,	// EXPIDONSA_HEAVYPUNUEL		= 294,
+	-1,	// RUINA_MAGIA					= 295,
+	10,	// EXPIDONSA_SEARGENTIDEAL		= 296,
+
+	-1,	// SEA_RAIDBOSS_SILVESTER		= 297,
+	-1,	// SEA_RAIDBOSS_GOGGLES		= 298,
+	-1,	// SEA_RAIDBOSS_DONNERKRIEG	= 299,
+	-1,	// SEA_RAIDBOSS_SCHWERTKRIEG	= 300,
+	-1,	// SEA_RAIDBOSS_GOD_ARKANTOS	= 301,
+	-1,	// BOB_THE_FIRST			= 302,
+	-1,	// SEA_ALLY_SILVESTER		= 303,
+	-1,	// SEA_ALLY_GOGGLES		= 304,
+	-1,	// SEA_ALLY_DONNERKRIEG		= 305,
+	-1,	// SEA_ALLY_SCHWERTKRIEG		= 306,
+	-1,	// SEA_ALLY_GOD_ARKANTOS		= 307,
+	0,	// VIP_BUILDING			= 308
+	10,	// EXPIDONSA_RIFALMANU		= 309,
+	10,	// EXPIDONSA_SICCERINO			= 310,
+	10,	// EXPIDONSA_SOLDINE_PROTOTYPE			= 311,
+	10,	// EXPIDONSA_SOLDINE					= 312,
+	10,	// EXPIDONSA_PROTECTA					= 313,
+	10,	// EXPIDONSA_SNIPONEER					= 314,
+	10,	// EXPIDONSA_EGABUNAR					= 315,
+	10,	// EXPIDONSA_ENEGAKAPUS					= 316,
+	10, // EXPIDONSA_CAPTINOAGENTUS				= 317,
+	2, // RAIDMODE_EXPIDONSA_SENSAL			= 318,
+	10, // EXPIDONSA_DUALREA					= 319,
+	10, // EXPIDONSA_GUARDUS					= 320,
+	10, // EXPIDONSA_VAUSTECHICUS				= 321,
+	10,	// EXPIDONSA_MINIGUNASSISA				= 322
+	10,	// EXPIDONSA_IGNITUS				= 323,
+	10,	// EXPIDONSA_HELENA				= 324,
+
+	10,	// EXPIDONSA_ERASUS				= 325,
+	10,	// EXPIDONSA_GIANTTANKUS			= 326,
+	10,	// EXPIDONSA_ANFUHREREISENHARD		= 327,
+	10, //EXPIDONSA_SPEEDUSADIVUS			= 328,
+	0, 	//WEAPON_SENSAL_AFTERIMAGE			= 329 
 };
 
 public const char NPC_Plugin_Names_Converted[][] =
@@ -631,7 +1119,7 @@ public const char NPC_Plugin_Names_Converted[][] =
 	"npc_combine_soldier_overlord",
 	"npc_zombie_scout_grave",
 	"npc_zombie_engineer_grave",
-	"npc_zombie_heavy_grave",
+	"npc_zombie_heavy_grave",	
 	"npc_flying_armor",
 	"npc_flying_armor_tiny_swords",
 	"npc_kamikaze_demo",
@@ -840,7 +1328,7 @@ public const char NPC_Plugin_Names_Converted[][] =
 	"npc_firsttotalk",
 	"npc_undertides",
 	"npc_seaborn_kazimersch_knight",
-	"npc_seaborn_kazimersch_knight_archer",
+	"npc_seaborn_kazimersch_archer",
 	"npc_seaborn_kazimersch_beserker",
 	"npc_seaborn_kazimersch_longrange",
 	"npc_endspeaker_freeplay",
@@ -880,7 +1368,7 @@ public const char NPC_Plugin_Names_Converted[][] =
 	"npc_seaborn_sniper",
 	"npc_seaborn_spy",
 	
-	"",	//schwert	//warp
+	"",	//schwert
 	"",	//Iku
 	"",	//Railgunner
 	"",	//Basic Mage
@@ -894,11 +1382,73 @@ public const char NPC_Plugin_Names_Converted[][] =
 
 	"npc_lastknight",
 	"",
-	"npc_saintcarmenn",
+	"npc_saintcarmen",
 	"npc_pathshaper",
 	"npc_pathshaper_fractal",
 	"",
-	""
+	"",
+	"",
+	"npc_tidelinkedbishop",
+	"npc_tidelinkedarchon",
+	"",	//Scientific Witchery
+	"npc_seaborn_guard",
+	"npc_seaborn_defender",
+	"npc_seaborn_vanguard",
+	"npc_seaborn_caster",
+	"npc_seaborn_specialist",
+	"npc_seaborn_supporter",
+	"npc_isharmla",
+	"npc_isharmla_trans",
+	
+	"npc_ruina_theocracy",	//warp
+	"npc_benera",
+	"npc_pental",
+	"npc_defanda",
+	"npc_selfam_ire",
+	"npc_vaus_magica",
+	"npc_benera_pistoleer",
+	"npc_diversionistico",
+	"npc_ruina_adiantum",
+	"npc_ruina_lanius",
+	"npc_heavy_punuel",
+	"npc_ruina_magia",
+	"npc_seargent_ideal",
+	
+	"npc_sea_silvester",
+	"npc_sea_goggles",
+	"Donnerkrieg",
+	"Schwertkreig",
+	"God Arkantos",
+	"npc_bob_the_first_last_savior",
+	"Seaborn Silvester",
+	"Seaborn Blue Goggles",
+	"Seaborn Donnerkrieg",
+	"Seaborn Schwertkreig",
+	"Seaborn God Arkantos",
+	"npc_vip_building",
+	"npc_rifal_manu",
+	"npc_siccerino",
+	"npc_soldine_prototype",
+	"npc_soldine",
+	"npc_protecta",
+	"npc_sniponeer",
+	"npc_ega_bunar",
+	"npc_enegakapus",
+	//wave 30+:
+	"npc_captino_agentus",
+	"npc_sensal", //Raid
+	"npc_dualrea",
+	"npc_guardus",
+	"npc_vaus_techicus",
+	"npc_minigun_assisa",
+	"npc_ignitus",
+	"npc_helena",
+	//wave 45+:
+	"npc_erasus",
+	"npc_gianttankus",
+	"npc_anfuhrer_eisenhard",
+	"npc_speedus_adivus",
+	"",
 };
 
 void NPC_MapStart()
@@ -1098,8 +1648,51 @@ void NPC_MapStart()
 	EndSpeaker_MapStart();
 	Remain_MapStart();
 	KazimierzKnightAssasin_OnMapStart_NPC();
+	IsharmlaTrans_MapStart();
 	
-	//Alt Barracks	//warp
+	//Ruina waves	//warp
+	Ruina_Ai_Core_Mapstart();
+	Theocracy_OnMapStart_NPC();
+	Adiantum_OnMapStart_NPC();
+	Lanius_OnMapStart_NPC();
+	Magia_OnMapStart_NPC();
+	
+
+	//Expidonsa Waves
+//wave 1-15:
+	Benera_OnMapStart_NPC();
+	Pental_OnMapStart_NPC();
+	Defanda_OnMapStart_NPC();
+	SelfamIre_OnMapStart_NPC();
+	VausMagica_OnMapStart_NPC();
+	Pistoleer_OnMapStart_NPC();
+	Diversionistico_OnMapStart_NPC();	//reused in waves all over
+	HeavyPunuel_OnMapStart_NPC();
+	SeargentIdeal_OnMapStart_NPC();	
+//wave 16-30:
+	RifalManu_OnMapStart_NPC();
+	Siccerino_OnMapStart_NPC();
+	SoldinePrototype_OnMapStart_NPC();
+	Soldine_OnMapStart_NPC();
+	EnegaKapus_OnMapStart_NPC();
+	Sniponeer_OnMapStart_NPC();
+	EgaBunar_OnMapStart_NPC();
+	Protecta_OnMapStart_NPC();
+//wave 31 - 45
+	CaptinoAgentus_OnMapStart_NPC();
+	DualRea_OnMapStart_NPC();
+	Guardus_OnMapStart_NPC();
+	VausTechicus_OnMapStart_NPC();
+	MinigunAssisa_OnMapStart_NPC();
+	Ignitus_OnMapStart_NPC();
+	Helena_OnMapStart_NPC();
+//wave 45-60 there arent as many enemies as im running out of ideas and i want to resuse top enemies
+	Erasus_OnMapStart_NPC();
+	GiantTankus_OnMapStart_NPC();
+	AnfuhrerEisenhard_OnMapStart_NPC();
+	SpeedusAdivus_OnMapStart_NPC();
+	
+	//Alt Barracks
 	Barrack_Alt_Ikunagae_MapStart();
 	Barrack_Alt_Shwertkrieg_MapStart();
 	Barrack_Railgunner_MapStart();
@@ -1111,7 +1704,10 @@ void NPC_MapStart()
 	Barrack_Alt_Barrager_MapStart();
 	Barrack_Alt_Berserker_MapStart();
 	Barrack_Alt_Crossbowmedic_MapStart();
+	Barrack_Alt_Scientific_Witchery_MapStart();
 	Barracks_Thorns();
+	VIPBuilding_MapStart();
+	AlliedSensalAbility_OnMapStart_NPC();
 
 	// Raid Low Prio
 	TrueFusionWarrior_OnMapStart();
@@ -1120,6 +1716,9 @@ void NPC_MapStart()
 	RaidbossBlueGoggles_OnMapStart();
 	RaidbossNemesis_OnMapStart();
 	GodArkantos_OnMapStart();
+	Sensal_OnMapStart_NPC();
+	Raidboss_Schwertkrieg_OnMapStart_NPC();
+	Raidboss_Donnerkrieg_OnMapStart_NPC();
 
 	// Bloon Low Prio
 	Bloon_MapStart();
@@ -1848,7 +2447,7 @@ any Npc_Create(int Index_Of_Npc, int client, float vecPos[3], float vecAng[3], b
 		case SEABORN_SPY:
 			entity = SeabornSpy(client, vecPos, vecAng, ally);
 		
-		case ALT_BARRACKS_SCHWERTKRIEG:	//warp
+		case ALT_BARRACKS_SCHWERTKRIEG:
 			entity = Barrack_Alt_Shwertkrieg(client, vecPos, vecAng, ally);
 			
 		case ALT_BARRACK_IKUNAGAE:
@@ -1888,7 +2487,7 @@ any Npc_Create(int Index_Of_Npc, int client, float vecPos[3], float vecAng[3], b
 			entity = BarrackLastKnight(client, vecPos, vecAng, ally);
 		
 		case SAINTCARMEN:
-			entity = BarrackLastKnight(client, vecPos, vecAng, ally);
+			entity = SaintCarmen(client, vecPos, vecAng, ally);
 		
 		case PATHSHAPER:
 			entity = Pathshaper(client, vecPos, vecAng, ally);
@@ -1904,19 +2503,172 @@ any Npc_Create(int Index_Of_Npc, int client, float vecPos[3], float vecAng[3], b
 
 		case BARRACKS_BUILDING:
 			entity = BarrackBuilding(client, vecPos, vecAng, ally);
+
+		case TIDELINKED_BISHOP:
+			entity = TidelinkedBishop(client, vecPos, vecAng, ally);
+
+		case TIDELINKED_ARCHON:
+			entity = TidelinkedArchon(client, vecPos, vecAng, ally);
 			
+		case ALT_BARRACK_SCIENTIFIC_WITCHERY:
+			entity = Barrack_Alt_Scientific_Witchery(client, vecPos, vecAng, ally);
+
+		case SEABORN_GUARD:
+			entity = SeabornGuard(client, vecPos, vecAng, ally);
+
+		case SEABORN_DEFENDER:
+			entity = SeabornDefender(client, vecPos, vecAng, ally);
+
+		case SEABORN_VANGUARD:
+			entity = SeabornVanguard(client, vecPos, vecAng, ally);
+
+		case SEABORN_CASTER:
+			entity = SeabornCaster(client, vecPos, vecAng, ally);
+
+		case SEABORN_SPECIALIST:
+			entity = SeabornSpecialist(client, vecPos, vecAng, ally);
+
+		case SEABORN_SUPPORTER:
+			entity = SeabornSupporter(client, vecPos, vecAng, ally);
+
+		case ISHARMLA:
+			entity = Isharmla(client, vecPos, vecAng, ally);
+
+		case ISHARMLA_TRANS:
+			entity = IsharmlaTrans(client, vecPos, vecAng, ally);
+			
+		case RUINA_THEOCRACY:	//warp
+			entity = Theocracy(client, vecPos, vecAng, ally);
+		
+		case RUINA_ADIANTUM:
+			entity = Adiantum(client, vecPos, vecAng, ally);
+			
+		case RUINA_LANIUS:
+			entity = Lanius(client, vecPos, vecAng, ally);
+			
+		case RUINA_MAGIA:
+			entity = Magia(client, vecPos, vecAng, ally);
+			
+		case SEA_RAIDBOSS_DONNERKRIEG:
+			entity = Raidboss_Donnerkrieg(client, vecPos, vecAng, ally);
+			
+		case SEA_RAIDBOSS_SCHWERTKRIEG:
+			entity = Raidboss_Schwertkrieg(client, vecPos, vecAng, ally);
+		
+		case SEA_ALLY_SILVESTER:
+			entity = SeaAllySilvester(vecPos, vecAng);
+		
+		case SEA_ALLY_GOGGLES:
+			entity = SeaAllyGoggles(vecPos, vecAng);
+
+		case EXPIDONSA_BENERA:
+			entity = Benera(client, vecPos, vecAng, ally);
+			
+		case EXPIDONSA_PENTAL:
+			entity = Pental(client, vecPos, vecAng, ally);
+
+		case EXPIDONSA_DEFANDA:
+			entity = Defanda(client, vecPos, vecAng, ally);
+
+		case EXPIDONSA_SELFAM_IRE:
+			entity = SelfamIre(client, vecPos, vecAng, ally);
+
+		case EXPIDONSA_VAUSMAGICA:
+			entity = VausMagica(client, vecPos, vecAng, ally);
+
+		case EXPIDONSA_PISTOLEER:
+			entity = Pistoleer(client, vecPos, vecAng, ally);
+
+		case EXPIDONSA_DIVERSIONISTICO:
+			entity = Diversionistico(client, vecPos, vecAng, ally);
+
+		case EXPIDONSA_HEAVYPUNUEL:
+			entity = HeavyPunuel(client, vecPos, vecAng, ally);
+
+		case EXPIDONSA_SEARGENTIDEAL:
+			entity = SeargentIdeal(client, vecPos, vecAng, ally, data);
+		
+		case VIP_BUILDING:
+			entity = VIPBuilding(client, vecPos, vecAng, data);
+
+		case EXPIDONSA_RIFALMANU:
+			entity = RifalManu(client, vecPos, vecAng, ally);
+
+		case EXPIDONSA_SICCERINO:
+			entity = Siccerino(client, vecPos, vecAng, ally);
+
+		case EXPIDONSA_SOLDINE_PROTOTYPE:
+			entity = SoldinePrototype(client, vecPos, vecAng, ally);
+
+		case EXPIDONSA_SOLDINE:
+			entity = Soldine(client, vecPos, vecAng, ally);
+			
+		case EXPIDONSA_PROTECTA:
+			entity = Protecta(client, vecPos, vecAng, ally);
+
+		case EXPIDONSA_SNIPONEER:
+			entity = Sniponeer(client, vecPos, vecAng, ally);
+
+		case EXPIDONSA_EGABUNAR:
+			entity = EgaBunar(client, vecPos, vecAng, ally);
+
+		case EXPIDONSA_ENEGAKAPUS:
+			entity = EnegaKapus(client, vecPos, vecAng, ally);
+
+		case EXPIDONSA_CAPTINOAGENTUS:
+			entity = CaptinoAgentus(client, vecPos, vecAng, ally);
+
+		case RAIDMODE_EXPIDONSA_SENSAL:
+			entity = Sensal(client, vecPos, vecAng, ally);
+
+		case EXPIDONSA_DUALREA:
+			entity = DualRea(client, vecPos, vecAng, ally);
+
+		case EXPIDONSA_GUARDUS:
+			entity = Guardus(client, vecPos, vecAng, ally);
+
+		case EXPIDONSA_VAUSTECHICUS:
+			entity = VausTechicus(client, vecPos, vecAng, ally);
+
+		case EXPIDONSA_MINIGUNASSISA:
+			entity = MinigunAssisa(client, vecPos, vecAng, ally);
+
+		case EXPIDONSA_IGNITUS:
+			entity = Ignitus(client, vecPos, vecAng, ally);
+
+		case EXPIDONSA_HELENA:
+			entity = Helena(client, vecPos, vecAng, ally);
+
+		case EXPIDONSA_ERASUS:
+			entity = Erasus(client, vecPos, vecAng, ally);
+
+		case EXPIDONSA_GIANTTANKUS:
+			entity = GiantTankus(client, vecPos, vecAng, ally);
+
+		case EXPIDONSA_ANFUHREREISENHARD:
+			entity = AnfuhrerEisenhard(client, vecPos, vecAng, ally);
+
+		case EXPIDONSA_SPEEDUSADIVUS:
+			entity = SpeedusAdivus(client, vecPos, vecAng, ally);
+
+		case WEAPON_SENSAL_AFTERIMAGE:
+			entity = AlliedSensalAbility(client, vecPos, vecAng, ally);
+
 		default:
 			PrintToChatAll("Please Spawn the NPC via plugin or select which npcs you want! ID:[%i] Is not a valid npc!", Index_Of_Npc);
 		
 	}
 
-	if(GetEntProp(entity, Prop_Send, "m_iTeamNum") == 2)
+	if(entity > 0)
 	{
-		Rogue_AllySpawned(entity);
-	}
-	else
-	{
-		Rogue_EnemySpawned(entity);
+		if(GetEntProp(entity, Prop_Send, "m_iTeamNum") == 2)
+		{
+			Rogue_AllySpawned(entity);
+		}
+		else
+		{
+			Rogue_EnemySpawned(entity);
+		}
 	}
 	
 	return entity;
@@ -2639,7 +3391,7 @@ public void NPCDeath(int entity)
 		case SEABORN_SPY:
 			SeabornSpy_NPCDeath(entity);
 			
-		case ALT_BARRACKS_SCHWERTKRIEG:	//warp
+		case ALT_BARRACKS_SCHWERTKRIEG:
 			Barrack_Alt_Shwertkrieg_NPCDeath(entity);
 			
 		case ALT_BARRACK_IKUNAGAE:
@@ -2695,6 +3447,147 @@ public void NPCDeath(int entity)
 
 		case BARRACKS_BUILDING:
 			BarrackBuilding_NPCDeath(entity);
+		
+		case TIDELINKED_BISHOP:
+			TidelinkedBishop_NPCDeath(entity);
+		
+		case TIDELINKED_ARCHON:
+			TidelinkedArchon_NPCDeath(entity);
+			
+		case ALT_BARRACK_SCIENTIFIC_WITCHERY:
+			Barrack_Alt_Scientific_Witchery_NPCDeath(entity);
+		
+		case SEABORN_GUARD:
+			SeabornGuard_NPCDeath(entity);
+		
+		case SEABORN_DEFENDER:
+			SeabornDefender_NPCDeath(entity);
+		
+		case SEABORN_VANGUARD:
+			SeabornVanguard_NPCDeath(entity);
+		
+		case SEABORN_CASTER:
+			SeabornCaster_NPCDeath(entity);
+		
+		case SEABORN_SPECIALIST:
+			SeabornSpecialist_NPCDeath(entity);
+		
+		case SEABORN_SUPPORTER:
+			SeabornSupporter_NPCDeath(entity);
+		
+		case ISHARMLA:
+			Isharmla_NPCDeath(entity);
+		
+		case ISHARMLA_TRANS:
+			IsharmlaTrans_NPCDeath(entity);
+			
+		case RUINA_THEOCRACY, RUINA_ADIANTUM, RUINA_LANIUS, RUINA_MAGIA:
+			Ruina_NPCDeath_Override(entity); //all ruina npc deaths are here
+		
+		case SEA_RAIDBOSS_DONNERKRIEG:
+			Raidboss_Donnerkrieg_NPCDeath(entity);
+			
+		case SEA_RAIDBOSS_SCHWERTKRIEG:
+			Raidboss_Schwertkrieg_NPCDeath(entity);
+		
+		case SEA_ALLY_SILVESTER:
+			SeaAllySilvester_NPCDeath(entity);
+		
+		case SEA_ALLY_GOGGLES:
+			SeaAllyGoggles_NPCDeath(entity);
+
+		case EXPIDONSA_BENERA:
+			Benera_NPCDeath(entity); 
+
+		case EXPIDONSA_PENTAL:
+			Pental_NPCDeath(entity);
+
+		case EXPIDONSA_DEFANDA:
+			Defanda_NPCDeath(entity);
+
+		case EXPIDONSA_SELFAM_IRE:
+			SelfamIre_NPCDeath(entity);
+
+		case EXPIDONSA_VAUSMAGICA:
+			VausMagica_NPCDeath(entity);
+
+		case EXPIDONSA_PISTOLEER:
+			Pistoleer_NPCDeath(entity);
+
+		case EXPIDONSA_DIVERSIONISTICO:
+			Diversionistico_NPCDeath(entity);
+
+		case EXPIDONSA_HEAVYPUNUEL:
+			HeavyPunuel_NPCDeath(entity);
+
+		case EXPIDONSA_SEARGENTIDEAL:
+			SeargentIdeal_NPCDeath(entity);
+		
+		case VIP_BUILDING:
+			VIPBuilding_NPCDeath(entity);
+
+		case EXPIDONSA_RIFALMANU:
+			RifalManu_NPCDeath(entity);
+
+		case EXPIDONSA_SICCERINO:
+			Siccerino_NPCDeath(entity);
+
+		case EXPIDONSA_SOLDINE_PROTOTYPE:
+			SoldinePrototype_NPCDeath(entity);
+
+		case EXPIDONSA_SOLDINE:
+			Soldine_NPCDeath(entity);
+
+		case EXPIDONSA_PROTECTA:
+			Protecta_NPCDeath(entity);
+
+		case EXPIDONSA_SNIPONEER:
+			Sniponeer_NPCDeath(entity);
+
+		case EXPIDONSA_EGABUNAR:
+			EgaBunar_NPCDeath(entity);
+
+		case EXPIDONSA_ENEGAKAPUS:
+			EnegaKapus_NPCDeath(entity);
+
+		case EXPIDONSA_CAPTINOAGENTUS:
+			CaptinoAgentus_NPCDeath(entity);
+
+		case RAIDMODE_EXPIDONSA_SENSAL:
+			Sensal_NPCDeath(entity);
+
+		case EXPIDONSA_DUALREA:
+			DualRea_NPCDeath(entity);
+
+		case EXPIDONSA_GUARDUS:
+			Guardus_NPCDeath(entity);
+
+		case EXPIDONSA_VAUSTECHICUS:
+			VausTechicus_NPCDeath(entity);
+
+		case EXPIDONSA_MINIGUNASSISA:
+			MinigunAssisa_NPCDeath(entity);
+
+		case EXPIDONSA_IGNITUS:
+			Ignitus_NPCDeath(entity);
+
+		case EXPIDONSA_HELENA:
+			Helena_NPCDeath(entity);
+
+		case EXPIDONSA_ERASUS:
+			Erasus_NPCDeath(entity);
+
+		case EXPIDONSA_GIANTTANKUS:
+			GiantTankus_NPCDeath(entity);
+
+		case EXPIDONSA_ANFUHREREISENHARD:
+			AnfuhrerEisenhard_NPCDeath(entity);
+
+		case EXPIDONSA_SPEEDUSADIVUS:
+			SpeedusAdivus_NPCDeath(entity);
+
+		case WEAPON_SENSAL_AFTERIMAGE:
+			AlliedSensalAbility_NPCDeath(entity);
 
 		default:
 			PrintToChatAll("This Npc Did NOT Get a Valid Internal ID! ID that was given but was invalid:[%i]", i_NpcInternalId[entity]);
@@ -3420,9 +4313,127 @@ Action NpcSpecificOnTakeDamage(int victim, int &attacker, int &inflictor, float 
 		
 		case PATHSHAPER:
 			Pathshaper_OnTakeDamage(victim, attacker);
+		
+		case TIDELINKED_BISHOP:
+			TidelinkedBishop_OnTakeDamage(victim, attacker, damage);
+		
+		case TIDELINKED_ARCHON:
+			TidelinkedArchon_OnTakeDamage(victim, attacker, damage);
+		
+		case SEABORN_GUARD, SEABORN_VANGUARD, SEABORN_CASTER, SEABORN_SPECIALIST, SEABORN_SUPPORTER:
+			Generic_OnTakeDamage(victim, attacker);
+		
+		case SEABORN_DEFENDER:
+			SeabornDefender_OnTakeDamage(victim, attacker, damage, damagetype, damagePosition);
+		
+		case ISHARMLA:
+			Isharmla_OnTakeDamage(victim, attacker, damage);
+			
+		
+		case RUINA_THEOCRACY, RUINA_ADIANTUM, RUINA_LANIUS, RUINA_MAGIA:	//warp
+			Ruina_NPC_OnTakeDamage_Override(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
+			
+		case SEA_RAIDBOSS_DONNERKRIEG:
+			Raidboss_Donnerkrieg_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
+			
+		case SEA_RAIDBOSS_SCHWERTKRIEG:
+			Raidboss_Schwertkrieg_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
+
+
+
+		case EXPIDONSA_BENERA:
+			Benera_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
+
+		case EXPIDONSA_PENTAL:
+			Pental_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
+
+		case EXPIDONSA_DEFANDA:
+			Defanda_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
+
+		case EXPIDONSA_SELFAM_IRE:
+			Selfamire_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
+
+		case EXPIDONSA_VAUSMAGICA:
+			Vausmagica_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
+
+		case EXPIDONSA_PISTOLEER:
+			Pistoleer_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
+
+		case EXPIDONSA_DIVERSIONISTICO:
+			Diversionistico_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
+
+		case EXPIDONSA_HEAVYPUNUEL:
+			HeavyPunuel_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
+
+		case EXPIDONSA_SEARGENTIDEAL:
+			SeargentIdeal_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
+			
+		case EXPIDONSA_RIFALMANU:
+			RifalManu_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
+
+		case VIP_BUILDING:
+			VIPBuilding_OnTakeDamagePost(victim, attacker);
+
+		case EXPIDONSA_SICCERINO:
+			Siccerino_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
+
+		case EXPIDONSA_SOLDINE_PROTOTYPE:
+			SoldinePrototype_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
+
+		case EXPIDONSA_SOLDINE:
+			Soldine_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
+			
+		case EXPIDONSA_PROTECTA:
+			Protecta_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
+
+		case EXPIDONSA_SNIPONEER:
+			Sniponeer_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
+
+		case EXPIDONSA_EGABUNAR:
+			EgaBunar_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
+
+		case EXPIDONSA_ENEGAKAPUS:
+			EnegaKapus_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
+
+		case EXPIDONSA_CAPTINOAGENTUS:
+			CaptinoAgentus_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
+
+		case RAIDMODE_EXPIDONSA_SENSAL:
+			Sensal_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
+
+		case EXPIDONSA_DUALREA:
+			DualRea_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
+
+		case EXPIDONSA_GUARDUS:
+			Guardus_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
+
+		case EXPIDONSA_VAUSTECHICUS:
+			VausTechicus_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
+
+		case EXPIDONSA_MINIGUNASSISA:
+			MinigunAssisa_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
+			
+		case EXPIDONSA_IGNITUS:
+			Ignitus_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
+
+		case EXPIDONSA_HELENA:
+			Helena_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
+
+		case EXPIDONSA_ERASUS:
+			Erasus_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
+
+		case EXPIDONSA_GIANTTANKUS:
+			GiantTankus_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
+
+		case EXPIDONSA_ANFUHREREISENHARD:
+			AnfuhrerEisenhard_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
+
+		case EXPIDONSA_SPEEDUSADIVUS:
+			SpeedusAdivus_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
 	}
 	return Plugin_Changed;
 }
+
 
 //NORMAL
 
@@ -3530,10 +4541,22 @@ Action NpcSpecificOnTakeDamage(int victim, int &attacker, int &inflictor, float 
 #include "zombie_riot/npc/ally/npc_necromancy_calcium.sp"
 #include "zombie_riot/npc/ally/npc_cured_last_survivor.sp"
 #include "zombie_riot/npc/ally/npc_citizen.sp"
+#include "zombie_riot/npc/ally/npc_allied_sensal_afterimage.sp"
 
 #include "zombie_riot/npc/raidmode_bosses/npc_true_fusion_warrior.sp"
 #include "zombie_riot/npc/raidmode_bosses/npc_blitzkrieg.sp"
 #include "zombie_riot/npc/raidmode_bosses/npc_god_arkantos.sp"
+
+
+//Ruina
+
+#include "zombie_riot/npc/ruina/ruina_npc_enchanced_ai_core.sp"	//this controls almost every ruina npc's behaviors.
+//stage 1
+#include "zombie_riot/npc/ruina/stage1/npc_ruina_theocracy.sp"
+#include "zombie_riot/npc/ruina/stage1/npc_ruina_adiantum.sp"
+#include "zombie_riot/npc/ruina/stage1/npc_ruina_lanius.sp"
+#include "zombie_riot/npc/ruina/stage1/npc_ruina_magia.sp"
+
 
 //Alt
 
@@ -3557,6 +4580,7 @@ Action NpcSpecificOnTakeDamage(int victim, int &attacker, int &inflictor, float 
 #include "zombie_riot/npc/alt/npc_alt_medic_constructor.sp"
 #include "zombie_riot/npc/alt/npc_alt_ikunagae.sp"
 #include "zombie_riot/npc/alt/npc_alt_mecha_soldier_barrager.sp"
+
 
 #include "zombie_riot/npc/medival/npc_medival_militia.sp"
 #include "zombie_riot/npc/medival/npc_medival_archer.sp"
@@ -3649,6 +4673,7 @@ Action NpcSpecificOnTakeDamage(int victim, int &attacker, int &inflictor, float 
 #include "zombie_riot/npc/ally/alt_barracks/npc_alt_barracks_barrager.sp"
 #include "zombie_riot/npc/ally/alt_barracks/npc_alt_barracks_berserker.sp"
 #include "zombie_riot/npc/ally/alt_barracks/npc_alt_barracks_crossbowman.sp"
+#include "zombie_riot/npc/ally/alt_barracks/npc_alt_barracks_scientific_witchery.sp"
 
 #include "zombie_riot/npc/respawn/npc_stalker_combine.sp"
 #include "zombie_riot/npc/respawn/npc_stalker_father.sp"
@@ -3698,3 +4723,52 @@ Action NpcSpecificOnTakeDamage(int victim, int &attacker, int &inflictor, float 
 #include "zombie_riot/npc/seaborn/npc_saintcarmen.sp"
 #include "zombie_riot/npc/seaborn/npc_pathshaper.sp"
 #include "zombie_riot/npc/seaborn/npc_pathshaper_fractal.sp"
+#include "zombie_riot/npc/seaborn/npc_tidelinkedbishop.sp"
+#include "zombie_riot/npc/seaborn/npc_tidelinkedarchon.sp"
+#include "zombie_riot/npc/seaborn/npc_seaborn_guard.sp"
+#include "zombie_riot/npc/seaborn/npc_seaborn_defender.sp"
+#include "zombie_riot/npc/seaborn/npc_seaborn_vanguard.sp"
+#include "zombie_riot/npc/seaborn/npc_seaborn_caster.sp"
+#include "zombie_riot/npc/seaborn/npc_seaborn_specialist.sp"
+#include "zombie_riot/npc/seaborn/npc_seaborn_supporter.sp"
+#include "zombie_riot/npc/seaborn/npc_isharmla.sp"
+#include "zombie_riot/npc/seaborn/npc_isharmla_trans.sp"
+
+#include "zombie_riot/npc/raidmode_bosses/seaborn/npc_donnerkrieg.sp"
+#include "zombie_riot/npc/raidmode_bosses/seaborn/npc_schwertkrieg.sp"
+#include "zombie_riot/npc/ally/npc_seaally_silvester.sp"
+#include "zombie_riot/npc/ally/npc_seaally_goggles.sp"
+
+#include "zombie_riot/npc/expidonsa/npc_expidonsa_base.sp"
+#include "zombie_riot/npc/expidonsa/npc_benera.sp"
+#include "zombie_riot/npc/expidonsa/npc_pental.sp"
+#include "zombie_riot/npc/expidonsa/npc_defanda.sp"
+#include "zombie_riot/npc/expidonsa/npc_selfam_ire.sp"
+#include "zombie_riot/npc/expidonsa/npc_vaus_magica.sp"
+#include "zombie_riot/npc/expidonsa/npc_benera_pistoleer.sp"
+#include "zombie_riot/npc/expidonsa/npc_diversionistico.sp"
+#include "zombie_riot/npc/expidonsa/npc_heavy_punuel.sp"
+#include "zombie_riot/npc/expidonsa/npc_seargent_ideal.sp"
+#include "zombie_riot/npc/expidonsa/npc_rifal_manu.sp"
+#include "zombie_riot/npc/expidonsa/npc_siccerino.sp"
+#include "zombie_riot/npc/expidonsa/npc_soldine_prototype.sp"
+#include "zombie_riot/npc/expidonsa/npc_soldine.sp"
+#include "zombie_riot/npc/expidonsa/npc_sniponeer.sp"
+#include "zombie_riot/npc/expidonsa/npc_enegakapus.sp"
+#include "zombie_riot/npc/expidonsa/npc_ega_bunar.sp"
+#include "zombie_riot/npc/expidonsa/npc_protecta.sp"
+
+#include "zombie_riot/npc/expidonsa/npc_captino_agentus.sp"
+#include "zombie_riot/npc/expidonsa/npc_dualrea.sp"
+#include "zombie_riot/npc/expidonsa/npc_guardus.sp"
+#include "zombie_riot/npc/expidonsa/npc_vaus_techicus.sp"
+#include "zombie_riot/npc/expidonsa/npc_minigun_assisa.sp"
+#include "zombie_riot/npc/expidonsa/npc_erasus.sp"
+#include "zombie_riot/npc/expidonsa/npc_gianttankus.sp"
+#include "zombie_riot/npc/expidonsa/npc_helena.sp"
+#include "zombie_riot/npc/expidonsa/npc_ignitus.sp"
+#include "zombie_riot/npc/expidonsa/npc_speedus_adivus.sp"
+#include "zombie_riot/npc/expidonsa/npc_anfuhrer_eisenhard.sp"
+#include "zombie_riot/npc/raidmode_bosses/npc_sensal.sp"
+
+#include "zombie_riot/npc/ally/npc_vip_building.sp"

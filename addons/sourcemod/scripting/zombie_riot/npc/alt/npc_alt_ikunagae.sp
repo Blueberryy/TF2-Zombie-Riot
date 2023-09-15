@@ -54,6 +54,7 @@ static bool b_Severity_Spin_To_Win[MAXENTITIES];
 
 static int i_Severity_Barrage[MAXENTITIES];
 
+
 static float fl_Severity_Scaramouche[MAXENTITIES];
 
 static float fl_Scaramouche_Ability_Timer[MAXENTITIES];
@@ -529,31 +530,29 @@ public void Ikunagae_NPCDeath(int entity)
 		RemoveEntity(npc.m_iWearable6);
 }
 
+
 ///Scara-attack-core
 
-static float fl_Scaramouche_Trace_Max_Range[MAXENTITIES];
-static float fl_Scaramouche_Trace_Range[MAXENTITIES] = { 100.0, ... };
-static float fl_Scaramouche_Damage[MAXENTITIES];
+#define IKU_MAX_VORTEXES 10
+
 static float fl_Scaramouche_Angle[MAXENTITIES];
 
-static int i_Scaramouche_Vortex_ID[MAXENTITIES][MAXENTITIES];
+static int i_Scaramouche_Vortex_ID[MAXENTITIES][IKU_MAX_VORTEXES+1];
 static int i_Scaramouche_Vortex_Total[MAXENTITIES];
-static float fl_Scaramouche_Vortex_Attack_Timer[MAXENTITIES][MAXENTITIES];
-static float fl_Scaramouche_Vortex_Timer[MAXENTITIES][MAXENTITIES];
-static float fl_Scaramouche_Vortex_Vec[MAXENTITIES][MAXENTITIES][3]; 
+static float fl_Scaramouche_Vortex_Attack_Timer[MAXENTITIES][IKU_MAX_VORTEXES+1];
+static float fl_Scaramouche_Vortex_Timer[MAXENTITIES][IKU_MAX_VORTEXES+1];
+static float fl_Scaramouche_Vortex_Vec[MAXENTITIES][IKU_MAX_VORTEXES+1][3]; 
 
 static void Scaramouche_Activate(int client)
 {
 	Ikunagae npc = view_as<Ikunagae>(client);
 	
-	fl_Scaramouche_Trace_Max_Range[npc.index] = 600.0;
-	fl_Scaramouche_Damage[npc.index] = 100.0;
 	float time = 5.0;
 	
 	fl_Scaramouche_Angle[npc.index] = 180.0;
 	i_Scaramouche_Vortex_Total[npc.index] = 0;
 	
-	for(int i=0 ; i<MAXENTITIES ; i++)
+	for(int i=0 ; i<IKU_MAX_VORTEXES+1 ; i++)
 	{
 		i_Scaramouche_Vortex_ID[npc.index][i] = -1;
 	}
@@ -565,15 +564,15 @@ static void Scaramouche_Activate(int client)
 	
 	int type_class = 2;
 	int type = 0;
-	fl_Scaramouche_Trace_Max_Range[npc.index] /= type_class;
-	for(int j=1 ; j<=10; j++)
+	float range = 600.0 / type_class;
+	for(int j=1 ; j<=IKU_MAX_VORTEXES; j++)
 	{
 		type++;
 		if(type>type_class)
 		{
 			type = 1;
 		}
-		float distance = fl_Scaramouche_Trace_Range[npc.index];
+		float distance = 100.0;
 	
 		float tempAngles[3], endLoc[3], Direction[3];
 		
@@ -593,7 +592,7 @@ static void Scaramouche_Activate(int client)
 		MakeVectorFromPoints(UserLoc, endLoc, vecAngles);
 		GetVectorAngles(vecAngles, vecAngles);
 		
-		Scaramouche_BEAM(npc.index, UserLoc, vecAngles, type);
+		Scaramouche_BEAM(npc.index, UserLoc, vecAngles, type, range);
 	}
 	
 	CreateTimer(time, Scaramouche_TBB_Timer, client, TIMER_FLAG_NO_MAPCHANGE);
@@ -655,11 +654,11 @@ static bool Scaramouche_BEAM_TraceWallsOnly(int entity, int contentsMask)
 {
 	return !entity;
 }
-static void Scaramouche_BEAM(int client, float UserLoc[3], float vecAngles[3], int type)
+static void Scaramouche_BEAM(int client, float UserLoc[3], float vecAngles[3], int type, float range)
 {
 	float startPoint[3];
 	float endPoint[3];
-	float Range = fl_Scaramouche_Trace_Max_Range[client] * type;
+	float Range = range * type;
 	
 	startPoint = UserLoc;
 	Handle trace = TR_TraceRayFilterEx(UserLoc, vecAngles, 11, RayType_Infinite, Scaramouche_BEAM_TraceWallsOnly);

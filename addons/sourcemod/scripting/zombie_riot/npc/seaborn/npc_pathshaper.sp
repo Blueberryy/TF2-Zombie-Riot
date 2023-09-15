@@ -40,24 +40,24 @@ methodmap Pathshaper < CClotBody
 		if(this.m_flNextIdleSound > GetGameTime(this.index))
 			return;
 		
-		EmitSoundToAll(g_IdleAlertedSounds[GetRandomInt(0, sizeof(g_IdleAlertedSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 80);
+		EmitSoundToAll(g_IdleAlertedSounds[GetRandomInt(0, sizeof(g_IdleAlertedSounds) - 1)], this.index, SNDCHAN_VOICE, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME, 80);
 		this.m_flNextIdleSound = GetGameTime(this.index) + GetRandomFloat(12.0, 24.0);
 	}
 	public void PlayHurtSound()
 	{
-		EmitSoundToAll(g_HurtSounds[GetRandomInt(0, sizeof(g_HurtSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 80);
+		EmitSoundToAll(g_HurtSounds[GetRandomInt(0, sizeof(g_HurtSounds) - 1)], this.index, SNDCHAN_VOICE, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME, 80);
 	}
 	public void PlayDeathSound() 
 	{
-		EmitSoundToAll(g_DeathSounds[GetRandomInt(0, sizeof(g_DeathSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 80);
+		EmitSoundToAll(g_DeathSounds[GetRandomInt(0, sizeof(g_DeathSounds) - 1)], this.index, SNDCHAN_VOICE, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME, 80);
 	}
 	public void PlayMeleeSound()
  	{
-		EmitSoundToAll(g_MeleeAttackSounds[GetRandomInt(0, sizeof(g_MeleeAttackSounds) - 1)], this.index, SNDCHAN_AUTO, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, _);
+		EmitSoundToAll(g_MeleeAttackSounds[GetRandomInt(0, sizeof(g_MeleeAttackSounds) - 1)], this.index, SNDCHAN_AUTO, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME, _);
 	}
 	public void PlayMeleeHitSound()
 	{
-		EmitSoundToAll(g_MeleeHitSounds[GetRandomInt(0, sizeof(g_MeleeHitSounds) - 1)], this.index, SNDCHAN_AUTO, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, _);	
+		EmitSoundToAll(g_MeleeHitSounds[GetRandomInt(0, sizeof(g_MeleeHitSounds) - 1)], this.index, SNDCHAN_AUTO, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME, _);	
 	}
 	
 	public Pathshaper(int client, float vecPos[3], float vecAng[3], bool ally)
@@ -65,13 +65,13 @@ methodmap Pathshaper < CClotBody
 		Pathshaper npc = view_as<Pathshaper>(CClotBody(vecPos, vecAng, "models/zombie/poison.mdl", "1.75", "35000", ally, false, true));
 		// 35000 x 1.0
 		
-		SetVariantInt(15);
+		SetVariantInt(31);
 		AcceptEntityInput(npc.index, "SetBodyGroup");
 		KillFeed_SetKillIcon(npc.index, "warrior_spirit");
 
 		i_NpcInternalId[npc.index] = PATHSHAPER;
 		i_NpcWeight[npc.index] = 4;
-		npc.SetActivity("ACT_MP_RUN_MELEE");
+		npc.SetActivity("ACT_WALK");
 		
 		npc.m_iBleedType = BLEEDTYPE_SEABORN;
 		npc.m_iStepNoiseType = STEPSOUND_GIANT;
@@ -156,7 +156,9 @@ public void Pathshaper_ClotThink(int iNPC)
 					if(target > 0)
 					{
 						npc.PlayMeleeHitSound();
-						SDKHooks_TakeDamage(target, npc.index, npc.index, ShouldNpcDealBonusDamage(target) ? 800.0 : 267.0, DMG_CLUB);
+						SDKHooks_TakeDamage(target, npc.index, npc.index, ShouldNpcDealBonusDamage(target) ? 8000.0 : 400.0, DMG_CLUB);
+						// 800 x 0.5
+
 						Custom_Knockback(npc.index, target, 750.0);
 					}
 				}
@@ -257,7 +259,7 @@ void Pathshaper_SpawnFractal(CClotBody npc, int health, int limit)
 		if(entity != INVALID_ENT_REFERENCE && i_NpcInternalId[entity] == PATHSHAPER_FRACTAL && IsEntityAlive(entity))
 		{
 			if(++count == limit)
-				break;
+				return;
 		}
 	}
 
@@ -267,18 +269,26 @@ void Pathshaper_SpawnFractal(CClotBody npc, int health, int limit)
 		if(entity != INVALID_ENT_REFERENCE && i_NpcInternalId[entity] == PATHSHAPER_FRACTAL && IsEntityAlive(entity))
 		{
 			if(++count == limit)
-				break;
+				return;
 		}
 	}
 
 	float pos[3]; GetEntPropVector(npc.index, Prop_Data, "m_vecAbsOrigin", pos);
 	float ang[3]; GetEntPropVector(npc.index, Prop_Data, "m_angRotation", ang);
+	bool ally = GetEntProp(npc.index, Prop_Send, "m_iTeamNum") == 2;
 	
-	int entity = Npc_Create(PATHSHAPER_FRACTAL, -1, pos, ang, GetEntProp(npc.index, Prop_Send, "m_iTeamNum") == 2);
+	int entity = Npc_Create(PATHSHAPER_FRACTAL, -1, pos, ang, ally);
 	if(entity > MaxClients)
 	{
-		Zombies_Currently_Still_Ongoing++;
+		if(!ally)
+			Zombies_Currently_Still_Ongoing++;
+		
 		SetEntProp(entity, Prop_Data, "m_iHealth", health);
 		SetEntProp(entity, Prop_Data, "m_iMaxHealth", health);
+
+		fl_Extra_MeleeArmor[entity] = fl_Extra_MeleeArmor[npc.index];
+		fl_Extra_RangedArmor[entity] = fl_Extra_RangedArmor[npc.index];
+		fl_Extra_Speed[entity] = fl_Extra_Speed[npc.index];
+		fl_Extra_Damage[entity] = fl_Extra_Damage[npc.index];
 	}
 }
