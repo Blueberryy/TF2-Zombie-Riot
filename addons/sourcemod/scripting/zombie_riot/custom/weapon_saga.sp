@@ -3,10 +3,11 @@
 #define SAGA_ABILITY_3	"npc/waste_scanner/grenade_fire.wav"
 
 //NA GO GOHOM
-static Handle WeaponTimer[MAXTF2PLAYERS];
-static int WeaponRef[MAXTF2PLAYERS];
-static int WeaponCharge[MAXTF2PLAYERS];
+static Handle WeaponTimer[MAXPLAYERS];
+static int WeaponRef[MAXPLAYERS];
+static int WeaponCharge[MAXPLAYERS];
 static float SagaCrippled[MAXENTITIES + 1];
+static int SagaCrippler[MAXENTITIES + 1];
 static bool SagaRegen[MAXENTITIES];
 
 static const char g_MeleeHitSounds[][] =
@@ -30,11 +31,17 @@ void Saga_MapStart()
 void Saga_EntityCreated(int entity)
 {
 	SagaCrippled[entity] = 0.0;
+	SagaCrippler[entity] = 0;
 }
 
 bool Saga_EnemyDoomed(int entity)
 {
 	return view_as<bool>(SagaCrippled[entity]);
+}
+
+int Saga_EnemyDoomedBy(int entity)
+{
+	return SagaCrippler[entity];
 }
 
 bool Saga_RegenHealth(int entity)
@@ -48,13 +55,28 @@ void Saga_DeadEffects(int victim, int attacker, int weapon)
 		Saga_ChargeReduction(attacker, weapon, SagaCrippled[victim]);
 }
 
+public bool Saga_ChargeValidityFunction(int provider, int entity)
+{
+	if(entity <= MaxClients)
+	{
+		int i, weapon;
+		while(TF2_GetItem(entity, weapon, i))
+		{
+			if(Saga_IsChargeWeapon(entity, weapon))
+				return true;
+		}
+	}
+
+	return false;
+}
+
 bool Saga_IsChargeWeapon(int client, int weapon)
 {
 	if(!IsValidEntity(weapon))
 		return false;
 
-	if(f_UberOnHitWeapon[weapon])
-		return true;
+	//if(f_UberOnHitWeapon[weapon] > 0.01)
+	//	return true;
 	
 	if(Passanger_HasCharge(client))
 		return true;
@@ -82,7 +104,7 @@ void Saga_ChargeReduction(int client, int weapon, float time)
 
 	if(WeaponTimer[client] && EntRefToEntIndex(WeaponRef[client]) == weapon)
 	{
-		//WeaponCharge[client] += RoundFloat(time) - 1;
+		WeaponCharge[client] += Int_CooldownReductionDo(client, RoundToNearest(time)) + 1;
 		TriggerTimer(WeaponTimer[client], false);
 	}
 	
@@ -91,7 +113,7 @@ void Saga_ChargeReduction(int client, int weapon, float time)
 		float cooldown = Ability_Check_Cooldown(client, i, weapon);
 		if(cooldown > 0.0)
 		{
-			Ability_Apply_Cooldown(client, i, cooldown - time, weapon);
+			Ability_Apply_Cooldown(client, i, cooldown - time, weapon, true);
 			break;
 		}
 	}
@@ -106,11 +128,11 @@ void Saga_Enable(int client, int weapon)
 		WeaponRef[client] = EntIndexToEntRef(weapon);
 		delete WeaponTimer[client];
 
-		float value = Attributes_Get(weapon, 861, -1.0);
+		float value = Attributes_Get(weapon, 868, -1.0);
 		if(value == -1.0)
 		{
 			// Elite 0 Special 1
-			WeaponTimer[client] = CreateTimer(3.5, Saga_Timer1, client, TIMER_REPEAT);
+			WeaponTimer[client] = CreateTimer(3.5 / ResourceRegenMulti, Saga_Timer1, client, TIMER_REPEAT);
 		}
 		else if(value == 0.0)
 		{
@@ -132,9 +154,9 @@ public Action Saga_Timer1(Handle timer, int client)
 		int weapon = EntRefToEntIndex(WeaponRef[client]);
 		if(weapon != INVALID_ENT_REFERENCE)
 		{
-			if(weapon == GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon"))
+			if(!Waves_InSetup() && weapon == GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon") && AllowMaxCashgainWaveCustom(client))
 			{
-				int amount = 1;
+				int amount = 2;
 				/*
 				 + (WeaponCharge[client] * 7 / 2);
 
@@ -145,8 +167,9 @@ public Action Saga_Timer1(Handle timer, int client)
 					amount = 1; //dont give shit.
 				*/
 				
-				CashRecievedNonWave[client] += amount;
+				CashReceivedNonWave[client] += amount;
 				CashSpent[client] -= amount;
+				AddCustomCashMadeThisWave(client, amount);
 			}
 			
 			return Plugin_Continue;
@@ -166,11 +189,12 @@ public Action Saga_Timer2(Handle timer, int client)
 		{
 			if(weapon == GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon"))
 			{
-				if(++WeaponCharge[client] > 32)
-					WeaponCharge[client] = 32;
+				if(++WeaponCharge[client] > Int_CooldownReductionDo(client, 32))
+					WeaponCharge[client] = Int_CooldownReductionDo(client, 32);
 				
-				PrintHintText(client, "Cleansing Evil [%d / 2] {%ds}", WeaponCharge[client] / 16, 16 - (WeaponCharge[client] % 16));
-				StopSound(client, SNDCHAN_STATIC, "UI/hint.wav");
+				int ValueCD = Int_CooldownReductionDo(client, 16);
+				PrintHintText(client, "Cleansing Evil [%d / 2] {%ds}", WeaponCharge[client] / ValueCD, ValueCD - (WeaponCharge[client] % ValueCD));
+				
 			}
 
 			return Plugin_Continue;
@@ -191,11 +215,12 @@ public Action Saga_Timer3(Handle timer, int client)
 			if(weapon == GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon"))
 			{
 				SagaRegen[client] = true;
-				if(++WeaponCharge[client] > 39)
-					WeaponCharge[client] = 39;
+				if(++WeaponCharge[client] > Int_CooldownReductionDo(client, 39))
+					WeaponCharge[client] = Int_CooldownReductionDo(client, 39);
 				
-				PrintHintText(client, "Cleansing Evil [%d / 3] {%ds}", WeaponCharge[client] / 13, 13 - (WeaponCharge[client] % 13));
-				StopSound(client, SNDCHAN_STATIC, "UI/hint.wav");
+				int ValueCD = Int_CooldownReductionDo(client, 13);
+				PrintHintText(client, "Cleansing Evil [%d / 3] {%ds}", WeaponCharge[client] / ValueCD, ValueCD - (WeaponCharge[client] % ValueCD));
+				
 			}
 			else
 			{
@@ -224,6 +249,7 @@ public void Weapon_SagaE2_M2(int client, int weapon, bool crit, int slot)
 static void Weapon_Saga_M2(int client, int weapon, bool mastery)
 {
 	int cost = mastery ? 13 : 16;
+	cost = Int_CooldownReductionDo(client, cost);
 	if(CvarInfiniteCash.BoolValue)
 	{
 		WeaponCharge[client] = 999;
@@ -237,11 +263,19 @@ static void Weapon_Saga_M2(int client, int weapon, bool mastery)
 	}
 	else
 	{
-		Rogue_OnAbilityUse(weapon);
+		Rogue_OnAbilityUse(client, weapon);
 		MakePlayerGiveResponseVoice(client, 4); //haha!
-		WeaponCharge[client] -= cost + 1;
-		CashRecievedNonWave[client] += 4;
-		CashSpent[client] -= 4;
+		WeaponCharge[client] -= cost;
+
+		//cus we call the timer
+		WeaponCharge[client] -= 1;
+		if(!Waves_InSetup() && AllowMaxCashgainWaveCustom(client))
+		{
+			int cash = RoundFloat(6.0 * ResourceRegenMulti);
+			CashReceivedNonWave[client] += cash;
+			CashSpent[client] -= cash;
+			AddCustomCashMadeThisWave(client, cash);
+		}
 		
 		float damage = mastery ? 260.0 : 208.0;	// 400%, 320%
 		damage *= Attributes_Get(weapon, 2, 1.0);
@@ -257,7 +291,7 @@ static void Weapon_Saga_M2(int client, int weapon, bool mastery)
 		spawnRing_Vectors(UserLoc, Range * 2.0, 0.0, 0.0, 5.0, "materials/sprites/laserbeam.vmt", 255, 0, 0, 200, 1, 0.25, 12.0, 6.1, 1, 0.0);	
 		b_LagCompNPC_No_Layers = true;
 		StartLagCompensation_Base_Boss(client);				
-		Explode_Logic_Custom(damage, client, client, weapon, _, Range, 1.0, 0.0, false, 6,_,_,SagaCutFirst);
+		Explode_Logic_Custom(damage, client, client, weapon, _, Range, _, _, false, 6,_,_,SagaCutFirst);
 		FinishLagCompensation_Base_boss();
 		
 		i_ExplosiveProjectileHexArray[client] = value;
@@ -266,7 +300,7 @@ static void Weapon_Saga_M2(int client, int weapon, bool mastery)
 		CreateTimer(0.2, Saga_DelayedExplode, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
 
 		int rand = GetURandomInt() % 3;
-		EmitSoundToAll(rand == 0 ? SAGA_ABILITY_1 : (rand == 1 ? SAGA_ABILITY_2 : SAGA_ABILITY_3), client, SNDCHAN_AUTO, 75_,_,0.6);
+		EmitSoundToAll(rand == 0 ? SAGA_ABILITY_1 : (rand == 1 ? SAGA_ABILITY_2 : SAGA_ABILITY_3), client, SNDCHAN_AUTO, 75,_,0.6);
 
 		TriggerTimer(WeaponTimer[client], true);
 	}
@@ -284,11 +318,11 @@ public Action Saga_DelayedExplode(Handle timer, int userid)
 			damage *= Attributes_Get(weapon, 2, 1.0);
 			
 			int value = i_ExplosiveProjectileHexArray[client];
-			i_ExplosiveProjectileHexArray[client] = EP_DEALS_SLASH_DAMAGE;
+			i_ExplosiveProjectileHexArray[client] = EP_DEALS_CLUB_DAMAGE;
 
 			b_LagCompNPC_No_Layers = true;
 			StartLagCompensation_Base_Boss(client);						
-			Explode_Logic_Custom(damage, client, client, weapon, _, 400.0, 1.0, 0.0, false, 99,_,_,SagaCutLast);
+			Explode_Logic_Custom(damage, client, client, weapon, _, 400.0, _, _, false, 99,_,_,SagaCutLast);
 			FinishLagCompensation_Base_boss();			
 			i_ExplosiveProjectileHexArray[client] = value;
 		}
@@ -298,7 +332,7 @@ public Action Saga_DelayedExplode(Handle timer, int userid)
 
 void Saga_OnTakeDamage(int victim, int &attacker, float &damage, int &weapon, int damagetype)
 {
-	if(damagetype & DMG_SLASH)
+	if(damagetype & DMG_TRUEDAMAGE)
 	{
 		return;
 	}
@@ -310,18 +344,22 @@ void Saga_OnTakeDamage(int victim, int &attacker, float &damage, int &weapon, in
 	{
 		damage = float(GetEntProp(victim, Prop_Data, "m_iHealth") - 1);
 
-		SagaCrippled[victim] = Attributes_Get(weapon, 861, -1.0) == -1.0 ? 1.0 : 2.0;
+		SagaCrippler[victim] = attacker;
+		SagaCrippled[victim] = Attributes_Get(weapon, 868, -1.0) == -1.0 ? 1.0 : 2.0;
 		CreateTimer(10.0, Saga_ExcuteTarget, EntIndexToEntRef(victim), TIMER_FLAG_NO_MAPCHANGE);
 		FreezeNpcInTime(victim, 10.2);
-		SetEntityRenderMode(victim, RENDER_TRANSCOLOR, false, 1, false, true);
-		SetEntityRenderColor(victim, 255, 65, 65, 125, false, false, true);
+		SetEntityRenderMode(victim, RENDER_TRANSCOLOR);
+		SetEntityRenderColor(victim, 255, 65, 65, 125);
 		b_ThisEntityIgnoredByOtherNpcsAggro[victim] = true;
-		Change_Npc_Collision(victim, 3);
+		//counts as a static npc, means it wont count towards NPC limit.
+		//thisd is so they dont hog.
+		AddNpcToAliveList(victim, 1);
+
 		SetEntityCollisionGroup(victim, 17);
 		b_DoNotUnStuck[victim] = true;
 		CClotBody npc = view_as<CClotBody>(victim);
 		Npc_DebuffWorldTextUpdate(npc);
-		Attributes_OnKill(attacker, weapon);
+		Attributes_OnKill(victim, attacker, weapon);
 		//so using this sword against a raid doesnt result in an auto lose.
 		if(EntRefToEntIndex(RaidBossActive) == victim)
 		{
@@ -334,7 +372,7 @@ public Action Saga_ExcuteTarget(Handle timer, int ref)
 {
 	int entity = EntRefToEntIndex(ref);
 	if(entity != INVALID_ENT_REFERENCE)
-		SDKHooks_TakeDamage(entity, 0, 0, 9999.9, DMG_SLASH);
+		SDKHooks_TakeDamage(entity, 0, 0, 9999.9, DMG_TRUEDAMAGE);
 	
 	return Plugin_Continue;
 }
@@ -356,7 +394,7 @@ void SagaCutLast(int entity, int victim, float damage, int weapon)
 	if(SagaCrippled[victim])
 	{
 		float VicLoc[3];
-		VicLoc = WorldSpaceCenter(victim);
+		WorldSpaceCenter(victim, VicLoc);
 
 		float Pos1[3];
 		float Pos2[3];
@@ -407,8 +445,8 @@ void SagaCutLast(int entity, int victim, float damage, int weapon)
 
 
 		EmitSoundToAll(g_MeleeHitSounds[GetRandomInt(0, sizeof(g_MeleeHitSounds) - 1)], 0, SNDCHAN_AUTO, 90, _,_,GetRandomInt(80,110),-1,VicLoc);
-	
-		SDKHooks_TakeDamage(victim, weapon, entity, 10.0, DMG_SLASH, weapon, CalculateDamageForce(vecForward, 10000.0), VicLoc, _, _);
+		float damage_force[3]; CalculateDamageForce(vecForward, 10000.0, damage_force);
+		SDKHooks_TakeDamage(victim, weapon, entity, 10.0, DMG_TRUEDAMAGE, weapon, damage_force, VicLoc, _, _);
 	}
 }
 
@@ -419,4 +457,11 @@ void SagaAttackBeforeSwing(int client)
 void SagaAttackAfterSwing(int client)
 {
 	SagaCrippled[client] = 0.0;
+}
+
+
+
+int Int_CooldownReductionDo(int client, int OriginalValue)
+{
+	return RoundToNearest(float(OriginalValue) * CooldownReductionAmount(client));
 }

@@ -75,15 +75,12 @@ static const char g_MeleeAttackSounds[][] = {
 	"weapons/shovel_swing.wav",
 };
 
-static const char g_MeleeMissSounds[][] = {
-	"weapons/cbar_miss1.wav",
-};
-
 static const char g_WarCry[][] = {
 	"mvm/mvm_tank_horn.wav",
 };
 
 static float f_GlobalSoundCD;
+static int NPCId;
 
 void MedivalHussar_OnMapStart_NPC()
 {
@@ -93,16 +90,29 @@ void MedivalHussar_OnMapStart_NPC()
 	for (int i = 0; i < (sizeof(g_IdleAlertedSounds)); i++) { PrecacheSound(g_IdleAlertedSounds[i]); }
 	for (int i = 0; i < (sizeof(g_MeleeHitSounds));	i++) { PrecacheSound(g_MeleeHitSounds[i]);	}
 	for (int i = 0; i < (sizeof(g_MeleeAttackSounds));	i++) { PrecacheSound(g_MeleeAttackSounds[i]);	}
-	for (int i = 0; i < (sizeof(g_MeleeMissSounds));   i++) { PrecacheSound(g_MeleeMissSounds[i]);   }
+	for (int i = 0; i < (sizeof(g_DefaultMeleeMissSounds));   i++) { PrecacheSound(g_DefaultMeleeMissSounds[i]);   }
 	for (int i = 0; i < (sizeof(g_WarCry));   i++) { PrecacheSound(g_WarCry[i]);   }
 	PrecacheModel(COMBINE_CUSTOM_MODEL);
 	f_GlobalSoundCD = 0.0;
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Hussar");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_medival_hussar");
+	strcopy(data.Icon, sizeof(data.Icon), "soldier_backup");
+	data.IconCustom = false;
+	data.Flags = 0;
+	data.Category = Type_Medieval;
+	data.Func = ClotSummon;
+	NPCId = NPC_Add(data);
 }
 
-static int i_ClosestAlly[MAXENTITIES];
-static float i_ClosestAllyCD[MAXENTITIES];
-static int i_ClosestAllyTarget[MAXENTITIES];
-static float i_ClosestAllyCDTarget[MAXENTITIES];
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team)
+{
+	return MedivalHussar(vecPos, vecAng, team);
+}
+
+
+
+
 
 
 #define HUSSAR_BUFF_MAXRANGE 350.0 		
@@ -153,7 +163,7 @@ methodmap MedivalHussar < CClotBody
 	}
 
 	public void PlayMeleeMissSound() {
-		EmitSoundToAll(g_MeleeMissSounds[GetRandomInt(0, sizeof(g_MeleeMissSounds) - 1)], this.index, _, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 100);
+		EmitSoundToAll(g_DefaultMeleeMissSounds[GetRandomInt(0, sizeof(g_DefaultMeleeMissSounds) - 1)], this.index, _, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 100);
 	}	
 	public void PlayMeleeWarCry() 
 	{
@@ -165,12 +175,11 @@ methodmap MedivalHussar < CClotBody
 		EmitSoundToAll(g_WarCry[GetRandomInt(0, sizeof(g_WarCry) - 1)], this.index, _, 85, _, 0.8, 100);
 	}
 	
-	public MedivalHussar(int client, float vecPos[3], float vecAng[3], bool ally)
+	public MedivalHussar(float vecPos[3], float vecAng[3], int ally)
 	{
 		MedivalHussar npc = view_as<MedivalHussar>(CClotBody(vecPos, vecAng, COMBINE_CUSTOM_MODEL, "1.15", "75000", ally));
 		SetVariantInt(1);
-		AcceptEntityInput(npc.index, "SetBodyGroup");				
-		i_NpcInternalId[npc.index] = MEDIVAL_HUSSAR;
+		AcceptEntityInput(npc.index, "SetBodyGroup");		
 		i_NpcWeight[npc.index] = 3;
 		
 		FormatEx(c_HeadPlaceAttachmentGibName[npc.index], sizeof(c_HeadPlaceAttachmentGibName[]), "head");
@@ -180,13 +189,16 @@ methodmap MedivalHussar < CClotBody
 		
 		
 		npc.m_flNextMeleeAttack = 0.0;
+		npc.m_bisWalking = false; //Animation it uses has no groundspeed, this is needed.
 		
 		npc.m_iBleedType = BLEEDTYPE_NORMAL;
 		npc.m_iStepNoiseType = STEPSOUND_NORMAL;	
 		npc.m_iNpcStepVariation = STEPTYPE_COMBINE_METRO;
 		
 		
-		SDKHook(npc.index, SDKHook_Think, MedivalHussar_ClotThink);
+		func_NPCDeath[npc.index] = MedivalHussar_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = MedivalHussar_OnTakeDamage;
+		func_NPCThink[npc.index] = MedivalHussar_ClotThink;
 
 		npc.m_iState = 0;
 		npc.m_flSpeed = 350.0;
@@ -225,8 +237,7 @@ methodmap MedivalHussar < CClotBody
 	}
 }
 
-//TODO 
-//Rewrite
+
 public void MedivalHussar_ClotThink(int iNPC)
 {
 	MedivalHussar npc = view_as<MedivalHussar>(iNPC);
@@ -289,32 +300,32 @@ public void MedivalHussar_ClotThink(int iNPC)
 		{
 			if(IsValidEnemy(npc.index, npc.m_iTarget))
 			{
-				float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
+				float vecTarget[3]; WorldSpaceCenter(npc.m_iTarget, vecTarget );
 				
-				float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+				float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+				float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 					
 				//Predict their pos.
 				if(flDistanceToTarget < npc.GetLeadRadius()) 
 				{
-					float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, npc.m_iTarget);
-					NPC_SetGoalVector(npc.index, vPredictedPos);
+					float vPredictedPos[3]; PredictSubjectPosition(npc, npc.m_iTarget,_,_, vPredictedPos);
+					npc.SetGoalVector(vPredictedPos);
 				}
 				else 
 				{
-					NPC_SetGoalEntity(npc.index, npc.m_iTarget);
+					npc.SetGoalEntity(npc.m_iTarget);
 				}
 				if(npc.m_iChanged_WalkCycle != 4) 	
 				{
-					npc.m_bisWalking = true;
 					npc.m_flSpeed = 350.0;
 					npc.m_iChanged_WalkCycle = 4;
 					npc.SetActivity("ACT_RIDER_RUN");
 				}
-				NPC_StartPathing(npc.index); //Charge at them!
+				npc.StartPathing(); //Charge at them!
 			}
 			else
 			{
-				NPC_StopPathing(iNPC);
+				view_as<CClotBody>(iNPC).StopPathing();
 				npc.m_iTarget = GetClosestTarget(npc.index); //Find new target instantly.
 			}
 		}
@@ -328,52 +339,52 @@ public void MedivalHussar_ClotThink(int iNPC)
 			}
 			if(IsValidEnemy(npc.index, i_ClosestAllyTarget[npc.index]))
 			{
-				float vecTarget[3]; vecTarget = WorldSpaceCenter(i_ClosestAllyTarget[npc.index]);
+				float vecTarget[3]; WorldSpaceCenter(i_ClosestAllyTarget[npc.index], vecTarget );
 				
-				flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+				float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+				flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 					
 				//Predict their pos.
 				if(flDistanceToTarget < npc.GetLeadRadius()) 
 				{
-					float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, i_ClosestAllyTarget[npc.index]);
-					NPC_SetGoalVector(npc.index, vPredictedPos);
+					float vPredictedPos[3];  PredictSubjectPosition(npc, i_ClosestAllyTarget[npc.index],_,_,vPredictedPos);
+					npc.SetGoalVector(vPredictedPos);
 				}
 				else 
 				{
-					NPC_SetGoalEntity(npc.index, i_ClosestAllyTarget[npc.index]);
+					npc.SetGoalEntity(i_ClosestAllyTarget[npc.index]);
 				}
 				if(npc.m_iChanged_WalkCycle != 4) 	
 				{
-					npc.m_bisWalking = true;
 					npc.m_flSpeed = 350.0;
 					npc.m_iChanged_WalkCycle = 4;
 					npc.SetActivity("ACT_RIDER_RUN");
 				}
-				NPC_StartPathing(npc.index); //Charge at them!
+				npc.StartPathing(); //Charge at them!
 			}
 			else
 			{
-				flDistanceToTarget = GetVectorDistance(WorldSpaceCenter(i_ClosestAlly[npc.index]), WorldSpaceCenter(npc.index), true);
+				float WorldSpaceVec[3]; WorldSpaceCenter(i_ClosestAlly[npc.index], WorldSpaceVec);
+				float WorldSpaceVec2[3]; WorldSpaceCenter(npc.index, WorldSpaceVec2);
+				flDistanceToTarget = GetVectorDistance(WorldSpaceVec, WorldSpaceVec2, true);
 				if(flDistanceToTarget < (125.0* 125.0) && Can_I_See_Ally(npc.index, i_ClosestAlly[npc.index])) //make sure we can also see them for no unfair bs
 				{
 					if(npc.m_iChanged_WalkCycle != 5)
 					{
-						npc.m_bisWalking = false;
 						npc.m_flSpeed = 0.0;
 						npc.m_iChanged_WalkCycle = 5;
 						npc.SetActivity("ACT_RIDER_IDLE");
-						NPC_StopPathing(iNPC);
+						view_as<CClotBody>(iNPC).StopPathing();
 					}
 				}
 				else
 				{
 					float AproxRandomSpaceToWalkTo[3];
 					GetEntPropVector(i_ClosestAlly[npc.index], Prop_Data, "m_vecAbsOrigin", AproxRandomSpaceToWalkTo);
-					NPC_SetGoalVector(iNPC, AproxRandomSpaceToWalkTo);
-					NPC_StartPathing(iNPC);
+					view_as<CClotBody>(iNPC).SetGoalVector(AproxRandomSpaceToWalkTo);
+					view_as<CClotBody>(iNPC).StartPathing();
 					if(npc.m_iChanged_WalkCycle != 4) 	
 					{
-						npc.m_bisWalking = true;
 						npc.m_flSpeed = 350.0;
 						npc.m_iChanged_WalkCycle = 4;
 						npc.SetActivity("ACT_RIDER_RUN");
@@ -400,15 +411,15 @@ void HussarAOEBuff(MedivalHussar npc, float gameTime, bool mute = false)
 		{
 			if(IsValidEntity(entitycount) && entitycount != npc.index && (entitycount <= MaxClients || !b_NpcHasDied[entitycount])) //Cannot buff self like this.
 			{
-				if(GetEntProp(entitycount, Prop_Data, "m_iTeamNum") == GetEntProp(npc.index, Prop_Data, "m_iTeamNum") && IsEntityAlive(entitycount))
+				if(GetTeam(entitycount) == GetTeam(npc.index) && IsEntityAlive(entitycount))
 				{
 					static float pos2[3];
 					GetEntPropVector(entitycount, Prop_Data, "m_vecAbsOrigin", pos2);
 					if(GetVectorDistance(pos1, pos2, true) < (HUSSAR_BUFF_MAXRANGE * HUSSAR_BUFF_MAXRANGE))
 					{
-						if(i_NpcInternalId[entitycount] != MEDIVAL_HUSSAR) //Hussars cannot buff eachother.
+						if(i_NpcInternalId[entitycount] != NPCId) //Hussars cannot buff eachother.
 						{
-							f_HussarBuff[entitycount] = GetGameTime() + 5.0; //allow buffing of players too if on red.
+							ApplyStatusEffect(npc.index, entitycount, "Hussar's Warscream", 5.0);
 							//Buff this entity.
 							buffed_anyone = true;	
 						}
@@ -419,12 +430,12 @@ void HussarAOEBuff(MedivalHussar npc, float gameTime, bool mute = false)
 		if(buffed_anyone)
 		{
 			npc.m_flAttackHappens_bullshit = gameTime + 10.0;
-			f_HussarBuff[npc.index] = GetGameTime() + 5.0;
+			ApplyStatusEffect(npc.index, npc.index, "Hussar's Warscream", 5.0);
 			static int r;
 			static int g;
 			static int b ;
 			static int a = 255;
-			if(b_Is_Blue_Npc[npc.index])
+			if(GetTeam(npc.index) != TFTeam_Red)
 			{
 				r = 125;
 				g = 125;
@@ -475,7 +486,8 @@ void HussarSelfDefense(MedivalHussar npc, float gameTime)
 			if(IsValidEnemy(npc.index, npc.m_iTarget))
 			{
 				Handle swingTrace;
-				npc.FaceTowards(WorldSpaceCenter(npc.m_iTarget), 15000.0);
+				float VecEnemy[3]; WorldSpaceCenter(npc.m_iTarget, VecEnemy);
+				npc.FaceTowards(VecEnemy, 15000.0);
 				if(npc.DoSwingTrace(swingTrace, npc.m_iTarget, _, _, _, 0)) //Big range, but dont ignore buildings if somehow this doesnt count as a raid to be sure.
 				{
 					int target = TR_GetEntityIndex(swingTrace);	
@@ -484,11 +496,11 @@ void HussarSelfDefense(MedivalHussar npc, float gameTime)
 					TR_GetEndPosition(vecHit, swingTrace);
 					float damage = 75.0;
 
-					if(Medival_Difficulty_Level > 1.0) //Damage is high as its more of a support
+					if(Medival_Difficulty_Level_NotMath >= 2)
 					{
 						damage = 100.0;
 					}
-					if(Medival_Difficulty_Level > 2.0) //Damage is high as its more of a support
+					if(Medival_Difficulty_Level_NotMath >= 3)
 					{
 						damage = 150.0;
 					}
@@ -514,9 +526,10 @@ void HussarSelfDefense(MedivalHussar npc, float gameTime)
 	{
 		if(IsValidEnemy(npc.index, PrimaryThreatIndex)) 
 		{
-			float vecTarget[3]; vecTarget = WorldSpaceCenter(PrimaryThreatIndex);
+			float vecTarget[3]; WorldSpaceCenter(PrimaryThreatIndex, vecTarget);
 
-			float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+			float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+			float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 
 			if(flDistanceToTarget < NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED)
 			{
@@ -541,7 +554,7 @@ void HussarSelfDefense(MedivalHussar npc, float gameTime)
 		}
 		else
 		{
-			npc.m_bPathing = false;
+			
 			npc.m_flGetClosestTargetTime = 0.0;
 			npc.m_iTarget = GetClosestTarget(npc.index);
 		}	
@@ -574,9 +587,6 @@ public void MedivalHussar_NPCDeath(int entity)
 	{
 		npc.PlayDeathSound();	
 	}
-	
-	
-	SDKUnhook(npc.index, SDKHook_Think, MedivalHussar_ClotThink);
 		
 	if(IsValidEntity(npc.m_iWearable1))
 		RemoveEntity(npc.m_iWearable1);

@@ -27,7 +27,18 @@ static const char Categories[][] =
 	"Medieval Empire",
 	"Cry of Fear",
 	"Seaborn Infection",
-	"Expidonsa"
+	"Expidonsa",
+	"Interitus Alliances",
+	"Chaos Allience",
+	"Voided Subjects",
+	"Ruina",
+	"Iberia Expidonsa Alliance",
+	"Whiteflower Specials",
+	"Victoria",
+	"Matrix",
+	"Aperture",
+	"Mutations",
+	"Curtain Occupants",
 };
 
 enum struct GiftItem
@@ -45,17 +56,19 @@ enum struct OwnedItem
 
 static ArrayList GiftItems;
 static ArrayList OwnedItems;
-static int LastMenuPage[MAXTF2PLAYERS];
+static int CategoryPage[MAXPLAYERS];
 
 static int g_BeamIndex = -1;
 static int i_RarityType[MAXENTITIES];
-static float f_IncreaceChanceManually = 1.0;
+static float f_IncreaseChanceManually = 1.0;
 static bool b_ForceSpawnNextTime;
 
 void Items_PluginStart()
 {
 	OwnedItems = new ArrayList(sizeof(OwnedItem));
-	//RegConsoleCmd("zr_itemdebug", Items_DebugCmd);
+	RegAdminCmd("zr_give_item", Items_GiveCmd, ADMFLAG_RCON);
+	RegAdminCmd("zr_give_allitems", Items_GiveAllCmd, ADMFLAG_RCON);
+	RegAdminCmd("zr_remove_allitems", Items_RemoveAllCmd, ADMFLAG_RCON);
 }
 
 void Items_SetupConfig()
@@ -68,24 +81,35 @@ void Items_SetupConfig()
 
 	KeyValues kv = new KeyValues("GiftItems");
 	kv.ImportFromFile(buffer);
+	kv.GotoFirstSubKey();
 	
 	GiftItem item;
-	for(int i; ; i++)	// Done this method due to saving by ID instead
+	do	// TODO: Replace ArrayList with IntMap
 	{
-		IntToString(i, item.Name, sizeof(item.Name));
-		if(kv.JumpToKey(item.Name))
-		{
-			kv.GetString("name", item.Name, sizeof(item.Name));
-			item.Rarity = kv.GetNum("rarity", Rarity_None);
-			GiftItems.PushArray(item);
+		kv.GetSectionName(item.Name, sizeof(item.Name));
+		int index = StringToInt(item.Name);
 
-			kv.GoBack();
+		item.Name[0] = 0;
+		item.Rarity = Rarity_None;
+		while(GiftItems.Length < index)
+		{
+			GiftItems.PushArray(item);
+		}
+
+		kv.GetString("name", item.Name, sizeof(item.Name));
+		item.Rarity = kv.GetNum("rarity", Rarity_None);
+		if(GiftItems.Length == index)
+		{
+			GiftItems.PushArray(item);
 		}
 		else
 		{
-			break;
+			GiftItems.SetArray(index, item);
 		}
 	}
+	while(kv.GotoNextKey());
+
+	delete kv;
 }
 
 void Items_ClearArray(int client)
@@ -127,14 +151,134 @@ bool Items_GetNextItem(int client, int &i, int &level, int &flags)
 	return false;
 }
 
-public Action Items_DebugCmd(int client, int args)
+public Action Items_GiveCmd(int client, int args)
 {
-	int length = OwnedItems.Length;
-	for(int i; i < length; i++)
+	if(args > 1)
 	{
-		static OwnedItem owned;
-		OwnedItems.GetArray(i, owned);
-		PrintToChatAll("%d %N %d %d", i, client, owned.Level, owned.Flags);
+		char targetName[MAX_TARGET_LENGTH];
+		GetCmdArg(2, targetName, sizeof(targetName));
+		
+		int id = Items_NameToId(targetName);
+		if(id == -1)
+		{
+			ReplyToCommand(client, "Invalid item name");
+			return Plugin_Handled;
+		}
+
+		char pattern[PLATFORM_MAX_PATH];
+		GetCmdArg(1, pattern, sizeof(pattern));
+
+		int length;
+		int targets[MAXPLAYERS];
+		bool targetNounIsMultiLanguage;
+		if((length=ProcessTargetString(pattern, client, targets, sizeof(targets), COMMAND_FILTER_NO_IMMUNITY|COMMAND_FILTER_NO_BOTS, targetName, sizeof(targetName), targetNounIsMultiLanguage)) > 0)
+		{
+			for(int i; i < length; i++)
+			{
+				if(Items_HasIdItem(targets[i], id))
+				{
+					ReplyToCommand(client, "%N already has this item", targets[i]);
+				}
+				else
+				{
+					Items_GiveIdItem(targets[i], id);
+					ReplyToCommand(client, "Gave %N this item", targets[i]);
+				}
+			}
+		}
+		else
+		{
+			ReplyToTargetError(client, length);
+		}
+	}
+	else
+	{
+		ReplyToCommand(client, "[SM] Usage: zr_give_item <client> <item name>");
+	}
+	return Plugin_Handled;
+}
+
+public Action Items_GiveAllCmd(int client, int args)
+{
+	if(args == 1)
+	{
+		char targetName[MAX_TARGET_LENGTH];
+
+		char pattern[PLATFORM_MAX_PATH];
+		GetCmdArg(1, pattern, sizeof(pattern));
+
+		int length;
+		int targets[MAXPLAYERS];
+		bool targetNounIsMultiLanguage;
+		if((length=ProcessTargetString(pattern, client, targets, sizeof(targets), COMMAND_FILTER_NO_IMMUNITY|COMMAND_FILTER_NO_BOTS, targetName, sizeof(targetName), targetNounIsMultiLanguage)) > 0)
+		{
+			for(int i; i < length; i++)
+			{
+				int count;
+				int length2 = GiftItems.Length;
+				for(int id; id < length2; id++)
+				{
+					static GiftItem item;
+					GiftItems.GetArray(id, item);
+					if(StrContains(item.Name, "???") == -1)
+					{
+						if(!Items_HasIdItem(targets[i], id))
+						{
+							Items_GiveIdItem(targets[i], id);
+							count++;
+						}
+					}
+				}
+
+				for(int id = length2; id < 255; id++)
+				{
+					if(!Items_HasIdItem(targets[i], id))
+						Items_GiveIdItem(targets[i], id);
+				}
+				
+				ReplyToCommand(client, "Gave %d items to %N", count, targets[i]);
+			}
+		}
+		else
+		{
+			ReplyToTargetError(client, length);
+		}
+	}
+	else
+	{
+		ReplyToCommand(client, "[SM] Usage: zr_give_allitems <client>");
+	}
+	return Plugin_Handled;
+}
+
+public Action Items_RemoveAllCmd(int client, int args)
+{
+	if(args == 1)
+	{
+		char targetName[MAX_TARGET_LENGTH];
+
+		char pattern[PLATFORM_MAX_PATH];
+		GetCmdArg(1, pattern, sizeof(pattern));
+
+		int length;
+		int targets[MAXPLAYERS];
+		bool targetNounIsMultiLanguage;
+		if((length=ProcessTargetString(pattern, client, targets, sizeof(targets), COMMAND_FILTER_NO_IMMUNITY|COMMAND_FILTER_NO_BOTS, targetName, sizeof(targetName), targetNounIsMultiLanguage)) > 0)
+		{
+			for(int i; i < length; i++)
+			{
+				Items_ClearArray(targets[i]);
+				ReplyToCommand(client, "Remove %N items", targets[i]);
+			}
+		}
+		else
+		{
+			ReplyToTargetError(client, length);
+		}
+	}
+	else
+	{
+		ReplyToCommand(client, "[SM] Usage: zr_give_allitems <client>");
 	}
 	return Plugin_Handled;
 }
@@ -155,7 +299,7 @@ static int GetFlagsOfLevel(int client, int level)
 	return 0;
 }
 
-static bool AddFlagOfLevel(int client, int level, int flag, bool addition)
+static bool AddFlagOfLevel(int client, int level, int flag)
 {
 	static OwnedItem owned;
 	int length = OwnedItems.Length;
@@ -164,7 +308,7 @@ static bool AddFlagOfLevel(int client, int level, int flag, bool addition)
 		OwnedItems.GetArray(i, owned);
 		if(owned.Client == client && owned.Level == level)
 		{
-			if(addition || !(owned.Flags & flag))
+			if(!(owned.Flags & flag))
 			{
 				owned.Flags += flag;
 				OwnedItems.SetArray(i, owned);
@@ -174,7 +318,7 @@ static bool AddFlagOfLevel(int client, int level, int flag, bool addition)
 			return false;
 		}
 	}
-
+		
 	owned.Client = client;
 	owned.Level = level;
 	owned.Flags = flag;
@@ -222,24 +366,39 @@ bool Items_HasNamedItem(int client, const char[] name)
 			static GiftItem item;
 			GiftItems.GetArray(i, item);
 			if(StrEqual(item.Name, name, false))
-				return view_as<bool>(GetFlagsOfLevel(client, IdToLevel(i)) & IdToFlag(i));
+			{
+				if(client)
+					return view_as<bool>(GetFlagsOfLevel(client, IdToLevel(i)) & IdToFlag(i));
+				
+				for(int target = 1; target <= MaxClients; target++)
+				{
+					if(IsClientInGame(target) && GetClientTeam(target) == 2 && (GetFlagsOfLevel(target, IdToLevel(i)) & IdToFlag(i)))
+						return true;
+				}
+			}
 		}
 	}
 	
 	return false;
 }
 
-stock void Items_GiveNPCKill(int client, int id)
+bool Items_GiveIdItem(int client, int id, bool noForward = false)
 {
-	//AddFlagOfLevel(client, -id, 1, true);
+	if(!noForward && GiftItems && id < GiftItems.Length)
+	{
+		static GiftItem item;
+		GiftItems.GetArray(id, item);
+		if(Native_OnGivenItem(client, item.Name, id))
+		{
+			Items_GiveNamedItem(client, item.Name, true);
+			return false;
+		}
+	}
+
+	return AddFlagOfLevel(client, IdToLevel(id), IdToFlag(id));
 }
 
-bool Items_GiveIdItem(int client, int id, bool addition = false)
-{
-	return AddFlagOfLevel(client, IdToLevel(id), IdToFlag(id), addition);
-}
-
-void Items_GiveNamedItem(int client, const char[] name)
+bool Items_GiveNamedItem(int client, const char[] name, bool noForward = false)
 {
 	if(name[0] && GiftItems)
 	{
@@ -250,11 +409,12 @@ void Items_GiveNamedItem(int client, const char[] name)
 			GiftItems.GetArray(i, item);
 			if(StrEqual(item.Name, name, false))
 			{
-				AddFlagOfLevel(client, IdToLevel(i), IdToFlag(i), false);
-				break;
+				Items_GiveIdItem(client, i, noForward);
+				return true;
 			}
 		}
 	}
+	return false;
 }
 
 char[] Items_GetNameOfId(int id)
@@ -268,37 +428,40 @@ void Items_EncyclopediaMenu(int client, int page = -1, bool inPage = false)
 {
 	Menu menu = new Menu(Items_EncyclopediaMenuH);
 	SetGlobalTransTarget(client);
+	AnyMenuOpen[client] = 1.0;
 
 	if(inPage)
 	{
+		NPCData data;
+		NPC_GetById(page, data);
+
 		char buffer[400];
-		FormatEx(buffer, sizeof(buffer), "%s Desc", NPC_Names[page]);
+		FormatEx(buffer, sizeof(buffer), "%s Desc", data.Name);
 		if(TranslationPhraseExists(buffer))
 		{
 			Format(buffer, sizeof(buffer), "%t", buffer);
 
 			/*if(Database_IsCached(client))
 			{
-				menu.SetTitle("%t\n \n%s\n%t\n ", NPC_Names[page], buffer, LastMenuPage[client] ? "Zombie Kills" : "Allied Summons", GetFlagsOfLevel(client, -page));
+				menu.SetTitle("%t\n \n%s\n%t\n ", data.Name, buffer, CategoryPage[client] ? "Zombie Kills" : "Allied Summons", GetFlagsOfLevel(client, -page));
 			}
 			else*/
 			{
-				menu.SetTitle("%t\n \n%s\n ", NPC_Names[page], buffer);
+				menu.SetTitle("%t\n \n%s\n ", data.Name, buffer);
 			}
 		}
 		/*else if(Database_IsCached(client))
 		{
-			menu.SetTitle("%t\n \n%t\n ", NPC_Names[page], LastMenuPage[client] ? "Zombie Kills" : "Allied Summons", GetFlagsOfLevel(client, -page));
+			menu.SetTitle("%t\n \n%t\n ", data.Name, CategoryPage[client] ? "Zombie Kills" : "Allied Summons", GetFlagsOfLevel(client, -page));
 		}*/
 		else
 		{
-			menu.SetTitle("%t\n ", NPC_Names[page]);
+			menu.SetTitle("%t\n ", data.Name);
 		}
 		
-		char data[16];
-		IntToString(page, data, sizeof(data));
+		IntToString(page, data.Plugin, sizeof(data.Plugin));
 		FormatEx(buffer, sizeof(buffer), "%t", "Back");
-		menu.AddItem(data, buffer);
+		menu.AddItem(data.Plugin, buffer);
 
 		menu.Display(client, MENU_TIME_FOREVER);
 	}
@@ -307,37 +470,35 @@ void Items_EncyclopediaMenu(int client, int page = -1, bool inPage = false)
 		//int kills;
 		int pos;
 
-		char data[16], buffer[64];
-		for(int i; i < sizeof(NPC_Names); i++)
+		NPCData data;
+		int length = NPC_GetCount();
+		for(int i; i < length; i++)
 		{
-			if(NPCCategory[i] == LastMenuPage[client])
+			NPC_GetById(i, data);
+			if(data.Plugin[0] && data.Category == CategoryPage[client])
 			{
-				IntToString(i, data, sizeof(data));
-				FormatEx(buffer, sizeof(buffer), "%t", NPC_Names[i]);
-				
+				IntToString(i, data.Plugin, sizeof(data.Plugin));
+				Format(data.Name, sizeof(data.Name), "%t", data.Name);
+
 				if(i == page)
-				{
-					pos = menu.AddItem(data, buffer);
-				}
-				else
-				{
-					menu.AddItem(data, buffer);
-				}
+					pos = menu.ItemCount;
+				
+				menu.AddItem(data.Plugin, data.Name);
 
 				//kills += GetFlagsOfLevel(client, -i);
 			}
 		}
 
-		//menu.SetTitle("%t\n%t\n \n%t\n%t\n ", "TF2: Zombie Riot", "Encyclopedia", Categories[LastMenuPage[client]], LastMenuPage[client] ? "Zombie Kills" : "Allied Summons", kills);
-		menu.SetTitle("%t\n%t\n \n%t\n ", "TF2: Zombie Riot", "Encyclopedia", Categories[LastMenuPage[client]]);
+		//menu.SetTitle("%t\n%t\n \n%t\n%t\n ", "TF2: Zombie Riot", "Encyclopedia", Categories[CategoryPage[client]], CategoryPage[client] ? "Zombie Kills" : "Allied Summons", kills);
+		menu.SetTitle("%t\n%t\n \n%t\n ", "TF2: Zombie Riot", "Encyclopedia", Categories[CategoryPage[client]]);
 
 		menu.ExitBackButton = true;
 		menu.DisplayAt(client, (pos / 7 * 7), MENU_TIME_FOREVER);
 	}
 	else
 	{
-		if(LastMenuPage[client] < 0)
-			LastMenuPage[client] = 0;
+		if(CategoryPage[client] < 0)
+			CategoryPage[client] = 0;
 		
 		/*int kills;
 		int length = OwnedItems.Length;
@@ -361,8 +522,8 @@ void Items_EncyclopediaMenu(int client, int page = -1, bool inPage = false)
 		}
 
 		menu.ExitBackButton = true;
-		menu.DisplayAt(client, (LastMenuPage[client] / 7 * 7), MENU_TIME_FOREVER);
-		LastMenuPage[client] = -1;
+		menu.DisplayAt(client, (CategoryPage[client] / 7 * 7), MENU_TIME_FOREVER);
+		CategoryPage[client] = -1;
 	}
 }
 
@@ -373,14 +534,17 @@ public int Items_EncyclopediaMenuH(Menu menu, MenuAction action, int client, int
 		case MenuAction_End:
 		{
 			delete menu;
+			if(IsValidClient(client))
+				AnyMenuOpen[client] = 0.0;
 		}
 		case MenuAction_Cancel:
 		{
+			AnyMenuOpen[client] = 0.0;
 			if(choice == MenuCancel_ExitBack)
 			{
-				if(LastMenuPage[client] == -1)
+				if(CategoryPage[client] == -1)
 				{
-					MenuPage(client, -1);
+					Store_Menu(client);
 				}
 				else
 				{
@@ -397,7 +561,7 @@ public int Items_EncyclopediaMenuH(Menu menu, MenuAction action, int client, int
 			}
 			else
 			{
-				LastMenuPage[client] = -1;
+				CategoryPage[client] = -1;
 			}
 		}
 		case MenuAction_Select:
@@ -406,9 +570,9 @@ public int Items_EncyclopediaMenuH(Menu menu, MenuAction action, int client, int
 			menu.GetItem(choice, buffer, sizeof(buffer));
 			int id = StringToInt(buffer);
 
-			if(LastMenuPage[client] == -1)	// Main -> Category
+			if(CategoryPage[client] == -1)	// Main -> Category
 			{
-				LastMenuPage[client] = id;
+				CategoryPage[client] = id;
 				Items_EncyclopediaMenu(client, 0, false);
 			}
 			else if(choice || menu.GetItem(1, data, sizeof(data)))	// Category -> Item
@@ -439,32 +603,26 @@ void Gift_DropChance(int entity)
 	{
 		if(IsValidEntity(entity))
 		{
-			if(b_ForceSpawnNextTime || (GetRandomFloat(0.0, 200.0) < ((GIFT_CHANCE / (MultiGlobal + 0.0001)) * f_ExtraDropChanceRarity * f_IncreaceChanceManually))) //Never let it divide by 0
+			if(b_ForceSpawnNextTime || (GetRandomFloat(0.0, 200.0) < ((GIFT_CHANCE / (MultiGlobalEnemy + 0.0001)) * f_ExtraDropChanceRarity * f_IncreaseChanceManually))) //Never let it divide by 0
 			{
-				f_IncreaceChanceManually = 1.0;
+				f_IncreaseChanceManually = 1.0;
 				float VecOrigin[3];
 				GetEntPropVector(entity, Prop_Data, "m_vecOrigin", VecOrigin);
 				VecOrigin[2] += 20.0;
-				for (int client = 1; client <= MaxClients; client++)
+				int rarity = RollRandom(); //Random for each clie
+				if(!IsPointHazard(VecOrigin)) //Is it valid?
 				{
-					if (IsValidClient(client) && IsPlayerAlive(client) && GetClientTeam(client) == view_as<int>(TFTeam_Red))
-					{
-						int rarity = RollRandom(); //Random for each clie
-						if(!IsPointHazard(VecOrigin)) //Is it valid?
-						{
-							b_ForceSpawnNextTime = false;
-							Stock_SpawnGift(VecOrigin, GIFT_MODEL, 45.0, client, rarity);
-						}
-						else //Not a valid position, we must force it! next time we try!
-						{
-							b_ForceSpawnNextTime = true;
-						}
-					}
+					b_ForceSpawnNextTime = false;
+					Stock_SpawnGift(VecOrigin, GIFT_MODEL, 45.0, rarity);
+				}
+				else //Not a valid position, we must force it! next time we try!
+				{
+					b_ForceSpawnNextTime = true;
 				}
 			}	
 			else
 			{
-				f_IncreaceChanceManually += 0.0015;
+				f_IncreaseChanceManually += 0.0015;
 			}
 		}
 	}
@@ -487,106 +645,128 @@ static int RollRandom()
 	return Rarity_Common;
 }
 
-
 public Action Timer_Detect_Player_Near_Gift(Handle timer, DataPack pack)
 {
 	pack.Reset();
 	int entity = EntRefToEntIndex(pack.ReadCell());
 	int glow = EntRefToEntIndex(pack.ReadCell());
-	int client = GetClientOfUserId(pack.ReadCell());
+	int Rarity = pack.ReadCell();
 	if(IsValidEntity(entity) && entity>MaxClients)
 	{
-		if(IsValidClient(client))
+		float powerup_pos[3];
+		WorldSpaceCenter(entity, powerup_pos);
+		bool DoJump = false;
+		if(f_RingDelayGift[entity] < GetGameTime())
 		{
-			float powerup_pos[3];
-			float client_pos[3];
-			GetEntPropVector(entity, Prop_Data, "m_vecAbsOrigin", powerup_pos);
-			if(f_RingDelayGift[entity] < GetGameTime())
+			float DelayTime = 2.0;
+			switch(Rarity)
 			{
-				f_RingDelayGift[entity] = GetGameTime() + 2.0;
-				EmitSoundToClient(client, SOUND_BEEP, entity, _, 90, _, 1.0);
-				int color[4];
-				
-				color[0] = RenderColors_RPG[i_RarityType[entity]][0];
-				color[1] = RenderColors_RPG[i_RarityType[entity]][1];
-				color[2] = RenderColors_RPG[i_RarityType[entity]][2];
-				color[3] = RenderColors_RPG[i_RarityType[entity]][3];
-		
-				TE_SetupBeamRingPoint(powerup_pos, 10.0, 300.0, g_BeamIndex, -1, 0, 30, 1.0, 10.0, 1.0, color, 0, 0);
-	   			TE_SendToClient(client);
-
-				GiftJumpTowardsYou(entity, client); //Terror.
-   			}
-			if (IsPlayerAlive(client) && GetClientTeam(client) == view_as<int>(TFTeam_Red))
+				case Rarity_Common:
+					DelayTime = 2.0;
+				case Rarity_Uncommon:
+					DelayTime = 1.5;
+				case Rarity_Rare:
+					DelayTime = 1.0;
+				case Rarity_Legend:
+					DelayTime = 0.65;
+				case Rarity_Mythic:
+					DelayTime = 0.35;
+			}
+			f_RingDelayGift[entity] = GetGameTime() + DelayTime;
+			EmitSoundToAll(SOUND_BEEP, entity, _, 90, _, 1.0);
+			int color[4];
+			
+			color[0] = RenderColors_RPG[i_RarityType[entity]][0];
+			color[1] = RenderColors_RPG[i_RarityType[entity]][1];
+			color[2] = RenderColors_RPG[i_RarityType[entity]][2];
+			color[3] = RenderColors_RPG[i_RarityType[entity]][3];
+	
+			TE_SetupBeamRingPoint(powerup_pos, 10.0, 300.0, g_BeamIndex, -1, 0, 30, 1.0, 10.0, 1.0, color, 0, 0);
+			TE_SendToAll();
+			DoJump = true;
+		}
+		float TargetDistance = 0.0; 
+		int ClosestTarget = 0; 
+		for( int i = 1; i <= MaxClients; i++ ) 
+		{
+			if (IsValidClient(i))
 			{
-				GetClientAbsOrigin(client, client_pos);
-				if(GetVectorDistance(powerup_pos, client_pos, true) < 4096.0)
+				if (GetTeam(i)== TFTeam_Red && IsEntityAlive(i))
 				{
-					if(IsValidEntity(glow))
-						RemoveEntity(glow);
+					float TargetLocation[3]; 
+					WorldSpaceCenter(i, TargetLocation);
 					
-					RemoveEntity(entity);
 					
-					static GiftItem item;
-					int rand = GetURandomInt();
-					int length = GiftItems.Length;
-					int[] items = new int[length];
-					for(int r = i_RarityType[entity]; r >= 0; r--)
+					float distance = GetVectorDistance( powerup_pos, TargetLocation, true ); 
+					if( TargetDistance ) 
 					{
-						int maxitems;
-						for(int i; i < length; i++)
+						if( distance < TargetDistance ) 
 						{
-							GiftItems.GetArray(i, item);
-							if(item.Rarity == r)
-							{
-								items[maxitems++] = i;
-							}
+							ClosestTarget = i; 
+							TargetDistance = distance;		  
 						}
-
-						int start = (rand % maxitems);
-						int i = start;
-						do
-						{
-							i++;
-							if(i >= maxitems)
-							{
-								i = -1;
-								continue;
-							}
-
-							if(Items_GiveIdItem(client, items[i]))	// Gives item, returns true if newly obtained, false if they already have
-							{
-								static const char Colors[][] = { "default", "green", "blue", "yellow", "darkred" };
-								
-								GiftItems.GetArray(items[i], item);
-								CPrintToChat(client, "{default}You have found {%s}%s{default}!", Colors[r], item.Name);
-								r = -1;
-								length = 0;
-								break;
-							}
-						}
-						while(i != start);
-					}
-					
-					if(length)
+					} 
+					else 
 					{
-						PrintToChat(client, "You already have everything in this rarity, but where given %d Scrap as a compensation.", i_RarityType[entity] + 1);
-						Scrap[client] += i_RarityType[entity] + 1;
-					}
-
-					return Plugin_Stop;
+						ClosestTarget = i; 
+						TargetDistance = distance;
+					}		
 				}
 			}
 		}
-		else
+		if(ClosestTarget > 0 && TargetDistance <= (50.0 * 50.0))
 		{
+			//picked up!
+			char NameOfTheHero[64];
+			Format(NameOfTheHero, sizeof(NameOfTheHero), "%N", ClosestTarget);
+			for( int i = 1; i <= MaxClients; i++ ) 
+			{
+				if (IsValidClient(i))
+				{
+					if (GetTeam(i)== TFTeam_Red)
+					{
+						SetGlobalTransTarget(i);
+						int MultiExtra = 1;
+						switch(Rarity)
+						{
+							case Rarity_Common:
+								MultiExtra = 1;
+							case Rarity_Uncommon:
+								MultiExtra = 2;
+							case Rarity_Rare:
+								MultiExtra = 5;
+							case Rarity_Legend:
+								MultiExtra = 10;
+							case Rarity_Mythic:
+								MultiExtra = 40;
+						}
+						//xp to give?
+						int TempCalc = Level[i];
+						if(TempCalc >= 101) //fix shitty rounding to 995 xp to 1000 xp
+							TempCalc = 101;
+
+						TempCalc = LevelToXp(TempCalc) - LevelToXp(TempCalc - 1);
+						TempCalc /= 40;
+
+						int XpToGive = TempCalc * MultiExtra;
+						CPrintToChat(i,"%t", "Pickup Gift", NameOfTheHero, XpToGive);
+						XP[i] += XpToGive;
+						Native_ZR_OnGetXP(i, XpToGive, 0);
+						GiveXP(i, 0);
+					}
+				}
+			}
 			if (IsValidEntity(glow))
 			{
 				RemoveEntity(glow);
 			}
 			RemoveEntity(entity);
-			return Plugin_Stop;			
+			return Plugin_Stop;		
 		}
+		if(ClosestTarget > 0 && TargetDistance <= (500.0 * 500.0) && DoJump)
+		{
+			GiftJumpAwayYou(entity, ClosestTarget); //Terror.
+		}	
 	}
 	else
 	{
@@ -595,7 +775,7 @@ public Action Timer_Detect_Player_Near_Gift(Handle timer, DataPack pack)
 	return Plugin_Continue;
 }
 
-stock void Stock_SpawnGift(float position[3], const char[] model, float lifetime, int client, int rarity)
+stock void Stock_SpawnGift(float position[3], const char[] model, float lifetime, int rarity)
 {
 	int m_iGift = CreateEntityByName("prop_physics_override")
 	if(m_iGift != -1)
@@ -628,18 +808,15 @@ stock void Stock_SpawnGift(float position[3], const char[] model, float lifetime
 		
 		SetVariantColor(view_as<int>(color));
 		AcceptEntityInput(glow, "SetGlowColor");
-		
-		SetEntPropEnt(glow, Prop_Send, "m_hOwnerEntity", client);
-		SetEntPropEnt(m_iGift, Prop_Send, "m_hOwnerEntity", client);
 			
 		
-		f_RingDelayGift[m_iGift] = GetGameTime() + 2.0;
+		f_RingDelayGift[m_iGift] = 0.0;
 
 		DataPack pack;
 		CreateDataTimer(0.1, Timer_Detect_Player_Near_Gift, pack, TIMER_FLAG_NO_MAPCHANGE|TIMER_REPEAT);
 		pack.WriteCell(EntIndexToEntRef(m_iGift));
 		pack.WriteCell(EntIndexToEntRef(glow));	
-		pack.WriteCell(GetClientUserId(client));
+		pack.WriteCell(rarity);	
 		
 		
 		DataPack pack_2;
@@ -648,7 +825,7 @@ stock void Stock_SpawnGift(float position[3], const char[] model, float lifetime
 		pack_2.WriteCell(EntIndexToEntRef(glow));	
 		
 	//	SDKHook(entity, SDKHook_SetTransmit, GiftTransmit);
-		SDKHook(m_iGift, SDKHook_SetTransmit, GiftTransmit);
+	//	SDKHook(m_iGift, SDKHook_SetTransmit, GiftTransmit);
 	}
 }
 
@@ -678,7 +855,7 @@ public Action GiftTransmit(int entity, int target)
 }
 
 //This is probably the silliest thing ever.
-public void GiftJumpTowardsYou(int Gift, int client)
+public void GiftJumpAwayYou(int Gift, int client)
 {
 	float Jump_1_frame[3];
 	GetEntPropVector(Gift, Prop_Data, "m_vecOrigin", Jump_1_frame);
@@ -687,10 +864,12 @@ public void GiftJumpTowardsYou(int Gift, int client)
 	
 	float vecNPC[3], vecJumpVel[3];
 	GetEntPropVector(Gift, Prop_Data, "m_vecOrigin", vecNPC);
-		
+		/*
 	float gravity = GetEntPropFloat(Gift, Prop_Data, "m_flGravity");
 	if(gravity <= 0.0)
 		gravity = FindConVar("sv_gravity").FloatValue;
+		*/
+	float gravity = 800.0;
 		
 	// How fast does the headcrab need to travel to reach the position given gravity?
 	float flActualHeight = Jump_1_frame_Client[2] - vecNPC[2];
@@ -724,13 +903,66 @@ public void GiftJumpTowardsYou(int Gift, int client)
 	vecJumpVel[2] = speed;
 		
 	// Don't jump too far/fast.
-	float flJumpSpeed = GetVectorLength(vecJumpVel);
-	float flMaxSpeed = 350.0;
+	float flJumpSpeed = 400.0;
+	float flMaxSpeed = 400.0;
 	if ( flJumpSpeed > flMaxSpeed )
 	{
 		vecJumpVel[0] *= flMaxSpeed / flJumpSpeed;
 		vecJumpVel[1] *= flMaxSpeed / flJumpSpeed;
 		vecJumpVel[2] *= flMaxSpeed / flJumpSpeed;
 	}
+	//jump away!
+	vecJumpVel [0] *= -1.0;
+	vecJumpVel [1] *= -1.0;
 	TeleportEntity(Gift, NULL_VECTOR, NULL_VECTOR, vecJumpVel);
+}
+
+
+bool Item_ClientHasAllRarity(int client, int rarity)
+{
+	static GiftItem item;
+	int rand = GetURandomInt();
+	int length = GiftItems.Length;
+	int[] items = new int[length];
+	int maxitems;
+	rarity--;
+	for(int i; i < length; i++)
+	{
+		GiftItems.GetArray(i, item);
+		if(item.Rarity == rarity)
+		{
+			items[maxitems++] = i;
+		}
+	}
+
+	int start = (rand % maxitems);
+	int i = start;
+	do
+	{
+		i++;
+		if(i >= maxitems)
+		{
+			i = -1;
+			continue;
+		}
+
+		if(!Items_HasIdItem(client, items[i]))
+		{
+			//GiftItems.GetArray(items[i], item);
+			length = 0;
+			break;
+		}
+	}
+	while(i != start);
+	
+	if(length)
+	{
+		return true;
+	}
+	return false;
+}
+
+public void MapChooser_OnClientItem(int client, const char[] item, int amount, bool &result)
+{
+	result = Items_HasNamedItem(client, item);
 }

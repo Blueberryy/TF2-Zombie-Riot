@@ -39,6 +39,24 @@ static const char g_MeleeAttackSounds[][] =
 	"weapons/machete_swing.wav"
 };
 
+void SeabornScout_Precache()
+{
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Seaborn Scout");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_seaborn_scout");
+	strcopy(data.Icon, sizeof(data.Icon), "sea_scout");
+	data.IconCustom = true;
+	data.Flags = 0;
+	data.Category = Type_Seaborn;
+	data.Func = ClotSummon;
+	NPC_Add(data);
+}
+
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team)
+{
+	return SeabornScout(vecPos, vecAng, team);
+}
+
 methodmap SeabornScout < CClotBody
 {
 	public void PlayIdleSound()
@@ -66,11 +84,10 @@ methodmap SeabornScout < CClotBody
 		EmitSoundToAll(g_MeleeHitSounds[GetRandomInt(0, sizeof(g_MeleeHitSounds) - 1)], this.index, SNDCHAN_AUTO, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, _);	
 	}
 	
-	public SeabornScout(int client, float vecPos[3], float vecAng[3], bool ally)
+	public SeabornScout(float vecPos[3], float vecAng[3], int ally)
 	{
-		SeabornScout npc = view_as<SeabornScout>(CClotBody(vecPos, vecAng, "models/player/scout.mdl", "1.0", "1500", ally));
+		SeabornScout npc = view_as<SeabornScout>(CClotBody(vecPos, vecAng, "models/player/scout.mdl", "1.0", "3500", ally));
 		
-		i_NpcInternalId[npc.index] = SEABORN_SCOUT;
 		i_NpcWeight[npc.index] = 1;
 		npc.SetActivity("ACT_MP_RUN_MELEE");
 		KillFeed_SetKillIcon(npc.index, "bat");
@@ -81,14 +98,15 @@ methodmap SeabornScout < CClotBody
 		
 		SetEntProp(npc.index, Prop_Send, "m_nSkin", 1);
 
-		SDKHook(npc.index, SDKHook_Think, SeabornScout_ClotThink);
+		func_NPCDeath[npc.index] = SeabornScout_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = Generic_OnTakeDamage;
+		func_NPCThink[npc.index] = SeabornScout_ClotThink;
 		
 		npc.m_flSpeed = 400.0;
 		npc.m_flGetClosestTargetTime = 0.0;
 		npc.m_flNextMeleeAttack = 0.0;
 		npc.m_flAttackHappens = 0.0;
 		
-		SetEntityRenderMode(npc.index, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(npc.index, 100, 100, 255, 255);
 		
 		npc.m_iWearable1 = npc.EquipItem("head", "models/weapons/c_models/c_bat.mdl");
@@ -131,17 +149,18 @@ public void SeabornScout_ClotThink(int iNPC)
 	
 	if(npc.m_iTarget > 0)
 	{
-		float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
-		float distance = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);		
+		float vecTarget[3]; WorldSpaceCenter(npc.m_iTarget, vecTarget );
+		float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+		float distance = GetVectorDistance(vecTarget, VecSelfNpc, true);	
 		
 		if(distance < npc.GetLeadRadius())
 		{
-			float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, npc.m_iTarget);
-			NPC_SetGoalVector(npc.index, vPredictedPos);
+			float vPredictedPos[3]; PredictSubjectPosition(npc, npc.m_iTarget,_,_, vPredictedPos);
+			npc.SetGoalVector(vPredictedPos);
 		}
 		else 
 		{
-			NPC_SetGoalEntity(npc.index, npc.m_iTarget);
+			npc.SetGoalEntity(npc.m_iTarget);
 		}
 
 		npc.StartPathing();
@@ -161,7 +180,7 @@ public void SeabornScout_ClotThink(int iNPC)
 					{
 						npc.PlayMeleeHitSound();
 						SDKHooks_TakeDamage(target, npc.index, npc.index, 75.0, DMG_CLUB);
-						SeaSlider_AddNeuralDamage(target, npc.index, 15);
+						Elemental_AddNervousDamage(target, npc.index, 15);
 					}
 				}
 
@@ -201,6 +220,4 @@ void SeabornScout_NPCDeath(int entity)
 	
 	if(IsValidEntity(npc.m_iWearable1))
 		RemoveEntity(npc.m_iWearable1);
-	
-	SDKUnhook(npc.index, SDKHook_Think, SeabornScout_ClotThink);
 }

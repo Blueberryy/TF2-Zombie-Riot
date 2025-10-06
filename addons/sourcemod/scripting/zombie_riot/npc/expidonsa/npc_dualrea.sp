@@ -1,22 +1,8 @@
 #pragma semicolon 1
 #pragma newdecls required
 
-static const char g_DeathSounds[][] = {
-	"vo/medic_paincrticialdeath01.mp3",
-	"vo/medic_paincrticialdeath02.mp3",
-	"vo/medic_paincrticialdeath03.mp3",
-};
 
-static const char g_HurtSounds[][] = {
-	")vo/medic_painsharp01.mp3",
-	")vo/medic_painsharp02.mp3",
-	")vo/medic_painsharp03.mp3",
-	")vo/medic_painsharp04.mp3",
-	")vo/medic_painsharp05.mp3",
-	")vo/medic_painsharp06.mp3",
-	")vo/medic_painsharp07.mp3",
-	")vo/medic_painsharp08.mp3",
-};
+
 
 
 static const char g_IdleAlertedSounds[][] = {
@@ -39,14 +25,27 @@ static const char g_MeleeHitSounds[][] = {
 
 void DualRea_OnMapStart_NPC()
 {
-	for (int i = 0; i < (sizeof(g_DeathSounds));	   i++) { PrecacheSound(g_DeathSounds[i]);	   }
-	for (int i = 0; i < (sizeof(g_HurtSounds));		i++) { PrecacheSound(g_HurtSounds[i]);		}
+	for (int i = 0; i < (sizeof(g_DefaultMedic_DeathSounds));	   i++) { PrecacheSound(g_DefaultMedic_DeathSounds[i]);	   }
+	for (int i = 0; i < (sizeof(g_DefaultMedic_HurtSounds));		i++) { PrecacheSound(g_DefaultMedic_HurtSounds[i]);		}
 	for (int i = 0; i < (sizeof(g_IdleAlertedSounds)); i++) { PrecacheSound(g_IdleAlertedSounds[i]); }
 	for (int i = 0; i < (sizeof(g_MeleeAttackSounds)); i++) { PrecacheSound(g_MeleeAttackSounds[i]); }
 	for (int i = 0; i < (sizeof(g_MeleeHitSounds)); i++) { PrecacheSound(g_MeleeHitSounds[i]); }
 	PrecacheModel("models/player/medic.mdl");
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Dual Rea");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_dualrea");
+	strcopy(data.Icon, sizeof(data.Icon), "scout");
+	data.IconCustom = false;
+	data.Flags = 0;
+	data.Category = Type_Expidonsa;
+	data.Func = ClotSummon;
+	NPC_Add(data);
 }
 
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team)
+{
+	return DualRea(vecPos, vecAng, team);
+}
 
 methodmap DualRea < CClotBody
 {
@@ -67,13 +66,13 @@ methodmap DualRea < CClotBody
 			
 		this.m_flNextHurtSound = GetGameTime(this.index) + 0.4;
 		
-		EmitSoundToAll(g_HurtSounds[GetRandomInt(0, sizeof(g_HurtSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME);
+		EmitSoundToAll(g_DefaultMedic_HurtSounds[GetRandomInt(0, sizeof(g_DefaultMedic_HurtSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME);
 		
 	}
 	
 	public void PlayDeathSound() 
 	{
-		EmitSoundToAll(g_DeathSounds[GetRandomInt(0, sizeof(g_DeathSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME);
+		EmitSoundToAll(g_DefaultMedic_DeathSounds[GetRandomInt(0, sizeof(g_DefaultMedic_DeathSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME);
 	}
 	
 	public void PlayMeleeSound()
@@ -87,11 +86,10 @@ methodmap DualRea < CClotBody
 	}
 	
 	
-	public DualRea(int client, float vecPos[3], float vecAng[3], bool ally)
+	public DualRea(float vecPos[3], float vecAng[3], int ally)
 	{
 		DualRea npc = view_as<DualRea>(CClotBody(vecPos, vecAng, "models/player/medic.mdl", "1.0", "3500", ally));
 		
-		i_NpcInternalId[npc.index] = EXPIDONSA_DUALREA;
 		i_NpcWeight[npc.index] = 1;
 		FormatEx(c_HeadPlaceAttachmentGibName[npc.index], sizeof(c_HeadPlaceAttachmentGibName[]), "head");
 		
@@ -102,18 +100,19 @@ methodmap DualRea < CClotBody
 		AcceptEntityInput(npc.index, "SetBodyGroup");
 		
 		
+		func_NPCDeath[npc.index] = DualRea_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = DualRea_OnTakeDamage;
+		func_NPCThink[npc.index] = DualRea_ClotThink;
 		
 		npc.m_flNextMeleeAttack = 0.0;
 		
 		npc.m_iBleedType = BLEEDTYPE_NORMAL;
 		npc.m_iStepNoiseType = STEPSOUND_NORMAL;	
 		npc.m_iNpcStepVariation = STEPTYPE_NORMAL;
+		SetEntPropFloat(npc.index, Prop_Data, "m_flElementRes", 1.0, Element_Chaos);
 		
-		SDKHook(npc.index, SDKHook_Think, DualRea_ClotThink);
 		
-		//IDLE
-		npc.m_iState = 0;
-		npc.m_flGetClosestTargetTime = 0.0;
+		
 		npc.StartPathing();
 		npc.m_flSpeed = 330.0;
 		
@@ -176,18 +175,19 @@ public void DualRea_ClotThink(int iNPC)
 	
 	if(IsValidEnemy(npc.index, npc.m_iTarget))
 	{
-		float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
+		float vecTarget[3]; WorldSpaceCenter(npc.m_iTarget, vecTarget );
 	
-		float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+		float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+		float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 		if(flDistanceToTarget < npc.GetLeadRadius()) 
 		{
 			float vPredictedPos[3];
-			vPredictedPos = PredictSubjectPosition(npc, npc.m_iTarget);
-			NPC_SetGoalVector(npc.index, vPredictedPos);
+			PredictSubjectPosition(npc, npc.m_iTarget,_,_, vPredictedPos);
+			npc.SetGoalVector(vPredictedPos);
 		}
 		else 
 		{
-			NPC_SetGoalEntity(npc.index, npc.m_iTarget);
+			npc.SetGoalEntity(npc.m_iTarget);
 		}
 		DualReaSelfDefense(npc,GetGameTime(npc.index), npc.m_iTarget, flDistanceToTarget); 
 	}
@@ -223,7 +223,6 @@ public void DualRea_NPCDeath(int entity)
 		npc.PlayDeathSound();	
 	}
 	ExpidonsaRemoveEffects(entity);
-	SDKUnhook(npc.index, SDKHook_Think, DualRea_ClotThink);
 		
 	
 	if(IsValidEntity(npc.m_iWearable4))
@@ -246,7 +245,8 @@ void DualReaSelfDefense(DualRea npc, float gameTime, int target, float distance)
 			npc.m_flAttackHappens = 0.0;
 			
 			Handle swingTrace;
-			npc.FaceTowards(WorldSpaceCenter(npc.m_iTarget), 15000.0);
+			float VecEnemy[3]; WorldSpaceCenter(npc.m_iTarget, VecEnemy);
+			npc.FaceTowards(VecEnemy, 15000.0);
 			if(npc.DoSwingTrace(swingTrace, npc.m_iTarget)) //Big range, but dont ignore buildings if somehow this doesnt count as a raid to be sure.
 			{
 							
@@ -267,14 +267,14 @@ void DualReaSelfDefense(DualRea npc, float gameTime, int target, float distance)
 					// Hit sound
 					npc.PlayMeleeHitSound();
 				} 
-				delete swingTrace;
 			}
+			delete swingTrace;
 		}
 	}
 
 	if(gameTime > npc.m_flNextMeleeAttack)
 	{
-		if(distance < (NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED * 1.25))
+		if(distance < (NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED))
 		{
 			int Enemy_I_See;
 								
@@ -297,63 +297,27 @@ void DualReaSelfDefense(DualRea npc, float gameTime, int target, float distance)
 
 void DualReaEffects(int iNpc)
 {
-	float flPos[3];
-	float flAng[3];
-	GetAttachment(iNpc, "effect_hand_r", flPos, flAng);
+	if(AtEdictLimit(EDICT_NPC))
+		return;
 
-	int particle_1 = ParticleEffectAt({0.0,0.0,0.0}, "", 0.0); //This is the root bone basically
+	DualRea npc = view_as<DualRea>(iNpc);
 
+	npc.m_iWearable1 = npc.EquipItem("head", WEAPON_CUSTOM_WEAPONRY_1);
+	SetVariantString("1.0");
+	AcceptEntityInput(npc.m_iWearable1, "SetModelScale");
+	SetVariantInt(16384);
+	AcceptEntityInput(npc.m_iWearable1, "SetBodyGroup");
+	SetEntityRenderColor(npc.m_iWearable1, 255, 255, 255, 3);
+
+	int particle_1 = InfoTargetParentAt({0.0,0.0,0.0}, "", 0.0); //This is the root bone basically
+	int particle_2 = InfoTargetParentAt({0.0,0.0,0.0}, "", 0.0); //This is the root bone basically
 	
-	int particle_2 = ParticleEffectAt({0.0,-15.0,0.0}, "", 0.0); //First offset we go by
-	int particle_3 = ParticleEffectAt({-15.0,0.0,0.0}, "", 0.0); //First offset we go by
-	int particle_4 = ParticleEffectAt({5.0,10.0,0.0}, "", 0.0); //First offset we go by
-	int particle_5 = ParticleEffectAt({5.0,50.0,0.0}, "", 0.0); //First offset we go by
+	SetParent(npc.m_iWearable1, particle_1, "duelrea_left_spike");
+	SetParent(npc.m_iWearable1, particle_2, "duelrea_right_spike");
 
+	int Laser_4_i = ConnectWithBeamClient(particle_1, particle_2, 125, 125, 15, 1.25, 1.25, 100.0, LASERBEAM);
 	
-	int particle_2_i = ParticleEffectAt({0.0,-15.0,0.0}, "", 0.0); //First offset we go by
-	int particle_3_i = ParticleEffectAt({15.0,0.0,0.0}, "", 0.0); //First offset we go by
-	int particle_4_i = ParticleEffectAt({-5.0,10.0,0.0}, "", 0.0); //First offset we go by
-	int particle_5_i = ParticleEffectAt({-5.0,50.0,0.0}, "", 0.0); //First offset we go by
-	
-	SetParent(particle_1, particle_2, "",_, true);
-	SetParent(particle_1, particle_3, "",_, true);
-	SetParent(particle_1, particle_4, "",_, true);
-	SetParent(particle_1, particle_5, "",_, true);
-	
-	SetParent(particle_1, particle_2_i, "",_, true);
-	SetParent(particle_1, particle_3_i, "",_, true);
-	SetParent(particle_1, particle_4_i, "",_, true);
-	SetParent(particle_1, particle_5_i, "",_, true);
-
-	Custom_SDKCall_SetLocalOrigin(particle_1, flPos);
-	SetEntPropVector(particle_1, Prop_Data, "m_angRotation", flAng); 
-	SetParent(iNpc, particle_1, "effect_hand_r",_); 
-
-
-	int Laser_1 = ConnectWithBeamClient(particle_2, particle_3, 255, 255, 35, 2.0, 2.0, 1.0, LASERBEAM);
-	int Laser_2 = ConnectWithBeamClient(particle_3, particle_4, 255, 255, 35, 2.0, 2.0, 1.0, LASERBEAM);
-	int Laser_3 = ConnectWithBeamClient(particle_4, particle_5, 255, 255, 35, 2.0, 1.0, 1.0, LASERBEAM);
-	
-	int Laser_1_i = ConnectWithBeamClient(particle_2_i, particle_3_i, 255, 255, 35, 2.0, 2.0, 1.0, LASERBEAM);
-	int Laser_2_i = ConnectWithBeamClient(particle_3_i, particle_4_i, 255, 255, 35, 2.0, 2.0, 1.0, LASERBEAM);
-	int Laser_3_i = ConnectWithBeamClient(particle_4_i, particle_5_i, 255, 255, 35, 2.0, 1.0, 1.0, LASERBEAM);
-	int Laser_4_i = ConnectWithBeamClient(particle_5, particle_5_i, 125, 125, 15, 0.5, 0.5, 50.0, LASERBEAM);
-	
-
 	i_ExpidonsaEnergyEffect[iNpc][0] = EntIndexToEntRef(particle_1);
 	i_ExpidonsaEnergyEffect[iNpc][1] = EntIndexToEntRef(particle_2);
-	i_ExpidonsaEnergyEffect[iNpc][2] = EntIndexToEntRef(particle_3);
-	i_ExpidonsaEnergyEffect[iNpc][3] = EntIndexToEntRef(particle_4);
-	i_ExpidonsaEnergyEffect[iNpc][4] = EntIndexToEntRef(particle_5);
-	i_ExpidonsaEnergyEffect[iNpc][5] = EntIndexToEntRef(particle_2_i);
-	i_ExpidonsaEnergyEffect[iNpc][6] = EntIndexToEntRef(particle_3_i);
-	i_ExpidonsaEnergyEffect[iNpc][7] = EntIndexToEntRef(particle_4_i);
-	i_ExpidonsaEnergyEffect[iNpc][8] = EntIndexToEntRef(particle_5_i);
-	i_ExpidonsaEnergyEffect[iNpc][9] = EntIndexToEntRef(Laser_1);
-	i_ExpidonsaEnergyEffect[iNpc][10] = EntIndexToEntRef(Laser_2);
-	i_ExpidonsaEnergyEffect[iNpc][11] = EntIndexToEntRef(Laser_3);
-	i_ExpidonsaEnergyEffect[iNpc][12] = EntIndexToEntRef(Laser_1_i);
-	i_ExpidonsaEnergyEffect[iNpc][13] = EntIndexToEntRef(Laser_2_i);
-	i_ExpidonsaEnergyEffect[iNpc][14] = EntIndexToEntRef(Laser_3_i);
-	i_ExpidonsaEnergyEffect[iNpc][15] = EntIndexToEntRef(Laser_4_i);
+	i_ExpidonsaEnergyEffect[iNpc][2] = EntIndexToEntRef(Laser_4_i);
 }

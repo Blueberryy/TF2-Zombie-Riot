@@ -41,7 +41,25 @@ static const char g_MeleeAttackSounds[][] =
 	"npc/fast_zombie/fz_frenzy1.wav"
 };
 
-methodmap SeaReaper < CClotBody
+void SeaReaper_Precache()
+{
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Basin Sea Reaper");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_seareaper");
+	strcopy(data.Icon, sizeof(data.Icon), "sea_reaper");
+	data.IconCustom = true;
+	data.Flags = MVM_CLASS_FLAG_NORMAL|MVM_CLASS_FLAG_MINIBOSS;
+	data.Category = Type_Seaborn;
+	data.Func = ClotSummon;
+	NPC_Add(data);
+}
+
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team, const char[] data)
+{
+	return SeaReaper(vecPos, vecAng, team, data);
+}
+
+methodmap SeaReaper < CSeaBody
 {
 	public void PlayIdleSound()
 	{
@@ -80,7 +98,7 @@ methodmap SeaReaper < CClotBody
 		EmitSoundToAll(g_leap_scream[GetRandomInt(0, sizeof(g_leap_scream) - 1)], this.index, SNDCHAN_AUTO, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME, 80);	
 	}
 	
-	public SeaReaper(int client, float vecPos[3], float vecAng[3], bool ally, const char[] data)
+	public SeaReaper(float vecPos[3], float vecAng[3], int ally, const char[] data)
 	{
 		SeaReaper npc = view_as<SeaReaper>(CClotBody(vecPos, vecAng, "models/zombie/fast.mdl", "1.75", data[0] ? "3750" : "3000", ally, false, true));
 		// 20000 x 0.15
@@ -92,7 +110,7 @@ methodmap SeaReaper < CClotBody
 			AcceptEntityInput(npc.index, "SetBodyGroup");
 		}
 
-		i_NpcInternalId[npc.index] = data[0] ? SEAREAPER_ALT : SEAREAPER;
+		npc.SetElite(view_as<bool>(data[0]));
 		i_NpcWeight[npc.index] = 2;
 		npc.SetActivity("ACT_WALK");
 		
@@ -100,7 +118,9 @@ methodmap SeaReaper < CClotBody
 		npc.m_iStepNoiseType = STEPSOUND_GIANT;
 		npc.m_iNpcStepVariation = STEPTYPE_SEABORN;
 		
-		SDKHook(npc.index, SDKHook_Think, SeaReaper_ClotThink);
+		func_NPCDeath[npc.index] = SeaReaper_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = SeaReaper_OnTakeDamage;
+		func_NPCThink[npc.index] = SeaReaper_ClotThink;
 		
 		npc.m_flSpeed = 75.0;	// 0.3 x 250
 		npc.m_flGetClosestTargetTime = 0.0;
@@ -108,7 +128,6 @@ methodmap SeaReaper < CClotBody
 		npc.m_flAttackHappens = 0.0;
 		npc.Anger = false;
 		
-		SetEntityRenderMode(npc.index, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(npc.index, 50, 50, 255, 255);
 		return npc;
 	}
@@ -119,7 +138,7 @@ public void SeaReaper_ClotThink(int iNPC)
 	SeaReaper npc = view_as<SeaReaper>(iNPC);
 	
 	if(npc.Anger)
-		SDKHooks_TakeDamage(npc.index, 0, 0, GetEntProp(npc.index, Prop_Data, "m_iMaxHealth") / 1000.0, DMG_SLASH, _, _, _, _, ZR_DAMAGE_DO_NOT_APPLY_BURN_OR_BLEED);
+		SDKHooks_TakeDamage(npc.index, 0, 0, ReturnEntityMaxHealth(npc.index) / 1000.0, DMG_TRUEDAMAGE, _, _, _, _, ZR_DAMAGE_DO_NOT_APPLY_BURN_OR_BLEED);
 
 	float gameTime = GetGameTime(npc.index);
 	if(npc.m_flNextDelayTime > gameTime)
@@ -138,7 +157,7 @@ public void SeaReaper_ClotThink(int iNPC)
 		}
 		else
 		{
-			if((GetEntProp(npc.index, Prop_Data, "m_iMaxHealth") - 300) > GetEntProp(npc.index, Prop_Data, "m_iHealth"))
+			if((ReturnEntityMaxHealth(npc.index) - 300) > GetEntProp(npc.index, Prop_Data, "m_iHealth"))
 			{
 				npc.AddGesture("ACT_FASTZOMBIE_FRENZY");
 				npc.SetActivity("ACT_RUN");
@@ -163,7 +182,7 @@ public void SeaReaper_ClotThink(int iNPC)
 	if(npc.m_iTarget && !IsValidEnemy(npc.index, npc.m_iTarget))
 		npc.m_iTarget = 0;
 	
-	float vecMe[3]; vecMe = WorldSpaceCenter(npc.index);
+	float vecMe[3]; WorldSpaceCenter(npc.index, vecMe);
 	if(!npc.m_iTarget || npc.m_flGetClosestTargetTime < gameTime)
 	{
 		npc.m_iTarget = GetClosestTarget(npc.index);
@@ -179,17 +198,17 @@ public void SeaReaper_ClotThink(int iNPC)
 	
 	if(npc.m_iTarget > 0)
 	{
-		float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
+		float vecTarget[3]; WorldSpaceCenter(npc.m_iTarget, vecTarget );
 		float distance = npc.Anger ? GetVectorDistance(vecTarget, vecMe, true) : FAR_FUTURE;		
 		
 		if(distance < npc.GetLeadRadius())
 		{
-			float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, npc.m_iTarget);
-			NPC_SetGoalVector(npc.index, vPredictedPos);
+			float vPredictedPos[3]; PredictSubjectPosition(npc, npc.m_iTarget,_,_, vPredictedPos);
+			npc.SetGoalVector(vPredictedPos);
 		}
 		else 
 		{
-			NPC_SetGoalEntity(npc.index, npc.m_iTarget);
+			npc.SetGoalEntity(npc.m_iTarget);
 		}
 
 		npc.StartPathing();
@@ -214,11 +233,11 @@ public void SeaReaper_ClotThink(int iNPC)
 						KillFeed_SetKillIcon(npc.index, "warrior_spirit");
 
 						npc.PlayMeleeHitSound();
-						SDKHooks_TakeDamage(target, npc.index, npc.index, i_NpcInternalId[npc.index] == SEAREAPER_ALT ? 37.5 : 30.0, DMG_CLUB);
+						SDKHooks_TakeDamage(target, npc.index, npc.index, npc.m_bElite ? 37.5 : 30.0, DMG_CLUB);
 						// 400 x 0.15 x 0.5
 						// 500 x 0.15 x 0.5
 
-						SeaSlider_AddNeuralDamage(target, npc.index,i_NpcInternalId[npc.index] == SEAREAPER_ALT ? 4 : 3);
+						Elemental_AddNervousDamage(target, npc.index, npc.m_bElite ? 4 : 3);
 						// 400 x 0.1 x 0.15 x 0.5
 						// 500 x 0.1 x 0.15 x 0.5
 					}
@@ -257,8 +276,9 @@ public void SeaReaper_ClotThink(int iNPC)
 
 public void SeaRepear_ExplodePost(int attacker, int victim, float damage, int weapon)
 {
-	ParticleEffectAt(WorldSpaceCenter(victim), "water_bulletsplash01", 1.5);
-	SeaSlider_AddNeuralDamage(victim, attacker, i_NpcInternalId[attacker] == SEAREAPER_ALT ? 15 : 12);
+	float vic_vec[3]; WorldSpaceCenter(victim, vic_vec);
+	ParticleEffectAt(vic_vec, "water_bulletsplash01", 1.5);
+	Elemental_AddNervousDamage(victim, attacker, view_as<SeaReaper>(attacker).m_bElite ? 15 : 12);
 	// 400 x 0.2 x 0.15
 	// 500 x 0.2 x 0.15
 }
@@ -283,6 +303,4 @@ void SeaReaper_NPCDeath(int entity)
 	if(!npc.m_bGib)
 		npc.PlayDeathSound();
 	
-	
-	SDKUnhook(npc.index, SDKHook_Think, SeaReaper_ClotThink);
 }

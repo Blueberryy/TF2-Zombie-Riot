@@ -9,7 +9,7 @@ static int Cryo_M1_Particles_Pap2 = 3; //Number of particles fired by each M1 at
 static float Cryo_M1_Damage_Pap2 = 40.0; //M1 base damage per particle (Pack-a-Punch Tier 2)
 static float Cryo_M1_Spread = 6.0;	//Random spread for particles
 static float Cryo_M1_Time = 175.0;	//Time of M1 particles
-static float Cryo_M1_Velocity = 750.0;	//Velocity of M1 particles
+static float Cryo_M1_Velocity = 1250.0;	//Velocity of M1 particles
 static float Cryo_M1_ReductionScale = 0.66; //Amount to multiply M1 damage each time it hits a zombie
 
 static float Cryo_M2_Damage = 450.0; //M2 base damage
@@ -26,7 +26,7 @@ static float Cryo_M2_Radius_Pap2 = 600.0;
 static float ability_cooldown[MAXPLAYERS+1]={0.0, ...};
 static float Cryo_M2_Cooldown = 15.0;	//M2 Cooldown
 
-static float Cryo_FreezeRequirement = 0.30; //% of target's max health M1 must do in order to trigger the freeze
+//static float Cryo_FreezeRequirement = 0.30; //% of target's max health M1 must do in order to trigger the freeze
 static float Cryo_FreezeDuration = 1.5; //Duration to freeze zombies when the threshold is surpassed
 static float Cryo_FreezeDuration_Pap1 = 2.0; //Duration to freeze zombies when the threshold is surpassed
 static float Cryo_FreezeDuration_Pap2 = 2.5; //Duration to freeze zombies when the threshold is surpassed
@@ -39,7 +39,6 @@ static bool Cryo_Frozen[MAXENTITIES]={false, ...}; //Is this zombie frozen?
 static bool Cryo_Slowed[MAXENTITIES]={false, ...}; //Is this zombie frozen?
 static bool Cryo_IsCryo[MAXENTITIES] = {false, ...}; //Is this entity a cryo projectile?
 
-static bool Cryo_AlreadyHit[MAXENTITIES][MAXENTITIES];
 
 
 
@@ -68,11 +67,6 @@ void Wand_Cryo_Precache()
 	PrecacheSound(SOUND_WAND_CRYO_SHATTER);
 	PrecacheModel(COLLISION_DETECTION_MODEL_BIG);
 	PrecacheModel("models/props_moonbase/moon_gravel_crystal_blue.mdl");
-}
-
-bool IsZombieFrozen(int entity)
-{
-	return Cryo_Frozen[entity];
 }
 
 void ResetFreeze(int entity)
@@ -124,7 +118,7 @@ public void Cryo_CheckBurst(int client, int weapon, bool &result, int slot, floa
 		{
 			if (Ability_Check_Cooldown(client, slot) < 0.0)
 			{
-				Rogue_OnAbilityUse(weapon);
+				Rogue_OnAbilityUse(client, weapon);
 				Cryo_ActivateBurst(client, weapon, result, slot, damage, freezemult, mana_cost, radius);
 			}
 			else
@@ -156,7 +150,7 @@ public void Cryo_ActivateBurst(int client, int weapon, bool &result, int slot, f
 
 	damage *= Attributes_Get(weapon, 410, 1.0);
 	
-	Mana_Regen_Delay[client] = GetGameTime() + 1.0;
+	SDKhooks_SetManaRegenDelayTime(client, 1.0);
 	Mana_Hud_Delay[client] = 0.0;
 	
 	Current_Mana[client] -= mana_cost;
@@ -205,59 +199,16 @@ void CryoWandHitM2(int entity, int victim, float damage, int weapon)
 		GetEntPropVector(victim, Prop_Data, "m_vecAbsOrigin", VicLoc);
 		CreateTimer(0.1, Cryo_Unfreeze, EntIndexToEntRef(victim), TIMER_FLAG_NO_MAPCHANGE);
 		EmitSoundToAll(SOUND_WAND_CRYO_SHATTER, victim);
-		SDKHooks_TakeDamage(victim, weapon, entity, damage * Cryo_M2_FreezeMult_Pap2, DMG_PLASMA, -1, CalculateExplosiveDamageForce(UserLoc, VicLoc, 1500.0), VicLoc, _, ZR_DAMAGE_ICE); // 2048 is DMG_NOGIB?
+		float ExplodePos[3]; CalculateExplosiveDamageForce(UserLoc, VicLoc, 1500.0, ExplodePos);
+		SDKHooks_TakeDamage(victim, weapon, entity, damage * Cryo_M2_FreezeMult_Pap2, DMG_PLASMA, -1, ExplodePos, VicLoc, _, ZR_DAMAGE_ICE); // 2048 is DMG_NOGIB?
 	}
 	else
 	{
 		if (!Cryo_Slowed[victim])
 		{
-			float Health_After_Hurt = float(GetEntProp(victim, Prop_Data, "m_iHealth"));
-
-			Cryo_FreezeLevel[victim] += (f_HealthBeforeHurt[victim] - Health_After_Hurt);
-			float maxHealth = float(GetEntProp(victim, Prop_Data, "m_iMaxHealth"));
-			float damageRequiredForFreeze = Cryo_FreezeRequirement;
-			if(IsValidEntity(EntRefToEntIndex(RaidBossActive)))
-			{
-				damageRequiredForFreeze *= 0.05; //Reduce way further so its good against raids.
-			}
-			else if(b_thisNpcIsABoss[victim])
-			{
-				damageRequiredForFreeze *= 0.25; //Reduce way further so its good against bosses.
-			}
-
-			if (Cryo_FreezeLevel[victim] >= maxHealth * damageRequiredForFreeze)
-			{
-				Cryo_SlowType_Zombie[victim] = Cryo_SlowType[entity];
-				if(Health_After_Hurt > 0)
-				{
-					Cryo_FreezeZombie(victim);
-				}
-			}
+			Elemental_AddCyroDamage(victim, entity, RoundFloat(damage), Cryo_SlowType[entity]);
 		}
 	}
-}
-
-static void spawnRing_Vectors(float center[3], float range, float modif_X, float modif_Y, float modif_Z, char sprite[255], int r, int g, int b, int alpha, int fps, float life, float width, float amp, int speed, float endRange = -69.0) //Spawns a TE beam ring at a client's/entity's location
-{
-	center[0] += modif_X;
-	center[1] += modif_Y;
-	center[2] += modif_Z;
-			
-	int ICE_INT = PrecacheModel(sprite);
-		
-	int color[4];
-	color[0] = r;
-	color[1] = g;
-	color[2] = b;
-	color[3] = alpha;
-		
-	if (endRange == -69.0)
-	{
-		endRange = range + 0.5;
-	}
-	
-	TE_SetupBeamRingPoint(center, range, endRange, ICE_INT, ICE_INT, 0, fps, life, width, amp, color, speed, 0);
-	TE_SendToAll();
 }
 
 public void Weapon_Wand_Cryo_Shoot(int client, int weapon, bool crit, int slot, float damage, int NumParticles, char ParticleName[255], int SlowType)
@@ -271,7 +222,7 @@ public void Weapon_Wand_Cryo_Shoot(int client, int weapon, bool crit, int slot, 
 		
 		damage *= Attributes_Get(weapon, 410, 1.0);
 		
-		Mana_Regen_Delay[client] = GetGameTime() + 1.0;
+		SDKhooks_SetManaRegenDelayTime(client, 1.0);
 		Mana_Hud_Delay[client] = 0.0;
 		
 		delay_hud[client] = 0.0;
@@ -302,19 +253,10 @@ public void Weapon_Wand_Cryo_Shoot(int client, int weapon, bool crit, int slot, 
 			int projectile = Wand_Projectile_Spawn(client, speed, time, damage, 11, weapon, ParticleName, Angles);
 
 			//Remove unused hook.
-			SDKUnhook(projectile, SDKHook_StartTouch, Wand_Base_StartTouch);
 
 			Cryo_IsCryo[projectile] = true;
 			Cryo_SlowType[projectile] = SlowType;
 			EmitSoundToAll(SOUND_WAND_CRYO_M1, client, _, 60, _, 0.4, 80);
-			for (int entity = 0; entity < MAXENTITIES; entity++)
-			{
-		//		Cryo_AlreadyHit[i][iCarrier] = false; //This will make all rehitable with the same projectile, i doubt thats what you want.
-				Cryo_AlreadyHit[projectile][entity] = false;
-			}
-			SetEntityCollisionGroup(projectile, 1); //Do not collide.
-
-		//	CreateTimer(0.25, Cryo_Timer, EntIndexToEntRef(projectile), TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
 		}
 		
 	}
@@ -341,102 +283,81 @@ public void Weapon_Wand_Cryo_Shoot(int client, int weapon, bool crit, int slot, 
 
 //If you use SearchDamage (above), convert this timer to a void method and rename it to Cryo_DealDamage:
 
-public void Cryo_Touch(int entity, int other)
+public void Cryo_Touch(int entity, int target)
 {
-	int target = Target_Hit_Wand_Detection(entity, other);
 	if (target > 0)	
 	{
+		if(IsIn_HitDetectionCooldown(entity,target))
+			return;
+			
+		Set_HitDetectionCooldown(entity,target, FAR_FUTURE);
+
+		int owner = EntRefToEntIndex(i_WandOwner[entity]);
 		static float angles[3];
 		GetEntPropVector(entity, Prop_Send, "m_angRotation", angles);		
 		float ProjLoc[3], VicLoc[3];
 		float vecForward[3];
 		GetAngleVectors(angles, vecForward, NULL_VECTOR, NULL_VECTOR);
 		GetEntPropVector(entity, Prop_Data, "m_vecAbsOrigin", ProjLoc);
-		if(!Cryo_AlreadyHit[entity][target])
+		
+		WorldSpaceCenter(target, VicLoc);
+		//Code to do damage position and ragdolls
+		//Code to do damage position and ragdolls
+		switch (Cryo_SlowType[entity])
 		{
-			VicLoc = WorldSpaceCenter(target);
-			//Code to do damage position and ragdolls
-			//Code to do damage position and ragdolls
-			switch (Cryo_SlowType[entity])
+			case 0:
 			{
-				case 0:
-				{
-					if((f_VeryLowIceDebuff[target] - 1.0) < GetGameTime())
-					{
-						f_VeryLowIceDebuff[target] = GetGameTime() + 1.1;
-					}
-				}
-				case 1:
-				{
-					if((f_LowIceDebuff[target] - 1.0) < GetGameTime())
-					{
-						f_LowIceDebuff[target] = GetGameTime() + 1.1;
-					}
-				}
-				case 2:
-				{
-					if((f_HighIceDebuff[target] - 1.0) < GetGameTime())
-					{
-						f_HighIceDebuff[target] = GetGameTime() + 1.1;
-					}
-				}
+				ApplyStatusEffect(owner, target, "Freeze", 1.0);
 			}
-			
-			float Health_Before_Hurt = float(GetEntProp(target, Prop_Data, "m_iHealth"));
-
-			int owner = EntRefToEntIndex(i_WandOwner[entity]);
-			int weapon = EntRefToEntIndex(i_WandWeapon[entity]);
-			if(owner == -1)
+			case 1:
 			{
-				int particle = EntRefToEntIndex(i_WandParticle[entity]);
-				if(IsValidEntity(particle))
-				{
-					RemoveEntity(particle);
-				}
-				RemoveEntity(entity);
+				ApplyStatusEffect(owner, target, "Cryo", 1.0);
 			}
-
-			SDKHooks_TakeDamage(target, owner, owner, f_WandDamage[entity], DMG_PLASMA, weapon, CalculateDamageForce(vecForward, 0.0), VicLoc, _, ZR_DAMAGE_ICE); // 2048 is DMG_NOGIB?
-			
-			float Health_After_Hurt = float(GetEntProp(target, Prop_Data, "m_iHealth"));
-			
-			if (!Cryo_Frozen[target] && !Cryo_Slowed[target])
+			case 2:
 			{
-				Cryo_FreezeLevel[target] += (Health_Before_Hurt - Health_After_Hurt);
-				float maxHealth = float(GetEntProp(target, Prop_Data, "m_iMaxHealth"));
-				float damageRequiredForFreeze = Cryo_FreezeRequirement;
-				if(IsValidEntity(EntRefToEntIndex(RaidBossActive)))
-				{
-					damageRequiredForFreeze *= 0.05; //Reduce way further so its good against raids.
-				}
-				else if(b_thisNpcIsABoss[target])
-				{
-					damageRequiredForFreeze *= 0.25; //Reduce way further so its good against bosses.
-				}
-				if (Cryo_FreezeLevel[target] >= maxHealth * damageRequiredForFreeze)
-				{
-					Cryo_SlowType_Zombie[target] = Cryo_SlowType[entity];
-					if(Health_After_Hurt > 0)
-					{
-						Cryo_FreezeZombie(target);
-					}
-				}
+				ApplyStatusEffect(owner, target, "Near Zero", 1.0);
 			}
-			
-			Cryo_AlreadyHit[entity][target] = true;
-			f_WandDamage[entity] *= Cryo_M1_ReductionScale;
 		}
+		
+		//float Health_Before_Hurt = float(GetEntProp(target, Prop_Data, "m_iHealth"));
+
+		int weapon = EntRefToEntIndex(i_WandWeapon[entity]);
+		if(owner == -1)
+		{
+			int particle = EntRefToEntIndex(i_WandParticle[entity]);
+			if(IsValidEntity(particle))
+			{
+				RemoveEntity(particle);
+			}
+			RemoveEntity(entity);
+		}
+		
+		SDKHooks_TakeDamage(target, owner, owner, f_WandDamage[entity], DMG_PLASMA, weapon, {0.0,0.0,0.0}, VicLoc, _, ZR_DAMAGE_ICE); // 2048 is DMG_NOGIB?
+		
+		//float Health_After_Hurt = float(GetEntProp(target, Prop_Data, "m_iHealth"));
+		
+		if (!Cryo_Frozen[target] && !Cryo_Slowed[target])
+		{
+			Elemental_AddCyroDamage(target, owner, RoundFloat(f_WandDamage[entity]), Cryo_SlowType[entity]);
+		}
+		
+		f_WandDamage[entity] *= Cryo_M1_ReductionScale;
 	}
 }
 
-public void Cryo_FreezeZombie(int zombie)
+void Cryo_FreezeZombie(int client, int zombie, int type)
 {
 	if (!IsValidEntity(zombie))
-	return;
+		return;
+
+	if(!IsEntityAlive(zombie))
+		return;
+		
+	Cryo_SlowType_Zombie[zombie] = type;
 	
-	EmitSoundToAll(SOUND_WAND_CRYO_FREEZE, zombie, SNDCHAN_STATIC, 80);
+	if(type != 3)
+		EmitSoundToAll(SOUND_WAND_CRYO_FREEZE, zombie, SNDCHAN_STATIC, 80);
 	CClotBody ZNPC = view_as<CClotBody>(zombie);
-	ZNPC.m_bFrozen = true;
 	Cryo_Frozen[zombie] = true;
 	Cryo_FreezeLevel[zombie] = 0.0;
 	float FreezeDuration;
@@ -455,23 +376,42 @@ public void Cryo_FreezeZombie(int zombie)
 		{
 			FreezeDuration = Cryo_FreezeDuration_Pap2;
 		}
+		case 3:
+		{
+			if(b_thisNpcIsARaid[zombie])
+			{
+				FreezeDuration = 1.0;
+			}
+			else if(b_thisNpcIsABoss[zombie] || b_ThisNpcIsImmuneToNuke[zombie])
+			{
+				FreezeDuration = 2.0;
+			}
+			else
+			{
+				FreezeDuration = 5.0;
+			}
+		}
 	}
 
-	if(IsValidEntity(EntRefToEntIndex(RaidBossActive)))
+	if(b_thisNpcIsARaid[zombie])
 	{
-		FreezeDuration *= 0.75; //Less duration against raids.
+		if(type != 3)
+			FreezeDuration *= 0.75; //Less duration against raids.
 	}
 
 	CreateTimer(FreezeDuration, Cryo_Unfreeze, EntIndexToEntRef(zombie), TIMER_FLAG_NO_MAPCHANGE);
 	FreezeNpcInTime(zombie, FreezeDuration);
-	if (!IsValidEntity(ZNPC.m_iFreezeWearable))
+	if(type != 3)
+		ApplyStatusEffect(client, zombie, "Frozen", FreezeDuration);
+
+	if (!IsValidEntity(ZNPC.m_iFreezeWearable) && !HasSpecificBuff(zombie, "Clear Head"))
 	{
 		float offsetToHeight = 40.0;
 		if(b_IsGiant[zombie])
 		{
 			offsetToHeight = 55.0;
 		}
-		ZNPC.m_iFreezeWearable = ZNPC.EquipItemSeperate("partyhat", "models/props_moonbase/moon_gravel_crystal_blue.mdl",_,_,_,offsetToHeight);
+		ZNPC.m_iFreezeWearable = ZNPC.EquipItemSeperate("models/props_moonbase/moon_gravel_crystal_blue.mdl",_,_,_,offsetToHeight);
 		if(b_IsGiant[zombie])
 		{
 			SetVariantString("3.6");
@@ -485,23 +425,23 @@ public void Cryo_FreezeZombie(int zombie)
 		SetEntityRenderColor(ZNPC.m_iFreezeWearable, 65, 65, 185, 65);
 	}
 
-	SetEntityRenderMode(zombie, RENDER_TRANSCOLOR, false, 1, false, true);
-	SetEntityRenderColor(zombie, 0, 0, 255, 255, false, false, true);
+//	SetEntityRenderMode(zombie, RENDER_NORMAL, false, 1, false, true);
+//	SetEntityRenderColor(zombie, 25, 25, 255, 255, false, false, true);
 	float position[3];
 	GetEntPropVector(zombie, Prop_Data, "m_vecAbsOrigin", position);
 	switch (Cryo_SlowType_Zombie[zombie])
 	{
 		case 0:
 		{
-			f_VeryLowIceDebuff[zombie] = GetGameTime() + (Cryo_SlowDuration + FreezeDuration);
+			ApplyStatusEffect(client, zombie, "Freeze", Cryo_SlowDuration + FreezeDuration);
 		}
 		case 1:
 		{
-			f_LowIceDebuff[zombie] = GetGameTime() + (Cryo_SlowDuration + FreezeDuration);
+			ApplyStatusEffect(client, zombie, "Cryo", Cryo_SlowDuration + FreezeDuration);
 		}
 		case 2:
 		{
-			f_HighIceDebuff[zombie] = GetGameTime() + (Cryo_SlowDuration + FreezeDuration);
+			ApplyStatusEffect(client, zombie, "Near Zero", Cryo_SlowDuration + FreezeDuration);
 		}
 	}
 	//Un-comment the following line if you want a particle to appear on frozen zombies:
@@ -513,20 +453,17 @@ public Action Cryo_Unfreeze(Handle Unfreeze, int ref)
 	int zombie = EntRefToEntIndex(ref);
 	
 	if (!IsValidEntity(zombie))
-	return Plugin_Continue;
+		return Plugin_Continue;
 	
 	if (Cryo_Frozen[zombie])
 	{
 		Cryo_Frozen[zombie] = false;
 		Cryo_Slowed[zombie] = true;
 		
-		CClotBody ZNPC = view_as<CClotBody>(zombie);
-		ZNPC.m_bFrozen = false;
-		
 		CreateTimer(Cryo_SlowDuration, Cryo_Unslow, EntIndexToEntRef(zombie), TIMER_FLAG_NO_MAPCHANGE);
 		
-		SetEntityRenderMode(zombie, i_EntityRenderMode[zombie], true, 2, false, true);
-		SetEntityRenderColor(zombie, i_EntityRenderColour1[zombie], i_EntityRenderColour2[zombie], i_EntityRenderColour3[zombie], i_EntityRenderColour4[zombie], true, false, true);
+	//	SetEntityRenderMode(zombie, i_EntityRenderMode[zombie], true, 2, false, true);
+	//	SetEntityRenderColor(zombie, i_EntityRenderColour1[zombie], i_EntityRenderColour2[zombie], i_EntityRenderColour3[zombie], i_EntityRenderColour4[zombie], true, false, true);
 	}
 	
 	return Plugin_Continue;
@@ -550,10 +487,4 @@ public void CleanAllApplied_Cryo(int entity)
 	Cryo_Frozen[entity] = false;
 	Cryo_Slowed[entity] = false;
 	Cryo_IsCryo[entity] = false;
-	
-	for (int i = 0; i < MAXENTITIES; i++)
-	{
-		Cryo_AlreadyHit[i][entity] = false;
-//		Cryo_AlreadyHit[entity][i] = false;
-	}
 }

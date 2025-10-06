@@ -3,7 +3,6 @@
 
 static Handle SDKEquipWearable;
 static Handle SDKGetMaxHealth;
-//static Handle g_hGetAttachment;
 //static Handle g_hStudio_FindAttachment;
 
 static Handle g_hSetAbsOrigin;
@@ -18,17 +17,16 @@ static Handle g_hCTFCreateArrow;
 //static Handle g_hSDKPlaySpecificSequence;
 //static Handle g_hDoAnimationEvent;
 
+#if defined ZR || defined RPG
 static Handle g_hSDKStartLagComp;
 static Handle g_hSDKEndLagComp;
-static Handle g_hSDKUpdateBlocked;
+#endif
 
+static Handle g_SDKCallRemoveImmediate;
 
 static Handle SDKGetShootSound;
 static Handle SDKBecomeRagdollOnClient;
-
-static DynamicHook g_hDHookItemIterateAttribute;
-static int g_iCEconItem_m_Item;
-static int g_iCEconItemView_m_bOnlyIterateItemViewAttributes;
+static Handle SDKSetSpeed;
 
 void SDKCall_Setup()
 {
@@ -60,36 +58,12 @@ void SDKCall_Setup()
 	if(!g_hSetLocalOrigin)
 		LogError("[Gamedata] Could not find CBaseEntity::SetLocalOrigin");
 
-#if defined ZR
-	//CBaseAnimating::LookupBone( const char *szName )
 	StartPrepSDKCall(SDKCall_Entity);
-	PrepSDKCall_SetFromConf(gamedata, SDKConf_Signature, "CBaseEntity::SetLocalOrigin");
-	PrepSDKCall_AddParameter(SDKType_String, SDKPass_Pointer);
-	PrepSDKCall_SetReturnInfo(SDKType_PlainOldData, SDKPass_Plain);
-	if ((g_hLookupBone = EndPrepSDKCall()) == INVALID_HANDLE) SetFailState("Failed to create SDKCall for CBaseAnimating::LookupBone signature!");
-	
-	//void CBaseAnimating::GetBonePosition ( int iBone, Vector &origin, QAngle &angles )
-	StartPrepSDKCall(SDKCall_Entity);
-	PrepSDKCall_SetFromConf(gamedata, SDKConf_Signature, "CBaseAnimating::GetBonePosition");
-	PrepSDKCall_AddParameter(SDKType_PlainOldData, SDKPass_Plain);
-	PrepSDKCall_AddParameter(SDKType_Vector, SDKPass_ByRef, _, VENCODE_FLAG_COPYBACK);
-	PrepSDKCall_AddParameter(SDKType_QAngle, SDKPass_ByRef, _, VENCODE_FLAG_COPYBACK);
-	if ((g_hGetBonePosition = EndPrepSDKCall()) == INVALID_HANDLE) SetFailState("Failed to create SDKCall for CBaseAnimating::GetBonePosition signature!");
-#endif
-
-	//	https://github.com/Wilzzu/testing/blob/18a3680a9a1c8bdabc30c504bbf9467ac6e7d7b4/samu/addons/sourcemod/scripting/shavit-replay.sp
-
-	//	Thanks to nosoop for pointing soemthing like this out to me
-	//	https://discord.com/channels/335290997317697536/335290997317697536/1038513919695802488  in the allied modders discord
-	StartPrepSDKCall(SDKCall_Static);
-	PrepSDKCall_SetFromConf(gamedata, SDKConf_Signature, "NextBotCreatePlayerBot<CTFBot>");
-	PrepSDKCall_AddParameter(SDKType_String, SDKPass_Pointer);       // const char *name
-	PrepSDKCall_AddParameter(SDKType_Bool, SDKPass_Plain);   // bool bReportFakeClient
-	PrepSDKCall_SetReturnInfo(SDKType_CBasePlayer, SDKPass_Pointer); // CTFBot*
-	gH_BotAddCommand = EndPrepSDKCall();
-
-	if(!gH_BotAddCommand)
-		SetFailState("[Gamedata] Unable to prepare SDKCall for NextBotCreatePlayerBot<CTFBot>");
+	PrepSDKCall_SetFromConf(gamedata, SDKConf_Signature, "CBaseEntity::SetLocalAngles");
+	PrepSDKCall_AddParameter(SDKType_Vector, SDKPass_ByRef);
+	g_hSetLocalAngles = EndPrepSDKCall();
+	if(!g_hSetLocalAngles)
+		LogError("[Gamedata] Could not find CBaseEntity::SetLocalOrigin");
 
 	//CBasePlayer
 	StartPrepSDKCall(SDKCall_Player);
@@ -118,8 +92,10 @@ void SDKCall_Setup()
 	g_hSetAbsAngle = EndPrepSDKCall();
 	if(!g_hSetAbsAngle)
 		LogError("[Gamedata] Could not find CBaseEntity::SetAbsAngles");
-		
 
+	//From mikusch!
+	g_SDKCallRemoveImmediate = PrepSDKCall_RemoveImmediate(gamedata);
+		
 
 	StartPrepSDKCall(SDKCall_Player);
 	PrepSDKCall_SetFromConf(gamedata, SDKConf_Virtual, "CBasePlayer::CheatImpulseCommands");
@@ -128,10 +104,12 @@ void SDKCall_Setup()
 	if(!g_hImpulse)
 		LogError("[Gamedata] Could not find CBasePlayer::CheatImpulseCommands");
 
+#if defined ZR || defined RPG
 	StartPrepSDKCall(SDKCall_Raw);
 	PrepSDKCall_SetFromConf(gamedata, SDKConf_Signature, "CTFPlayerShared::RecalculatePlayerBodygroups");
 	if((g_hRecalculatePlayerBodygroups = EndPrepSDKCall()) == INVALID_HANDLE) SetFailState("Failed to create Call for CTFPlayerShared::RecalculatePlayerBodygroups");
-		
+#endif
+
 	StartPrepSDKCall(SDKCall_Entity);
 	PrepSDKCall_SetFromConf(gamedata, SDKConf_Signature, "CBaseAnimating::InvalidateBoneCache");
 	if((g_hInvalidateBoneCache = EndPrepSDKCall()) == INVALID_HANDLE) SetFailState("Failed to create Call for CBaseAnimating::InvalidateBoneCache");
@@ -151,35 +129,7 @@ void SDKCall_Setup()
 	g_hCTFCreateArrow = EndPrepSDKCall();
 	if(!g_hCTFCreateArrow)
 		LogError("[Gamedata] Could not find CTFProjectile_Arrow::Create");
-		
-	StartPrepSDKCall(SDKCall_Static);
-	PrepSDKCall_SetFromConf(gamedata, SDKConf_Signature, "CTFNavMesh::ComputeBlockedArea");
-	g_hSDKUpdateBlocked = EndPrepSDKCall();
-	
-#if defined ZR
-	StartPrepSDKCall(SDKCall_Entity);
-	PrepSDKCall_SetFromConf(gamedata, SDKConf_Signature, "CObjectDispenser::MakeCarriedObject");
-	PrepSDKCall_AddParameter(SDKType_CBasePlayer, SDKPass_Pointer); //Player
-	if ((g_hSDKMakeCarriedObjectDispenser = EndPrepSDKCall()) == INVALID_HANDLE) SetFailState("Failed To create SDKCall for CObjectDispenser::MakeCarriedObject");
-	
-	StartPrepSDKCall(SDKCall_Entity);
-	PrepSDKCall_SetFromConf(gamedata, SDKConf_Signature, "CObjectSentrygun::MakeCarriedObject");
-	PrepSDKCall_AddParameter(SDKType_CBasePlayer, SDKPass_Pointer); //Player
-	if ((g_hSDKMakeCarriedObjectSentry = EndPrepSDKCall()) == INVALID_HANDLE) SetFailState("Failed To create SDKCall for CObjectSentrygun::MakeCarriedObject");
-#endif
-	
 	//from kenzzer
-	
-	int iOffset = GameConfGetOffset(gamedata, "CEconItemView::IterateAttributes");
-	g_hDHookItemIterateAttribute = new DynamicHook(iOffset, HookType_Raw, ReturnType_Void, ThisPointer_Address);
-	if (g_hDHookItemIterateAttribute == null)
-	{
-		 SetFailState("Failed to create hook CEconItemView::IterateAttributes offset from SF2 gamedata!");
-	}
-	g_hDHookItemIterateAttribute.AddParam(HookParamType_ObjectPtr);
-
-	g_iCEconItem_m_Item = FindSendPropInfo("CEconEntity", "m_Item");
-	FindSendPropInfo("CEconEntity", "m_bOnlyIterateItemViewAttributes", _, _, g_iCEconItemView_m_bOnlyIterateItemViewAttributes);
 	
 	StartPrepSDKCall(SDKCall_Entity);
 	PrepSDKCall_SetFromConf(gamedata, SDKConf_Signature, "CTFWeaponBaseMelee::GetShootSound");
@@ -193,14 +143,6 @@ void SDKCall_Setup()
 	SDKBecomeRagdollOnClient = EndPrepSDKCall();
 	if(!SDKBecomeRagdollOnClient)
 		LogError("[Gamedata] Could not find CBaseAnimating::BecomeRagdollOnClient");
-
-
-	StartPrepSDKCall(SDKCall_Entity);
-	PrepSDKCall_SetFromConf(gamedata, SDKConf_Signature, "CBaseAnimating::GetAttachment");
-	PrepSDKCall_AddParameter(SDKType_PlainOldData, SDKPass_Plain);	//iAttachment
-	PrepSDKCall_AddParameter(SDKType_Vector, SDKPass_ByRef, _, VENCODE_FLAG_COPYBACK); //absOrigin
-	PrepSDKCall_AddParameter(SDKType_QAngle, SDKPass_ByRef, _, VENCODE_FLAG_COPYBACK); //absAngles
-	if((g_hGetAttachment = EndPrepSDKCall()) == INVALID_HANDLE) SetFailState("Failed to create Call for CBaseAnimating::GetAttachment");
 	
 	StartPrepSDKCall(SDKCall_Static);
 	PrepSDKCall_SetFromConf(gamedata, SDKConf_Signature, "Studio_FindAttachment");
@@ -216,6 +158,15 @@ void SDKCall_Setup()
 	PrepSDKCall_AddParameter(SDKType_Vector, SDKPass_ByRef, _, VENCODE_FLAG_COPYBACK);
 	if((g_hGetVectors = EndPrepSDKCall()) == INVALID_HANDLE) SetFailState("Failed to create Virtual Call for CBaseEntity::GetVectors!");
 	
+	StartPrepSDKCall(SDKCall_Entity);
+	PrepSDKCall_SetFromConf(gamedata, SDKConf_Signature, "CTFPlayer::TeamFortress_SetSpeed()");
+	SDKSetSpeed = EndPrepSDKCall();
+	if(!SDKSetSpeed)
+		LogError("[Gamedata] Could not find CTFPlayer::TeamFortress_SetSpeed()");
+
+	
+	//copied from 
+	//https://github.com/bhopppp/Shavit-Surf-Timer/blob/289b9df123e61f2a0982ded688d2c611023b25f5/addons/sourcemod/scripting/shavit-replay-playback.sp#L204
 	delete gamedata;
 }
 
@@ -225,7 +176,7 @@ void SDKCall_EquipWearable(int client, int entity)
 		SDKCall(SDKEquipWearable, client, entity);
 }
 
-void SDKCall_GetShootSound(int entity, int index, char[] buffer, int length)
+stock void SDKCall_GetShootSound(int entity, int index, char[] buffer, int length)
 {
 	if(SDKGetShootSound)
 		SDKCall(SDKGetShootSound, entity, buffer, length, index);
@@ -233,8 +184,8 @@ void SDKCall_GetShootSound(int entity, int index, char[] buffer, int length)
 
 //( const Vector &vecOrigin, const QAngle &vecAngles, const float fSpeed, const float fGravity, ProjectileType_t projectileType, CBaseEntity *pOwner, CBaseEntity *pScorer )
 
-#if defined ZR
-int SDKCall_CTFCreateArrow(float VecOrigin[3], float VecAngles[3], const float fSpeed, const float fGravity, int projectileType, int Owner, int Scorer)
+#if defined ZR || defined RPG
+stock int SDKCall_CTFCreateArrow(float VecOrigin[3], float VecAngles[3], const float fSpeed, const float fGravity, int projectileType, int Owner, int Scorer)
 {
 	if(g_hCTFCreateArrow)
 		return SDKCall(g_hCTFCreateArrow, VecOrigin, VecAngles, fSpeed, fGravity, projectileType, Owner, Scorer);
@@ -275,12 +226,19 @@ void SDKCall_SetLocalOrigin(int index, float localOrigin[3])
 		SDKCall(g_hSetLocalOrigin, index, localOrigin);
 	}
 }
+void SDKCall_SetLocalAngles(int index, float Anglesl[3])
+{
+	if(g_hSetLocalAngles)
+	{
+		SDKCall(g_hSetLocalAngles, index, Anglesl);
+	}
+}
 
 void SDKCall_InvalidateBoneCache(int index)
 {
 	SDKCall(g_hInvalidateBoneCache, index);
 }
-/*
+
 void SDKCall_SetAbsOrigin(int index, float AbsOrigin[3])
 {
 	if(g_hSetAbsOrigin)
@@ -288,7 +246,7 @@ void SDKCall_SetAbsOrigin(int index, float AbsOrigin[3])
 		SDKCall(g_hSetAbsOrigin, index, AbsOrigin);
 	}
 }
-
+/*
 void SDKCall_SetAbsAngle(int index, float AbsAngle[3])
 {
 	if(g_hSetAbsAngle)
@@ -298,18 +256,21 @@ void SDKCall_SetAbsAngle(int index, float AbsAngle[3])
 }
 */
 
-void SDKCall_RecalculatePlayerBodygroups(int index)
+#if defined ZR || defined RPG
+stock void SDKCall_RecalculatePlayerBodygroups(int index)
 {
 	if(g_hRecalculatePlayerBodygroups)
 	{
 		SDKCall(g_hRecalculatePlayerBodygroups, GetPlayerSharedAddress(index));
 	}
 }
+
 //https://github.com/nosoop/SM-TFUtils/blob/4802fa401a86d3088feb77c8a78d758c10806112/scripting/tf2utils.sp#L1067C1-L1067C1
 static Address GetPlayerSharedAddress(int client) {
 	return GetEntityAddress(client)
 			+ view_as<Address>(FindSendPropInfo("CTFPlayer", "m_Shared"));
 }
+#endif	// ZR
 
 int SDKCall_GetMaxHealth(int client)
 {
@@ -325,6 +286,7 @@ int FindAttachment(int index, const char[] pAttachmentName)
 	return SDKCall(g_hStudio_FindAttachment, pStudioHdr, pAttachmentName) + 1;
 }	
 
+
 public Address GetStudioHdr(int index)
 {
 	if(IsValidEntity(index))
@@ -335,53 +297,27 @@ public Address GetStudioHdr(int index)
 	return Address_Null;
 }	
 
-void SnapEyeAngles(int client, float viewAngles[3])
+void SnapEyeAngles(int client, const float viewAngles[3])
 {
 	SDKCall(g_hSnapEyeAngles, client, viewAngles);
 }
 
-/*void SetAbsVelocity(int client, float viewAngles[3])
-{
-	SDKCall(g_hSetAbsVelocity, client, viewAngles);
-}*/
-
 void GetAttachment(int index, const char[] szName, float absOrigin[3], float absAngles[3])
 {
-	SDKCall(g_hGetAttachment, index, FindAttachment(index, szName), absOrigin, absAngles);
+	GetEntityAttachment(index, FindAttachment(index, szName), absOrigin, absAngles);
 }	
-/*
-bool SDKCall_PlaySpecificSequence(int iClient, const char[] sAnimationName)
-{
-	return SDKCall(g_hSDKPlaySpecificSequence, iClient, sAnimationName);
-}
-
-void SDKCall_DoAnimationEvent(int iClient, int event_int, int extra_data = 0)
-{
-	SDKCall(g_hDoAnimationEvent, iClient, event_int, extra_data);
-}*/
-
 
 void GetVectors(int client, float pForward[3], float pRight[3], float pUp[3])
 {
 	SDKCall(g_hGetVectors, client, pForward, pRight, pUp);
 }
 
-#if defined ZR
-void GetBoneAnglesAndPos(int client, char[] BoneName, float origin[3], float angles[3])
-{
-	int iBone = SDKCall(g_hLookupBone, client, BoneName);
-	if(iBone == -1)
-		return;
-		
-	SDKCall(g_hGetBonePosition, client, iBone, origin, angles);
-}
-#endif
-
 void SDKCall_BecomeRagdollOnClient(int entity, const float vec[3])
 {
 	SDKCall(SDKBecomeRagdollOnClient, entity, vec);
 }
 
+#if defined ZR || defined RPG
 void StartPlayerOnlyLagComp(int client, bool Compensate_allies)
 {
 	if(g_GottenAddressesForLagComp)
@@ -392,7 +328,7 @@ void StartPlayerOnlyLagComp(int client, bool Compensate_allies)
 		{
 			b_LagCompAlliedPlayers = true;
 		}
-		SDKCall(g_hSDKStartLagComp, g_hSDKStartLagCompAddress, client, (GetEntityAddress(client) + view_as<Address>(3512)));
+		SDKCall(g_hSDKStartLagComp, g_hSDKStartLagCompAddress, client, (GetEntityAddress(client) + view_as<Address>(OffsetLagCompStart_UserInfoReturn())));
 //		StartLagCompensation_Base_Boss(client, true);
 	}
 }
@@ -405,51 +341,43 @@ void EndPlayerOnlyLagComp(int client)
 		SDKCall(g_hSDKEndLagComp, g_hSDKEndLagCompAddress, client);
 	}
 }
+#endif
 
 void UpdateBlockedNavmesh()
 {
-	SDKCall(g_hSDKUpdateBlocked);
+//	sv_cheats.IntValue = 1;
+	//this updates the nav.
+	ServerCommand("sv_cheats 1; nav_load ; sv_cheats 0");
+//	sv_cheats.IntValue = 0;
+	
+	//This broke and is probably inlined, above is a way easier method.
+//	SDKCall(g_hSDKUpdateBlocked);
 }	
-
-
-static MRESReturn CEconItemView_IterateAttributes(Address pThis, DHookParam hParams)
+/*
+stock int SpawnBotCustom()
 {
-    StoreToAddress(pThis + view_as<Address>(g_iCEconItemView_m_bOnlyIterateItemViewAttributes), true, NumberType_Int8, false);
-    return MRES_Ignored;
-}
-
-static MRESReturn CEconItemView_IterateAttributes_Post(Address pThis, DHookParam hParams)
-{
-    StoreToAddress(pThis + view_as<Address>(g_iCEconItemView_m_bOnlyIterateItemViewAttributes), false, NumberType_Int8, false);
-    return MRES_Ignored;
-}
-
-stock void TF2Items_OnGiveNamedItem_Post_SDK(int iClient, char[] sClassname, int iItemDefIndex, int iLevel, int iQuality, int iEntity)
-{
-	Address pCEconItemView = GetEntityAddress(iEntity) + view_as<Address>(g_iCEconItem_m_Item);
-	g_hDHookItemIterateAttribute.HookRaw(Hook_Pre, pCEconItemView, CEconItemView_IterateAttributes);
-	g_hDHookItemIterateAttribute.HookRaw(Hook_Post, pCEconItemView, CEconItemView_IterateAttributes_Post);
-}
-
-stock int SpawnBotCustom(const char[] Name, bool bReportFakeClient)
-{
+	PrintToChatAll("trest");
+	ServerCommand("sv_cheats 1; bot ; sv_cheats 0");
+//	int bot = CreateFakeClient(Name);
+	
 	int bot = SDKCall(
 	gH_BotAddCommand,
 	Name, // name
 	false // bReportFakeClient
 	);
-
+	
 //	if (IsValidClient(bot))
 //	{
 //		PrintToChatAll("party!");
 //		SetFakeClientConVar(bot, "name", Name);
 //	}
 
-	return bot;
+	return -1;
 }
-
+*/
 //BIG thanks to backwards#8236 on discord for helping me out, YOU ARE MY HERO.
 
+#if defined ZR || defined RPG
 void Sdkcall_Load_Lagcomp()
 {
 	if(!g_GottenAddressesForLagComp)
@@ -472,47 +400,15 @@ void Sdkcall_Load_Lagcomp()
 		delete gamedata_lag_comp;	
 	}
 }
+#endif
 
-void Manual_Impulse_101(int client, int health)
+stock void Manual_Impulse_101(int client, int health)
 {
-	int ie, entity;
-	while(TF2_GetItem(client, entity, ie))
-	{
-		int index = GetEntProp(entity, Prop_Send, "m_iItemDefinitionIndex");
-		switch(index)
-		{
-			case 411:
-			{
-				if(HasEntProp(entity, Prop_Send, "m_flChargeLevel"))
-				{
-					if(f_MedigunChargeSave[client][0] == 0.0)
-					{
-						f_MedigunChargeSave[client][0] = GetEntPropFloat(entity, Prop_Send, "m_flChargeLevel");
-					}
-				}
-			}
-			case 211:
-			{
-				if(HasEntProp(entity, Prop_Send, "m_flChargeLevel"))
-				{
-					if(f_MedigunChargeSave[client][1] == 0.0)
-					{
-						f_MedigunChargeSave[client][1] = GetEntPropFloat(entity, Prop_Send, "m_flChargeLevel");
-					}
-				}
-			}
-			case 998:
-			{
-				if(HasEntProp(entity, Prop_Send, "m_flChargeLevel"))
-				{
-					if(f_MedigunChargeSave[client][2] == 0.0)
-					{
-						f_MedigunChargeSave[client][2] = GetEntPropFloat(entity, Prop_Send, "m_flChargeLevel");
-					}
-				}
-			}
-		}
-	}
+
+#if defined ZR
+	ClientSaveRageMeterStatus(client);
+	ClientSaveUber(client);
+#endif
 
 	SetConVarInt(sv_cheats, 1, false, false);
 	
@@ -521,70 +417,99 @@ void Manual_Impulse_101(int client, int health)
 	{
 		SetConVarInt(sv_cheats, 0, false, false);
 	}
-	
-	
-	float host_timescale;
-	host_timescale = GetConVarFloat(cvarTimeScale);
-	
-	if(host_timescale != 1.0)
-	{
-		for(int i=1; i<=MaxClients; i++)
-		{
-			if(IsClientInGame(i) && !IsFakeClient(i))
-			{
-				SendConVarValue(i, sv_cheats, "1");
-			}
-		}
-	}
-	
+	SDKCall_GiveCorrectAmmoCount(client);
+
+	OnWeaponSwitchPost(client, GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon"));
+
+#if defined ZR
+	ClientApplyRageMeterStatus(client);
+	ClientApplyMedigunUber(client);
+	Clip_GiveAllWeaponsClipSizes(client);
+#endif
+
+	if(health > 0)
+		SetEntityHealth(client, health);
+}
+
+void SDKCall_GiveCorrectAmmoCount(int client)
+{
 	//how quirky.
 	SetAmmo(client, 1, 9999);
 	SetAmmo(client, 2, 9999);
+#if defined ZR
 	SetAmmo(client, Ammo_Metal, CurrentAmmo[client][Ammo_Metal]);
 	for(int i=Ammo_Jar; i<Ammo_MAX; i++)
 	{
 		SetAmmo(client, i, CurrentAmmo[client][i]);
 	}
-	
-	SetEntPropFloat(client, Prop_Send, "m_flRageMeter", 0.0);
-//	SetEntProp(client, Prop_Send, "m_bWearingSuit", true);
-//	SetEntPropFloat(client, Prop_Send, "m_flCloakMeter", 0.0); //No cloak regen at all.
-	OnWeaponSwitchPost(client, GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon"));
-	
-	
-	int iea, weapon;
-	while(TF2_GetItem(client, weapon, iea))
+#endif
+}
+#if defined ZR
+void SDKCall_ResetPlayerAndTeamReadyState()
+{
+	int entity = FindEntityByClassname(-1, "tf_gamerules");
+	if(entity == -1)
 	{
-		int index = GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex");
-		switch(index)
-		{
-			case 411:
-			{
-				if(HasEntProp(weapon, Prop_Send, "m_flChargeLevel"))
-				{
-					SetEntPropFloat(weapon, Prop_Send, "m_flChargeLevel", f_MedigunChargeSave[client][0]);
-					f_MedigunChargeSave[client][0] = 0.0;
-				}
-			}
-			case 211:
-			{
-				if(HasEntProp(weapon, Prop_Send, "m_flChargeLevel"))
-				{
-					SetEntPropFloat(weapon, Prop_Send, "m_flChargeLevel", f_MedigunChargeSave[client][1]);
-					f_MedigunChargeSave[client][1] = 0.0;
-				}
-			}
-			case 998:
-			{
-				if(HasEntProp(weapon, Prop_Send, "m_flChargeLevel"))
-				{
-					SetEntPropFloat(weapon, Prop_Send, "m_flChargeLevel", f_MedigunChargeSave[client][2]);
-					f_MedigunChargeSave[client][2] = 0.0;
-				}
-			}
-		}
+		return;
+	}
+
+	static int Size1;
+	if(!Size1)
+	{
+		Size1 = GetEntPropArraySize(entity, Prop_Send, "m_bTeamReady");
 	}
 	
-	if(health > 0)
-		SetEntityHealth(client, health);
+	for(int i; i < Size1; i++)
+	{
+		GameRules_SetProp("m_bTeamReady", false, _, i);
+	}
+
+	static int Size2;
+	if(!Size2)
+	{
+		Size2 = GetEntPropArraySize(entity, Prop_Send, "m_bPlayerReady");
+	}
+	
+	for(int i; i < Size2; i++)
+	{
+		GameRules_SetProp("m_bPlayerReady", false, _, i);
+	}
+}
+#endif
+
+void SDKCall_SetSpeed(int client)
+{
+	if(SDKSetSpeed)
+	{
+		SDKCall(SDKSetSpeed, client);
+	}
+	else
+	{
+		TF2_AddCondition(client, TFCond_SpeedBuffAlly, 0.001);
+	}
+}
+
+
+
+static Handle PrepSDKCall_RemoveImmediate(GameData gamedata)
+{
+	StartPrepSDKCall(SDKCall_Static);
+	PrepSDKCall_SetFromConf(gamedata, SDKConf_Signature, "UTIL_RemoveImmediate");
+	PrepSDKCall_AddParameter(SDKType_CBaseEntity, SDKPass_Pointer);
+	
+	Handle call = EndPrepSDKCall();
+	if (!call)
+	{
+		LogMessage("Failed to create SDKCall: UTIL_RemoveImmediate");
+	}
+	
+	return call;
+}
+
+void SDKCall_RemoveImmediate(int entity)
+{
+	if (g_SDKCallRemoveImmediate)
+	{
+		SDKCall(g_SDKCallRemoveImmediate, entity);
+	}
 }

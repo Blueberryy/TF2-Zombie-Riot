@@ -40,9 +40,24 @@ void SeaPiercer_MapStart()
 	PrecacheSoundArray(g_HurtSound);
 
 	PrecacheModel("models/headcrabblack.mdl");
+
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Primal Sea Piercer");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_seapiercer");
+	strcopy(data.Icon, sizeof(data.Icon), "sea_piercer");
+	data.IconCustom = true;
+	data.Flags = MVM_CLASS_FLAG_NORMAL|MVM_CLASS_FLAG_MINIBOSS;
+	data.Category = Type_Seaborn;
+	data.Func = ClotSummon;
+	NPC_Add(data);
 }
 
-methodmap SeaPiercer < CClotBody
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team, const char[] data)
+{
+	return SeaPiercer(vecPos, vecAng, team, data);
+}
+
+methodmap SeaPiercer < CSeaBody
 {
 	public void PlayIdleSound()
 	{
@@ -69,13 +84,13 @@ methodmap SeaPiercer < CClotBody
 		EmitSoundToAll(g_MeleeHitSounds[GetRandomInt(0, sizeof(g_MeleeHitSounds) - 1)], this.index, SNDCHAN_AUTO, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME,_);	
 	}
 	
-	public SeaPiercer(int client, float vecPos[3], float vecAng[3], bool ally, const char[] data)
+	public SeaPiercer(float vecPos[3], float vecAng[3], int ally, const char[] data)
 	{
 		SeaPiercer npc = view_as<SeaPiercer>(CClotBody(vecPos, vecAng, "models/headcrabblack.mdl", "2.3", data[0] ? "1875" : "1350", ally, false, true));
 		// 9000 x 0.15
 		// 12500 x 0.15
 
-		i_NpcInternalId[npc.index] = data[0] ? SEAPIERCER_ALT : SEAPIERCER;
+		npc.SetElite(view_as<bool>(data[0]));
 		i_NpcWeight[npc.index] = 3;
 		npc.SetActivity("ACT_RUN");
 		KillFeed_SetKillIcon(npc.index, "bread_bite");
@@ -84,15 +99,15 @@ methodmap SeaPiercer < CClotBody
 		npc.m_iStepNoiseType = STEPSOUND_GIANT;
 		npc.m_iNpcStepVariation = STEPTYPE_SEABORN;
 		
-		
-		SDKHook(npc.index, SDKHook_Think, SeaPiercer_ClotThink);
+		func_NPCDeath[npc.index] = SeaPiercer_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = SeaPiercer_OnTakeDamage;
+		func_NPCThink[npc.index] = SeaPiercer_ClotThink;
 		
 		npc.m_flSpeed = 187.5;	// 0.75 x 250
 		npc.m_flGetClosestTargetTime = 0.0;
 		npc.m_flNextMeleeAttack = 0.0;
 		npc.m_flAttackHappens = 0.0;
 		
-		SetEntityRenderMode(npc.index, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(npc.index, 50, 50, 255, 255);
 		return npc;
 	}
@@ -132,17 +147,18 @@ public void SeaPiercer_ClotThink(int iNPC)
 	
 	if(npc.m_iTarget > 0)
 	{
-		float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
-		float distance = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);		
+		float vecTarget[3]; WorldSpaceCenter(npc.m_iTarget, vecTarget );
+		float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+		float distance = GetVectorDistance(vecTarget, VecSelfNpc, true);	
 		
 		if(distance < npc.GetLeadRadius())
 		{
-			float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, npc.m_iTarget);
-			NPC_SetGoalVector(npc.index, vPredictedPos);
+			float vPredictedPos[3]; PredictSubjectPosition(npc, npc.m_iTarget,_,_, vPredictedPos);
+			npc.SetGoalVector(vPredictedPos);
 		}
 		else 
 		{
-			NPC_SetGoalEntity(npc.index, npc.m_iTarget);
+			npc.SetGoalEntity(npc.m_iTarget);
 		}
 
 		npc.StartPathing();
@@ -166,21 +182,19 @@ public void SeaPiercer_ClotThink(int iNPC)
 					{
 						npc.PlayMeleeHitSound();
 						
-						b_ThisNpcIsSawrunner[npc.index] = true;
 
 						if(target <= MaxClients && i_HealthBeforeSuit[target] > 0)
 						{
-							SDKHooks_TakeDamage(target, npc.index, npc.index, 999999.9, DMG_DROWN); // Make it oneshot the enemy if they have the quantum armor
+							DealTruedamageToEnemy(npc.index, target, 199999999.9);
 							Custom_Knockback(npc.index, target, 1000.0); // Kick them away.
 						}
 						else
 						{
-							SDKHooks_TakeDamage(target, npc.index, npc.index, i_NpcInternalId[npc.index] == SEAPIERCER_ALT ? 52.5 : 41.25, DMG_DROWN);
+							DealTruedamageToEnemy(npc.index, target, npc.m_bElite ? 52.5 : 41.25);
 							// 550 x 0.15 x 0.5
 							// 700 x 0.15 x 0.5
 						}
 
-						b_ThisNpcIsSawrunner[npc.index] = false;
 					}
 				}
 
@@ -235,6 +249,4 @@ void SeaPiercer_NPCDeath(int entity)
 	if(!npc.m_bGib)
 		npc.PlayDeathSound();
 	
-	
-	SDKUnhook(npc.index, SDKHook_Think, SeaPiercer_ClotThink);
 }

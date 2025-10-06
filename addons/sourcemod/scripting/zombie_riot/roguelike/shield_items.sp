@@ -1,3 +1,6 @@
+#pragma semicolon 1
+#pragma newdecls required
+
 
 //This is shield charges
 Handle GlobalShieldTimer;
@@ -18,11 +21,11 @@ void ShieldLogic_OnMapStart()
 	PrecacheSound("weapons/medi_shield_deploy.wav", true);
 	PrecacheSound("weapons/medi_shield_retract.wav", true);
 	ShieldLogicRegen(1);
-	if (GlobalShieldTimer != INVALID_HANDLE)
+	if (GlobalShieldTimer != null)
 	{
-		KillTimer(GlobalShieldTimer);
+		delete GlobalShieldTimer;
 	}
-	GlobalShieldTimer = INVALID_HANDLE;
+	GlobalShieldTimer = null;
 }
 
 int i_MalfunctionShield[MAXENTITIES]; 
@@ -30,39 +33,44 @@ bool OnTakeDamage_ShieldLogic(int victim, int damagetype)
 {
 	float DodgeChance = 1.0;
 	// 0.0 means guranteed dodge
-	
-	if(damagetype & (DMG_CLUB|DMG_SLASH))
+	if(!CheckInHud())
 	{
+		if(damagetype & (DMG_CLUB|DMG_TRUEDAMAGE))
+		{
+			
+		}
+		else
+		{
+			if(b_ElasticFlyingCape) //10% dodge chance
+			{
+				DodgeChance *= 0.9;
+			}
+		}
 		
-	}
-	else
-	{
-		if(b_ElasticFlyingCape) //10% dodge chance
+		if(b_BraceletsOfAgility) //10% dodge chance
 		{
 			DodgeChance *= 0.9;
 		}
-	}
-	
-	if(b_BraceletsOfAgility) //10% dodge chance
-	{
-		DodgeChance *= 0.9;
-	}
-	if(DodgeChance != 1.0 && GetRandomFloat(0.0,1.0) > DodgeChance)
-	{
-		float chargerPos[3];
-		GetEntPropVector(victim, Prop_Data, "m_vecAbsOrigin", chargerPos);
-		chargerPos[2] += 82.0;
-		TE_ParticleInt(g_particleMissText, chargerPos);
-		TE_SendToAll();
-		return true;
+		if(DodgeChance != 1.0 && GetRandomFloat(0.0,1.0) > DodgeChance)
+		{
+			float chargerPos[3];
+			GetEntPropVector(victim, Prop_Data, "m_vecAbsOrigin", chargerPos);
+			chargerPos[2] += 82.0;
+			TE_ParticleInt(g_particleMissText, chargerPos);
+			TE_SendToAll();
+			return true;
+		}
 	}
 	
 	if(b_MalfunctionShield)
 	{
 		if(i_MalfunctionShield[victim] > 0)
 		{
-			ShieldBlockEffect(victim);
-			i_MalfunctionShield[victim] -= 1;
+			if(!CheckInHud())
+			{
+				ShieldBlockEffect(victim);
+				i_MalfunctionShield[victim] -= 1;
+			}
 			return true;
 		}
 	}
@@ -74,7 +82,7 @@ public void AnyShieldOnObtained()
 	if (GlobalShieldTimer != INVALID_HANDLE)
 		return;
 
-	GlobalShieldTimer = CreateTimer(60.0, ShieldRegenTimer,_,TIMER_REPEAT);
+	GlobalShieldTimer = CreateTimer(10.0, ShieldRegenTimer,_,TIMER_REPEAT);
 }
 public Action ShieldRegenTimer(Handle timer, int client)
 {
@@ -86,11 +94,8 @@ public Action ShieldRegenTimer(Handle timer, int client)
 	}
 	if(!AnyShieldThere)
 	{
-		if (GlobalShieldTimer != INVALID_HANDLE)
-		{
-			KillTimer(GlobalShieldTimer);
-		}
-		GlobalShieldTimer = INVALID_HANDLE;
+		GlobalShieldTimer = null;
+		return Plugin_Stop;
 	}
 	return Plugin_Continue;
 }

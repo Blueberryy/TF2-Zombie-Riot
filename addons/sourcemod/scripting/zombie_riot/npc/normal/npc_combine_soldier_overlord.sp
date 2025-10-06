@@ -18,7 +18,7 @@ static const char g_IdleSounds[][] = {
 	")npc/combine_soldier/vo/alert1.wav",
 	")npc/combine_soldier/vo/bouncerbouncer.wav",
 	")npc/combine_soldier/vo/boomer.wav",
-	")npc/combine_soldier/vo/contactconfirm.wav",
+	")npc/combine_soldier/vo/contactconfim.wav",
 };
 
 static const char g_IdleAlertedSounds[][] = {
@@ -71,8 +71,22 @@ void CombineOverlord_OnMapStart_NPC()
 	for (int i = 0; i < (sizeof(g_RangedReloadSound));   i++) { PrecacheSound(g_RangedReloadSound[i]);   }
 	for (int i = 0; i < (sizeof(g_RangedAttackSoundsSecondary));   i++) { PrecacheSound(g_RangedAttackSoundsSecondary[i]);   }
 	for (int i = 0; i < (sizeof(g_ChargeSounds));   i++) { PrecacheSound(g_ChargeSounds[i]);   }
+
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "W.F. Overlord");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_combine_soldier_overlord");
+	strcopy(data.Icon, sizeof(data.Icon), "combine_overlord");
+	data.IconCustom = true;
+	data.Flags = 0;
+	data.Category = Type_Common;
+	data.Func = ClotSummon;
+	NPC_Add(data);
 }
 
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team)
+{
+	return CombineOverlord(vecPos, vecAng, team);
+}
 methodmap CombineOverlord < CClotBody
 {
 	public void PlayIdleSound() {
@@ -81,9 +95,7 @@ methodmap CombineOverlord < CClotBody
 		EmitSoundToAll(g_IdleSounds[GetRandomInt(0, sizeof(g_IdleSounds) - 1)], this.index, SNDCHAN_VOICE, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME);
 		this.m_flNextIdleSound = GetGameTime(this.index) + GetRandomFloat(24.0, 48.0);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayIdleSound()");
-		#endif
+
 	}
 	
 	public void PlayIdleAlertSound() {
@@ -93,9 +105,7 @@ methodmap CombineOverlord < CClotBody
 		EmitSoundToAll(g_IdleAlertedSounds[GetRandomInt(0, sizeof(g_IdleAlertedSounds) - 1)], this.index, SNDCHAN_VOICE, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME);
 		this.m_flNextIdleSound = GetGameTime(this.index) + GetRandomFloat(12.0, 24.0);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayIdleAlertSound()");
-		#endif
+		
 	}
 	
 	public void PlayHurtSound() {
@@ -107,86 +117,66 @@ methodmap CombineOverlord < CClotBody
 		EmitSoundToAll(g_HurtSounds[GetRandomInt(0, sizeof(g_HurtSounds) - 1)], this.index, SNDCHAN_VOICE, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME);
 		
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayHurtSound()");
-		#endif
+		
 	}
 	
 	public void PlayDeathSound() {
 	
 		EmitSoundToAll(g_DeathSounds[GetRandomInt(0, sizeof(g_DeathSounds) - 1)], this.index, SNDCHAN_VOICE, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayDeathSound()");
-		#endif
+		
 	}
 	
 	public void PlayMeleeSound() {
 		EmitSoundToAll(g_MeleeAttackSounds[GetRandomInt(0, sizeof(g_MeleeAttackSounds) - 1)], this.index, _, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayMeleeHitSound()");
-		#endif
+
 	}
 	
 	public void PlayRangedSound() {
 		EmitSoundToAll(g_RangedAttackSounds[GetRandomInt(0, sizeof(g_RangedAttackSounds) - 1)], this.index, _, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayRangedSound()");
-		#endif
+
 	}
 	public void PlayRangedReloadSound() {
 		EmitSoundToAll(g_RangedReloadSound[GetRandomInt(0, sizeof(g_RangedReloadSound) - 1)], this.index, _, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayRangedSound()");
-		#endif
+
 	}
 	public void PlayRangedAttackSecondarySound() {
 		EmitSoundToAll(g_RangedAttackSoundsSecondary[GetRandomInt(0, sizeof(g_RangedAttackSoundsSecondary) - 1)], this.index, _, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayRangedSound()");
-		#endif
+
 	}
 	
 	public void PlayMeleeHitSound() {
 		EmitSoundToAll(g_MeleeHitSounds[GetRandomInt(0, sizeof(g_MeleeHitSounds) - 1)], this.index, _, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayMeleeHitSound()");
-		#endif
+
 	}
 	
 	public void PlaySpecialChargeSound() {
 		EmitSoundToAll(g_ChargeSounds[GetRandomInt(0, sizeof(g_ChargeSounds) - 1)], this.index, _, 110, _, BOSS_ZOMBIE_VOLUME);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayMeleeHitSound()");
-		#endif
+
 	}
 
 	public void PlayMeleeMissSound() {
 		EmitSoundToAll(g_MeleeMissSounds[GetRandomInt(0, sizeof(g_MeleeMissSounds) - 1)], this.index, _, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CGoreFast::PlayMeleeMissSound()");
-		#endif
+		
 	}
 	
-	public CombineOverlord(int client, float vecPos[3], float vecAng[3], bool ally)
+	public CombineOverlord(float vecPos[3], float vecAng[3], int ally)
 	{
-		CombineOverlord npc = view_as<CombineOverlord>(CClotBody(vecPos, vecAng, COMBINE_CUSTOM_MODEL, "1.25", "35000", ally));
+		CombineOverlord npc = view_as<CombineOverlord>(CClotBody(vecPos, vecAng, COMBINE_CUSTOM_2_MODEL, "1.25", "35000", ally));
 		SetVariantInt(3);
 		AcceptEntityInput(npc.index, "SetBodyGroup");	
-		i_NpcInternalId[npc.index] = COMBINE_OVERLORD;
 		i_NpcWeight[npc.index] = 3;
 		
 		FormatEx(c_HeadPlaceAttachmentGibName[npc.index], sizeof(c_HeadPlaceAttachmentGibName[]), "head");
 		
-		int iActivity = npc.LookupActivity("ACT_RUN");
-		if(iActivity > 0) npc.StartActivity(iActivity);
+		npc.SetActivity("ACT_WF_OVERLORD_RUN");
 		
 		
 		
@@ -197,8 +187,10 @@ methodmap CombineOverlord < CClotBody
 		npc.m_iStepNoiseType = STEPSOUND_NORMAL;	
 		npc.m_iNpcStepVariation = STEPTYPE_COMBINE;
 		
-		
-		SDKHook(npc.index, SDKHook_Think, CombineOverlord_ClotThink);
+	
+		func_NPCDeath[npc.index] = CombineOverlord_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = CombineOverlord_OnTakeDamage;
+		func_NPCThink[npc.index] = CombineOverlord_ClotThink;	
 		
 	//	npc.m_bDissapearOnDeath = true;
 		npc.m_bThisNpcIsABoss = true;
@@ -228,8 +220,7 @@ methodmap CombineOverlord < CClotBody
 	
 }
 
-//TODO 
-//Rewrite
+
 public void CombineOverlord_ClotThink(int iNPC)
 {
 	CombineOverlord npc = view_as<CombineOverlord>(iNPC);
@@ -248,10 +239,22 @@ public void CombineOverlord_ClotThink(int iNPC)
 	
 	if(npc.m_blPlayHurtAnimation)
 	{
+		npc.AddGesture("ACT_HURT", false);
 		npc.m_blPlayHurtAnimation = false;
 		npc.PlayHurtSound();
 	}
-	
+		
+		
+	float TrueArmor = 1.0;
+	if(!NpcStats_IsEnemySilenced(npc.index))
+	{
+		if(npc.m_flAngerDelay > GetGameTime(npc.index))
+			TrueArmor *= 0.25;
+		
+		if(npc.m_fbRangedSpecialOn)
+			TrueArmor *= 0.15;
+	}
+	fl_TotalArmor[npc.index] = TrueArmor;
 	//Think throttling
 	if(npc.m_flNextThinkTime > GetGameTime(npc.index)) {
 		return;
@@ -269,7 +272,7 @@ public void CombineOverlord_ClotThink(int iNPC)
 	
 	if(IsValidEnemy(npc.index, PrimaryThreatIndex, true))
 	{
-			float vecTarget[3]; vecTarget = WorldSpaceCenter(PrimaryThreatIndex);
+			float vecTarget[3]; WorldSpaceCenter(PrimaryThreatIndex, vecTarget);
 			if (npc.m_flReloadDelay < GetGameTime(npc.index))
 			{
 				if (npc.m_flmovedelay < GetGameTime(npc.index) && npc.m_flAngerDelay < GetGameTime(npc.index))
@@ -277,7 +280,7 @@ public void CombineOverlord_ClotThink(int iNPC)
 					if(npc.m_iChanged_WalkCycle != 7)
 					{
 						npc.m_iChanged_WalkCycle = 7;
-						npc.SetActivity("ACT_RUN");
+						npc.SetActivity("ACT_WF_OVERLORD_RUN");
 					}
 					npc.m_flmovedelay = GetGameTime(npc.index) + 1.0;
 					npc.m_flSpeed = 330.0;
@@ -287,7 +290,7 @@ public void CombineOverlord_ClotThink(int iNPC)
 					if(npc.m_iChanged_WalkCycle != 8)
 					{
 						npc.m_iChanged_WalkCycle = 8;
-						npc.SetActivity("ACT_RUN_ON_FIRE");
+						npc.SetActivity("ACT_WF_OVERLORD_RUN_RAGE");
 					}
 					npc.m_flmovedelay = GetGameTime(npc.index) + 1.0;
 					npc.m_flSpeed = 380.0;
@@ -302,12 +305,13 @@ public void CombineOverlord_ClotThink(int iNPC)
 			
 		//	npc.FaceTowards(vecTarget, 1000.0);
 			
-			float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+			float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+			float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 			
 			//Predict their pos.
 			if(flDistanceToTarget < npc.GetLeadRadius()) {
 				
-				float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, PrimaryThreatIndex);
+				float vPredictedPos[3]; PredictSubjectPosition(npc, PrimaryThreatIndex,_,_, vPredictedPos);
 				
 			/*	int color[4];
 				color[0] = 255;
@@ -320,27 +324,29 @@ public void CombineOverlord_ClotThink(int iNPC)
 				TE_SetupBeamPoints(vPredictedPos, vecTarget, xd, xd, 0, 0, 0.25, 0.5, 0.5, 5, 5.0, color, 30);
 				TE_SendToAllInRange(vecTarget, RangeType_Visibility);*/
 				
-				NPC_SetGoalVector(npc.index, vPredictedPos);
-			} else {
-				NPC_SetGoalEntity(npc.index, PrimaryThreatIndex);
+				npc.SetGoalVector(vPredictedPos);
+			} 
+			else 
+			{
+				npc.SetGoalEntity(PrimaryThreatIndex);
 			}
 			
 			if(npc.m_flNextChargeSpecialAttack < GetGameTime(npc.index) && npc.m_flReloadDelay < GetGameTime(npc.index) && flDistanceToTarget < 160000)
 			{
 				npc.m_flNextChargeSpecialAttack = GetGameTime(npc.index) + 20.0;
-				npc.m_flReloadDelay = GetGameTime(npc.index) + 2.0;
-				npc.m_flRangedSpecialDelay += GetGameTime(npc.index) + 2.0;
+				npc.m_flReloadDelay = GetGameTime(npc.index) + 1.5;
+				npc.m_flRangedSpecialDelay += GetGameTime(npc.index) + 1.5;
 				npc.m_flAngerDelay = GetGameTime(npc.index) + 5.0;
 				if(npc.m_bThisNpcIsABoss)
 				{
 					npc.DispatchParticleEffect(npc.index, "hightower_explosion", NULL_VECTOR, NULL_VECTOR, NULL_VECTOR, npc.FindAttachment("anim_attachment_LH"), PATTACH_POINT_FOLLOW, true);
 				}
 				npc.PlaySpecialChargeSound();
-				npc.AddGesture("ACT_ACTIVATE_BATON");
+				npc.AddGesture("ACT_WF_OVERLORD_RAGE_START");
 				npc.m_flmovedelay = GetGameTime(npc.index) + 0.5;
-				npc.m_flJumpStartTime = GetGameTime(npc.index) + 2.0;
-				NPC_StopPathing(npc.index);
-				npc.m_bPathing = false;
+				npc.m_flJumpStartTime = GetGameTime(npc.index) + 1.5;
+				npc.StopPathing();
+				
 			}
 	
 			if(npc.m_flNextRangedSpecialAttack < GetGameTime(npc.index) && flDistanceToTarget < 22500 && npc.m_flAngerDelay < GetGameTime(npc.index) || npc.m_fbRangedSpecialOn)
@@ -348,9 +354,9 @@ public void CombineOverlord_ClotThink(int iNPC)
 			//	npc.FaceTowards(vecTarget, 2000.0);
 				if(!npc.m_fbRangedSpecialOn)
 				{
-					NPC_StopPathing(npc.index);
-					npc.m_bPathing = false;
-					npc.AddGesture("ACT_PUSH_PLAYER");
+					npc.StopPathing();
+					
+					npc.AddGesture("ACT_WF_OVERLORD_ATTACK_PULSE");
 					npc.m_flRangedSpecialDelay = GetGameTime(npc.index) + 0.3;
 					npc.m_fbRangedSpecialOn = true;
 					npc.m_flReloadDelay = GetGameTime(npc.index) + 0.4;
@@ -380,7 +386,8 @@ public void CombineOverlord_ClotThink(int iNPC)
 					//GetAngleVectors(eyePitch, vecDirShooting, vecRight, vecUp);
 					
 					vecTarget[2] += 15.0;
-					MakeVectorFromPoints(WorldSpaceCenter(npc.index), vecTarget, vecDirShooting);
+					float SelfVecPos[3]; WorldSpaceCenter(npc.index, SelfVecPos);
+					MakeVectorFromPoints(SelfVecPos, vecTarget, vecDirShooting);
 					GetVectorAngles(vecDirShooting, vecDirShooting);
 					vecDirShooting[1] = eyePitch[1];
 					GetAngleVectors(vecDirShooting, vecDirShooting, vecRight, vecUp);
@@ -391,15 +398,15 @@ public void CombineOverlord_ClotThink(int iNPC)
 					vecDir[1] = vecDirShooting[1] + x * vecSpread * vecRight[1] + y * vecSpread * vecUp[1]; 
 					vecDir[2] = vecDirShooting[2] + x * vecSpread * vecRight[2] + y * vecSpread * vecUp[2]; 
 					NormalizeVector(vecDir, vecDir);
-					
+					float WorldSpaceVec[3]; WorldSpaceCenter(npc.index, WorldSpaceVec);
 					npc.DispatchParticleEffect(npc.index, "mvm_soldier_shockwave", NULL_VECTOR, NULL_VECTOR, NULL_VECTOR, npc.FindAttachment("anim_attachment_LH"), PATTACH_POINT_FOLLOW, true);
 					
-					FireBullet(npc.index, npc.index, WorldSpaceCenter(npc.index), vecDir, 100.0, 150.0, DMG_BULLET, "bullet_tracer02_blue");
+					FireBullet(npc.index, npc.index, WorldSpaceVec, vecDir, 150.0, 150.0, DMG_CLUB, "bullet_tracer02_blue");
 				}
 			}
 			
 			//Target close enough to hit
-			if(flDistanceToTarget < 10000 && npc.m_flReloadDelay < GetGameTime(npc.index) || npc.m_flAttackHappenswillhappen)
+			if(flDistanceToTarget < NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED && npc.m_flReloadDelay < GetGameTime(npc.index) || npc.m_flAttackHappenswillhappen)
 			{
 				npc.StartPathing();
 				if(npc.m_flNextMeleeAttack < GetGameTime(npc.index))
@@ -407,8 +414,15 @@ public void CombineOverlord_ClotThink(int iNPC)
 					if (!npc.m_flAttackHappenswillhappen)
 					{
 						npc.m_flNextRangedSpecialAttack = GetGameTime(npc.index) + 2.0;
-						npc.RemoveGesture("ACT_MELEE_ATTACK_SWING_GESTURE");
-						npc.AddGesture("ACT_MELEE_ATTACK_SWING_GESTURE",_, 0.25);
+						npc.RemoveGesture("ACT_WF_OVERLORD_ATTACK_NORMAL");
+						npc.RemoveGesture("ACT_WF_OVERLORD_ATTACK_NORMAL_RAGE");
+						if(npc.m_flAngerDelay > GetGameTime(npc.index))
+						{
+							npc.AddGesture("ACT_WF_OVERLORD_ATTACK_NORMAL_RAGE",_, 0.25);
+						}
+						else
+							npc.AddGesture("ACT_WF_OVERLORD_ATTACK_NORMAL",_, 0.25);
+
 						npc.PlayMeleeSound();
 						npc.m_flAttackHappens = GetGameTime(npc.index)+0.3;
 						npc.m_flAttackHappens_bullshit = GetGameTime(npc.index)+0.44;
@@ -476,8 +490,8 @@ public void CombineOverlord_ClotThink(int iNPC)
 	}
 	else
 	{
-		NPC_StopPathing(npc.index);
-		npc.m_bPathing = false;
+		npc.StopPathing();
+		
 		npc.m_flGetClosestTargetTime = 0.0;
 		npc.m_iTarget = GetClosestTarget(npc.index);
 	}
@@ -499,15 +513,6 @@ public Action CombineOverlord_OnTakeDamage(int victim, int &attacker, int &infli
 		npc.m_blPlayHurtAnimation = true;
 	}
 	
-	if(!NpcStats_IsEnemySilenced(npc.index))
-	{
-		if(npc.m_flAngerDelay > GetGameTime(npc.index))
-			damage *= 0.25;
-		
-		if(npc.m_fbRangedSpecialOn)
-			damage *= 0.15;
-	}
-	
 	return Plugin_Changed;
 }
 
@@ -518,10 +523,6 @@ public void CombineOverlord_NPCDeath(int entity)
 	{
 		npc.PlayDeathSound();	
 	}
-	
-	
-	
-	SDKUnhook(npc.index, SDKHook_Think, CombineOverlord_ClotThink);
 		
 	if(IsValidEntity(npc.m_iWearable1))
 		RemoveEntity(npc.m_iWearable1);

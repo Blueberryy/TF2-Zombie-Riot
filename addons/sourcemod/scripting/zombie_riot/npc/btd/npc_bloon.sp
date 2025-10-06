@@ -1,8 +1,7 @@
 #pragma semicolon 1
 #pragma newdecls required
 
-#define FORCE_BLOON_ENABLED
-
+#define BLOON_HP_MULTI_GLOBAL 1.1
 enum
 {
 	Bloon_Red = 0,
@@ -35,21 +34,21 @@ static const float BloonSpeeds[] =
 	300.0	// Ceramic
 };
 
-static const int BloonHealth[] =
+static const float BloonRatio[] =
 {
 //	Health	Type		RGB	Multi
-	150,	// Red		1
-	300,	// Blue		2
-	450,	// Green	3
-	600,	// Yellow	4
-	750,	// Pink		5	x1
-	1650,	// Black	11	x6
-	1650,	// White	11	x6
-	1650,	// Purple	11	x6
-	3450,	// Lead		23	x13
-	3450,	// Zebra	23	x13
-	7050,	// Rainbow	47	x27
-	15600	// Ceramic	104	x64
+	1.0,	// Red		1
+	2.0,	// Blue		2
+	3.0,	// Green	3
+	4.0,	// Yellow	4
+	5.0,	// Pink		5	x1
+	11.0,	// Black	11	x6
+	11.0,	// White	11	x6
+	11.0,	// Purple	11	x6
+	23.0,	// Lead		23	x13
+	23.0,	// Zebra	23	x13
+	47.0,	// Rainbow	47	x27
+	104.0	// Ceramic	104	x64
 };
 
 static const char Type[] = "12345bwpl789";
@@ -109,20 +108,24 @@ static const char BloonSprites[][] =
 	"ceramic"
 };
 
-static const int BloonRegrowRate[] =
+// Max HP % every 3 second
+static const float BloonRegrowRate[] =
 {
-	10,
-	10,
-	10,
-	10,
-	10,
-	20,
-	20,
-	20,
-	40,
-	40,
-	80,
-	160
+	1.0,		// 1 / 1
+	0.5,		// 1 / 2
+	0.333333,	// 1 / 3
+	0.25,		// 1 / 4
+	0.2,		// 1 / 5
+
+	0.333333,	// 2 / 6
+	0.333333,	// 2 / 6
+	0.333333,	// 2 / 6
+
+	0.571429,	// 4 / 7
+	0.571429,	// 4 / 7
+
+	1.0,		// 8 / 8
+	1.777777	// 16 / 9
 };
 
 static int GetBloonTypeOfData(const char[] data, bool &camo, bool &fortified, bool &regrow)
@@ -154,21 +157,53 @@ static float BloonSpeedMulti()
 	return 1.0 + (CurrentRound - 70) * 0.02;
 }
 
-int Bloon_Health(bool fortified, int type)
+float Bloon_BaseHealth()
+{
+	float health = 200.0;
+
+	// Nerf late-game health
+	if(CurrentCash > 50000)
+	{
+		health = 75.0;
+	}
+	else if(CurrentCash > 0)
+	{
+		health *= 1.0 - (float(CurrentCash) / 133333.333333);
+	}
+	health *= BLOON_HP_MULTI_GLOBAL;
+
+	return health;
+}
+
+float Bloon_HPRatio(bool fortified, int type)
 {
 	if(!fortified)
-		return BloonHealth[type];
+		return BloonRatio[type];
 	
 	if(type == Bloon_Lead)
-		return (BloonHealth[type] * 4) - BloonHealth[Bloon_Black];
+		return (BloonRatio[type] * 4.0) - (BloonRatio[Bloon_Black] * 3.0);
 	
 	if(type == Bloon_Ceramic)
-		return (BloonHealth[type] * 2) - BloonHealth[Bloon_Rainbow];
+		return (BloonRatio[type] * 2.0) - BloonRatio[Bloon_Rainbow];
 	
-	return BloonHealth[type];
+	return BloonRatio[type];
 }
 
 void Bloon_MapStart()
+{
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Bloon");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_bloon");
+	strcopy(data.Icon, sizeof(data.Icon), "");
+	data.IconCustom = false;
+	data.Flags = 0;
+	data.Category = Type_BTD;
+	data.Func = ClotSummon;
+	data.Precache = ClotPrecache;
+	NPC_Add(data);
+}
+
+static void ClotPrecache()
 {
 	char buffer[256];
 	for(int i; i<sizeof(SoundCeramicHit); i++)
@@ -215,6 +250,11 @@ void Bloon_MapStart()
 	}
 	
 	PrecacheModel("models/zombie_riot/btd/bloons_hitbox.mdl");
+}
+
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team, const char[] data)
+{
+	return Bloon(vecPos, vecAng, team, data);
 }
 
 static int BType[MAXENTITIES];
@@ -337,18 +377,29 @@ methodmap Bloon < CClotBody
 			char buffer[128];
 			if(this.m_iType == Bloon_Ceramic)
 			{
-				int rainbow = Bloon_Health(this.m_bFortified, Bloon_Rainbow);
-				int health = (GetEntProp(this.index, Prop_Data, "m_iHealth") - rainbow) * 5;
-				int maxhealth = GetEntProp(this.index, Prop_Data, "m_iMaxHealth") - rainbow;
-				int type = (health / maxhealth);
-				if(type == 5)
+				float total = Bloon_HPRatio(this.m_bFortified, this.m_iOriginalType);
+				float rainbow = Bloon_HPRatio(this.m_bFortified, Bloon_Rainbow);
+
+				float health = float(GetEntProp(this.index, Prop_Data, "m_iHealth"));
+				float maxhealth = float(GetEntProp(this.index, Prop_Data, "m_iMaxHealth"));
+
+				// Remove health under Rainbow, only above matters
+				health -= maxhealth * (rainbow / total);
+				maxhealth -= maxhealth * (rainbow / total);
+
+				int type = RoundToFloor(health * 5.0 / maxhealth);
+				if(type > 4)
 					type = 4;
 				
 				FormatEx(buffer, sizeof(buffer), "zombie_riot/btd/%s%d%s%s.vmt", BloonSprites[this.m_iType], type + 1, this.m_bFortified ? "f" : "", this.m_bRegrow ? "g" : "");
 			}
-			else
+			else if(this.m_iOriginalType != Bloon_Lead && this.m_iOriginalType != Bloon_Ceramic)
 			{
 				FormatEx(buffer, sizeof(buffer), "zombie_riot/btd/%s%s%s.vmt", BloonSprites[this.m_iType], this.m_bFortified ? "f" : "", this.m_bRegrow ? "g" : "");
+			}
+			else
+			{
+				FormatEx(buffer, sizeof(buffer), "zombie_riot/btd/%s%s.vmt", BloonSprites[this.m_iType], this.m_bRegrow ? "g" : "");
 			}
 			
 			DispatchKeyValue(sprite, "model", buffer);
@@ -427,11 +478,11 @@ methodmap Bloon < CClotBody
 	}
 	public int UpdateBloonOnDamage()
 	{
-		int health = GetEntProp(this.index, Prop_Data, "m_iHealth");
+		float ratio = float(GetEntProp(this.index, Prop_Data, "m_iHealth")) / float(GetEntProp(this.index, Prop_Data, "m_iMaxHealth")) * Bloon_HPRatio(this.m_bFortified, this.m_iOriginalType);
 		for(int i; i<9; i++)
 		{
 			int type = this.RegrowsInto(i);
-			if(health <= Bloon_Health(this.m_bFortified, type))
+			if(ratio <= Bloon_HPRatio(this.m_bFortified, type))
 			{
 				if(this.m_iType != type || type == Bloon_Ceramic)
 				{
@@ -445,23 +496,22 @@ methodmap Bloon < CClotBody
 			}
 		}
 	}
-	public Bloon(int client, float vecPos[3], float vecAng[3], bool ally, const char[] data)
+	public Bloon(float vecPos[3], float vecAng[3], int ally, const char[] data)
 	{
 		bool camo, regrow, fortified;
 		int type = GetBloonTypeOfData(data, camo, fortified, regrow);
 		
-		char buffer[7];
-		IntToString(Bloon_Health(fortified, type), buffer, sizeof(buffer));
+		char buffer[12];
+		IntToString(RoundFloat(Bloon_HPRatio(fortified, type) * Bloon_BaseHealth()), buffer, sizeof(buffer));
 		
 		Bloon npc = view_as<Bloon>(CClotBody(vecPos, vecAng, "models/zombie_riot/btd/bloons_hitbox.mdl", "1.0", buffer, ally));
 		
-		i_NpcInternalId[npc.index] = BTD_BLOON;
 		i_NpcWeight[npc.index] = 1;
 		KillFeed_SetKillIcon(npc.index, "pumpkindeath");
 		
 		npc.m_iBleedType = BLEEDTYPE_RUBBER;
-		npc.m_iStepNoiseType = NOTHING;	
-		npc.m_iNpcStepVariation = NOTHING;	
+		npc.m_iStepNoiseType = STEPTYPE_NONE;	
+		npc.m_iNpcStepVariation = STEPTYPE_NONE;	
 		npc.m_bDissapearOnDeath = true;
 		
 		npc.m_bCamo = camo;
@@ -478,12 +528,15 @@ methodmap Bloon < CClotBody
 		npc.m_flNextRangedSpecialAttack = 0.0;
 		npc.m_flAttackHappenswillhappen = false;
 		npc.m_fbRangedSpecialOn = false;
+		npc.m_bDoNotGiveWaveDelay = true;
 		
+		func_NPCDeath[npc.index] = Bloon_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = Bloon_OnTakeDamage;
+		func_NPCThink[npc.index] = Bloon_ClotThink;
 		
 		SDKHook(npc.index, SDKHook_OnTakeDamagePost, Bloon_ClotDamagedPost);
-		SDKHook(npc.index, SDKHook_Think, Bloon_ClotThink);
 		
-		SetEntityRenderMode(npc.index, RENDER_TRANSCOLOR);
+		SetEntityRenderMode(npc.index, RENDER_NONE);
 		SetEntityRenderColor(npc.index, 255, 255, 255, 0);
 		
 		npc.StartPathing();
@@ -493,8 +546,7 @@ methodmap Bloon < CClotBody
 	}
 }
 
-//TODO 
-//Rewrite
+
 public void Bloon_ClotThink(int iNPC)
 {
 	Bloon npc = view_as<Bloon>(iNPC);
@@ -524,16 +576,17 @@ public void Bloon_ClotThink(int iNPC)
 	
 	bool silenced = NpcStats_IsEnemySilenced(npc.index);
 	bool camo = npc.m_bOriginalCamo && !silenced;
-	bool regrow = npc.m_bRegrow && !silenced;
-	Building_CamoOrRegrowBlocker(npc.index, camo, regrow);
 
-	if(regrow)
+	if(camo && HasSpecificBuff(npc.index, "Revealed"))
+		camo = false;
+
+	if(!silenced && npc.m_bRegrow && !HasSpecificBuff(npc.index, "Growth Blocker"))
 	{
 		int health = GetEntProp(npc.index, Prop_Data, "m_iHealth");
-		int maxhealth = GetEntProp(npc.index, Prop_Data, "m_iMaxHealth");
+		int maxhealth = ReturnEntityMaxHealth(npc.index);
 		if(health < maxhealth)
 		{
-			health += BloonRegrowRate[npc.m_iOriginalType];
+			health += RoundFloat(maxhealth * BloonRegrowRate[npc.m_iOriginalType] / 30.0);
 			if(health > maxhealth)
 				health = maxhealth;
 			
@@ -563,71 +616,45 @@ public void Bloon_ClotThink(int iNPC)
 	
 	if(IsValidEnemy(npc.index, PrimaryThreatIndex))
 	{
-		float vecTarget[3]; vecTarget = WorldSpaceCenter(PrimaryThreatIndex);
+		float vecTarget[3]; WorldSpaceCenter(PrimaryThreatIndex, vecTarget);
 													
-		float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+		float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+		float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 		
 		//Predict their pos.
 		if(flDistanceToTarget < npc.GetLeadRadius())
 		{
-			//float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, PrimaryThreatIndex);
 			
-			NPC_SetGoalVector(npc.index, PredictSubjectPosition(npc, PrimaryThreatIndex));
+			
+			float VecPredictPos[3]; PredictSubjectPosition(npc, PrimaryThreatIndex,_,_, VecPredictPos);
+			npc.SetGoalVector(VecPredictPos);
 		}
 		else
 		{
-			NPC_SetGoalEntity(npc.index, PrimaryThreatIndex);
+			npc.SetGoalEntity(PrimaryThreatIndex);
 		}
 		
-		//Target close enough to hit
-		if(flDistanceToTarget < 10000)
+		if(flDistanceToTarget < NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED)
 		{
-		//	npc.FaceTowards(vecTarget, 1000.0);
-			
 			if(npc.m_flNextMeleeAttack < gameTime)
 			{
 				npc.m_flNextMeleeAttack = gameTime + 0.35;
+				float WorldSpaceVec[3]; WorldSpaceCenter(PrimaryThreatIndex, WorldSpaceVec);
 				
-				//Handle swingTrace;
-				//if(npc.DoAimbotTrace(swingTrace, PrimaryThreatIndex))
+				for(int i; i<9; i++)
 				{
-					int target = PrimaryThreatIndex;//TR_GetEntityIndex(swingTrace);
-					//if(target > 0)
+					if(npc.RegrowsInto(i) == npc.m_iType)
 					{
-						//float vecHit[3];
-						//TR_GetEndPosition(vecHit, swingTrace);
-						
-						for(int i; i<9; i++)
-						{
-							if(npc.RegrowsInto(i) == npc.m_iType)
-							{
-								if(!ShouldNpcDealBonusDamage(target))
-								{
-									if(npc.m_bFortified)
-									{
-										SDKHooks_TakeDamage(target, npc.index, npc.index, 1.0 + float(i) * 1.4, DMG_CLUB, -1, _, vecTarget);
-									}
-									else
-									{
-										SDKHooks_TakeDamage(target, npc.index, npc.index, 1.0 + float(i), DMG_CLUB, -1, _, vecTarget);
-									}
-								}
-								else
-								{
-									if(npc.m_bFortified)
-									{
-										SDKHooks_TakeDamage(target, npc.index, npc.index, (2.0 + float(i) * 4.2) * 2.0, DMG_CLUB, -1, _, vecTarget);
-									}
-									else
-									{
-										SDKHooks_TakeDamage(target, npc.index, npc.index, (2.0 + float(i) * 3.0) * 2.0, DMG_CLUB, -1, _, vecTarget);
-									}
-								}
-								//delete swingTrace;
-							}
-						}
+						float damageDealDo = 1.0 + float(i);
+						if(npc.m_bFortified)
+							damageDealDo *= 1.4;
+						if(ShouldNpcDealBonusDamage(PrimaryThreatIndex))
+							damageDealDo *= 25.0;
+							
+						SDKHooks_TakeDamage(PrimaryThreatIndex, npc.index, npc.index, damageDealDo, DMG_CLUB, -1, _, WorldSpaceVec);		
+						//delete swingTrace;
 					}
-				}
+				}				
 			}
 		}
 		
@@ -636,8 +663,8 @@ public void Bloon_ClotThink(int iNPC)
 	}
 	else
 	{
-		NPC_StopPathing(npc.index);
-		npc.m_bPathing = false;
+		npc.StopPathing();
+		
 		npc.m_flGetClosestTargetTime = 0.0;
 		npc.m_iTarget = GetClosestTarget(npc.index);
 	}
@@ -656,13 +683,13 @@ public Action Bloon_OnTakeDamage(int victim, int &attacker, int &inflictor, floa
 	bool magic;
 	bool pierce;
 	
-	if((damagetype & DMG_SLASH))
+	if((damagetype & DMG_TRUEDAMAGE))
 	{
 		pierce = true;
 	}
 	else
 	{
-		if((damagetype & DMG_BLAST) && f_IsThisExplosiveHitscan[attacker] != GetGameTime(npc.index))
+		if((damagetype & DMG_BLAST))
 		{
 			hot = true;
 			pierce = true;
@@ -682,14 +709,6 @@ public Action Bloon_OnTakeDamage(int victim, int &attacker, int &inflictor, floa
 		{
 			magic = true;
 		}
-
-		if(IsValidEntity(weapon))
-		{
-			char buffer[36];
-			GetEntityClassname(weapon, buffer, sizeof(buffer));
-			if(!StrContains(buffer, "tf_weapon_flamethrower"))
-				damage *= 0.5;
-		}
 	}
 	
 	switch(npc.m_iType)
@@ -698,7 +717,7 @@ public Action Bloon_OnTakeDamage(int victim, int &attacker, int &inflictor, floa
 		{
 			if(hot)
 			{
-				damage *= 0.15;
+				damage *= 0.15 / MultiGlobalHealthBoss;
 
 				damagePosition[2] += 30.0;
 				npc.DispatchParticleEffect(npc.index, "medic_resist_match_blast_blue", damagePosition, NULL_VECTOR, NULL_VECTOR);
@@ -709,7 +728,7 @@ public Action Bloon_OnTakeDamage(int victim, int &attacker, int &inflictor, floa
 		{
 			if(cold)
 			{
-				damage *= 0.15;
+				damage *= 0.15 / MultiGlobalHealthBoss;
 
 				damagePosition[2] += 30.0;
 				npc.DispatchParticleEffect(npc.index, "medic_resist_match_blast_blue", damagePosition, NULL_VECTOR, NULL_VECTOR);
@@ -720,7 +739,7 @@ public Action Bloon_OnTakeDamage(int victim, int &attacker, int &inflictor, floa
 		{
 			if(magic && !NpcStats_IsEnemySilenced(npc.index))
 			{
-				damage *= 0.1;
+				damage *= 0.1 / MultiGlobalHealthBoss;
 				npc.PlayPurpleSound();
 
 				damagePosition[2] += 30.0;
@@ -732,7 +751,7 @@ public Action Bloon_OnTakeDamage(int victim, int &attacker, int &inflictor, floa
 		{
 			if(!pierce)
 			{
-				damage *= 0.15;
+				damage *= 0.15 / MultiGlobalHealthBoss;
 				npc.PlayLeadSound();
 
 				damagePosition[2] += 30.0;
@@ -744,7 +763,7 @@ public Action Bloon_OnTakeDamage(int victim, int &attacker, int &inflictor, floa
 		{
 			if(hot || cold)
 			{
-				damage *= 0.15;
+				damage *= 0.15 / MultiGlobalHealthBoss;
 
 				damagePosition[2] += 30.0;
 				npc.DispatchParticleEffect(npc.index, "medic_resist_match_blast_blue", damagePosition, NULL_VECTOR, NULL_VECTOR);
@@ -774,7 +793,6 @@ public void Bloon_NPCDeath(int entity)
 	npc.PlayDeathSound();
 	
 	SDKUnhook(npc.index, SDKHook_OnTakeDamagePost, Bloon_ClotDamagedPost);
-	SDKUnhook(npc.index, SDKHook_Think, Bloon_ClotThink);
 	
 	int sprite = npc.m_iSprite;
 	if(sprite > MaxClients && IsValidEntity(sprite))

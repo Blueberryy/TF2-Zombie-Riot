@@ -17,7 +17,7 @@ static char g_IdleSounds[][] = {
 	"npc/combine_soldier/vo/alert1.wav",
 	"npc/combine_soldier/vo/bouncerbouncer.wav",
 	"npc/combine_soldier/vo/boomer.wav",
-	"npc/combine_soldier/vo/contactconfirm.wav",
+	"npc/combine_soldier/vo/contactconfim.wav",
 };
 
 static char g_IdleAlertedSounds[][] = {
@@ -54,28 +54,31 @@ static char g_MeleeMissSounds[][] = {
 
 public void AltCombineMage_OnMapStart_NPC()
 {
-	for (int i = 0; i < (sizeof(g_DeathSounds));	   i++) { PrecacheSound(g_DeathSounds[i]);	   }
-	for (int i = 0; i < (sizeof(g_HurtSounds));		i++) { PrecacheSound(g_HurtSounds[i]);		}
-	for (int i = 0; i < (sizeof(g_IdleSounds));		i++) { PrecacheSound(g_IdleSounds[i]);		}
-	for (int i = 0; i < (sizeof(g_IdleAlertedSounds)); i++) { PrecacheSound(g_IdleAlertedSounds[i]); }
-	for (int i = 0; i < (sizeof(g_MeleeHitSounds));	i++) { PrecacheSound(g_MeleeHitSounds[i]);	}
-	for (int i = 0; i < (sizeof(g_MeleeAttackSounds));	i++) { PrecacheSound(g_MeleeAttackSounds[i]);	}
-	for (int i = 0; i < (sizeof(g_MeleeMissSounds));   i++) { PrecacheSound(g_MeleeMissSounds[i]);   }
-	for (int i = 0; i < (sizeof(g_RangedAttackSounds));   i++) { PrecacheSound(g_RangedAttackSounds[i]);   }
-	for (int i = 0; i < (sizeof(g_RangedReloadSound));   i++) { PrecacheSound(g_RangedReloadSound[i]);   }
-	for (int i = 0; i < (sizeof(g_RangedAttackSoundsSecondary));   i++) { PrecacheSound(g_RangedAttackSoundsSecondary[i]);   }
-	
-	PrecacheModel("models/props_wasteland/rockgranite03b.mdl");
-	PrecacheModel("models/weapons/w_bullet.mdl");
-	PrecacheModel("models/weapons/w_grenade.mdl");
-	
-	PrecacheSound("ambient/explosions/citadel_end_explosion2.wav",true);
-	PrecacheSound("ambient/explosions/citadel_end_explosion1.wav",true);
-	PrecacheSound("ambient/energy/weld1.wav",true);
-	PrecacheSound("ambient/halloween/mysterious_perc_01.wav",true);
-	
-	PrecacheSound("player/flow.wav");
-	PrecacheModel("models/effects/combineball.mdl", true);
+	PrecacheSoundArray(g_DeathSounds);
+	PrecacheSoundArray(g_HurtSounds);
+	PrecacheSoundArray(g_IdleSounds);
+	PrecacheSoundArray(g_IdleAlertedSounds);
+	PrecacheSoundArray(g_MeleeHitSounds);
+	PrecacheSoundArray(g_MeleeAttackSounds);
+	PrecacheSoundArray(g_MeleeMissSounds);
+	PrecacheSoundArray(g_RangedAttackSounds);
+	PrecacheSoundArray(g_RangedReloadSound);
+	PrecacheSoundArray(g_RangedAttackSoundsSecondary);
+
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "W.F. Mage");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_alt_combine_soldier_mage");
+	data.Category = Type_Alt;
+	data.Func = ClotSummon;
+	strcopy(data.Icon, sizeof(data.Icon), "combine_pistol"); 		//leaderboard_class_(insert the name)
+	data.IconCustom = true;													//download needed?
+	data.Flags = 0;																//example: MVM_CLASS_FLAG_MINIBOSS|MVM_CLASS_FLAG_ALWAYSCRIT;, forces these flags.	
+	NPC_Add(data);
+
+}
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team)
+{
+	return AltCombineMage(vecPos, vecAng, team);
 }
 
 methodmap AltCombineMage < CClotBody
@@ -87,9 +90,7 @@ methodmap AltCombineMage < CClotBody
 		EmitSoundToAll(g_IdleSounds[GetRandomInt(0, sizeof(g_IdleSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME);
 		this.m_flNextIdleSound = GetGameTime(this.index) + GetRandomFloat(24.0, 48.0);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayIdleSound()");
-		#endif
+
 	}
 	
 	public void PlayIdleAlertSound() {
@@ -99,9 +100,7 @@ methodmap AltCombineMage < CClotBody
 		EmitSoundToAll(g_IdleAlertedSounds[GetRandomInt(0, sizeof(g_IdleAlertedSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME);
 		this.m_flNextIdleSound = GetGameTime(this.index) + GetRandomFloat(12.0, 24.0);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayIdleAlertSound()");
-		#endif
+		
 	}
 	
 	public void PlayHurtSound() {
@@ -109,72 +108,55 @@ methodmap AltCombineMage < CClotBody
 		EmitSoundToAll(g_HurtSounds[GetRandomInt(0, sizeof(g_HurtSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME);
 		this.m_flNextHurtSound = GetGameTime(this.index) + GetRandomFloat(0.6, 1.6);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayHurtSound()");
-		#endif
+		
 	}
 	
 	public void PlayDeathSound() {
 	
 		EmitSoundToAll(g_DeathSounds[GetRandomInt(0, sizeof(g_DeathSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayDeathSound()");
-		#endif
+		
 	}
 	
 	public void PlayMeleeSound() {
 		EmitSoundToAll(g_MeleeAttackSounds[GetRandomInt(0, sizeof(g_MeleeAttackSounds) - 1)], this.index, _, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayMeleeHitSound()");
-		#endif
+
 	}
 	
 	public void PlayRangedSound() {
 		EmitSoundToAll(g_RangedAttackSounds[GetRandomInt(0, sizeof(g_RangedAttackSounds) - 1)], this.index, _, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayRangedSound()");
-		#endif
+
 	}
 	public void PlayRangedReloadSound() {
 		EmitSoundToAll(g_RangedReloadSound[GetRandomInt(0, sizeof(g_RangedReloadSound) - 1)], this.index, _, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayRangedSound()");
-		#endif
+
 	}
 	public void PlayRangedAttackSecondarySound() {
 		EmitSoundToAll(g_RangedAttackSoundsSecondary[GetRandomInt(0, sizeof(g_RangedAttackSoundsSecondary) - 1)], this.index, _, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayRangedSound()");
-		#endif
+
 	}
 	
 	public void PlayMeleeHitSound() {
 		EmitSoundToAll(g_MeleeHitSounds[GetRandomInt(0, sizeof(g_MeleeHitSounds) - 1)], this.index, _, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayMeleeHitSound()");
-		#endif
+
 	}
 
 	public void PlayMeleeMissSound() {
 		EmitSoundToAll(g_MeleeMissSounds[GetRandomInt(0, sizeof(g_MeleeMissSounds) - 1)], this.index, _, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CGoreFast::PlayMeleeMissSound()");
-		#endif
+		
 	}
 	
-	public AltCombineMage(int client, float vecPos[3], float vecAng[3], bool ally)
+	public AltCombineMage(float vecPos[3], float vecAng[3], int ally)
 	{
 		AltCombineMage npc = view_as<AltCombineMage>(CClotBody(vecPos, vecAng, COMBINE_CUSTOM_MODEL, "1.15", "200", ally));
 		SetVariantInt(1);
 		AcceptEntityInput(npc.index, "SetBodyGroup");				
-		i_NpcInternalId[npc.index] = ALT_COMBINE_MAGE;
 		i_NpcWeight[npc.index] = 1;
 		
 		int iActivity = npc.LookupActivity("ACT_RUN");
@@ -184,8 +166,9 @@ methodmap AltCombineMage < CClotBody
 		npc.m_iStepNoiseType = STEPSOUND_NORMAL;	
 		npc.m_iNpcStepVariation = STEPTYPE_COMBINE;
 
-		
-		SDKHook(npc.index, SDKHook_Think, AltCombineMage_ClotThink);
+		func_NPCDeath[npc.index] = view_as<Function>(Internal_NPCDeath);
+		func_NPCOnTakeDamage[npc.index] = view_as<Function>(Internal_OnTakeDamage);
+		func_NPCThink[npc.index] = view_as<Function>(Internal_ClotThink);
 		
 		npc.m_fbGunout = false;
 		
@@ -209,9 +192,8 @@ methodmap AltCombineMage < CClotBody
 	
 }
 
-//TODO 
-//Rewrite
-public void AltCombineMage_ClotThink(int iNPC)
+
+static void Internal_ClotThink(int iNPC)
 {
 	AltCombineMage npc = view_as<AltCombineMage>(iNPC);
 	
@@ -230,7 +212,13 @@ public void AltCombineMage_ClotThink(int iNPC)
 		npc.m_blPlayHurtAnimation = false;
 		npc.PlayHurtSound();
 	}
-	
+
+	float TrueArmor = 1.0;
+	if(npc.m_fbRangedSpecialOn)
+		TrueArmor *= 0.75;
+		
+	fl_TotalArmor[npc.index] = TrueArmor;
+
 	//Think throttling
 	if(npc.m_flNextThinkTime > GetGameTime(npc.index)) {
 		return;
@@ -248,15 +236,16 @@ public void AltCombineMage_ClotThink(int iNPC)
 	
 	if(IsValidEnemy(npc.index, PrimaryThreatIndex))
 	{
-			float vecTarget[3]; vecTarget = WorldSpaceCenter(PrimaryThreatIndex);
+			float vecTarget[3]; WorldSpaceCenter(PrimaryThreatIndex, vecTarget);
 			
 		
-			float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+			float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+			float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 			
 			//Predict their pos.
 			if(flDistanceToTarget < npc.GetLeadRadius()) {
 				
-				float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, PrimaryThreatIndex);
+				float vPredictedPos[3]; PredictSubjectPosition(npc, PrimaryThreatIndex,_,_, vPredictedPos);
 				
 			/*	int color[4];
 				color[0] = 255;
@@ -269,9 +258,9 @@ public void AltCombineMage_ClotThink(int iNPC)
 				TE_SetupBeamPoints(vPredictedPos, vecTarget, xd, xd, 0, 0, 0.25, 0.5, 0.5, 5, 5.0, color, 30);
 				TE_SendToAllInRange(vecTarget, RangeType_Visibility);*/
 				
-				NPC_SetGoalVector(npc.index, vPredictedPos);
+				npc.SetGoalVector(vPredictedPos);
 			} else {
-				NPC_SetGoalEntity(npc.index, PrimaryThreatIndex);
+				npc.SetGoalEntity(PrimaryThreatIndex);
 			}
 			if(npc.m_flNextRangedSpecialAttack < GetGameTime(npc.index) && flDistanceToTarget > 14400 && flDistanceToTarget < 250000)
 			{
@@ -343,7 +332,7 @@ public void AltCombineMage_ClotThink(int iNPC)
 									npc.DispatchParticleEffect(npc.index, "mvm_soldier_shockwave", NULL_VECTOR, NULL_VECTOR, NULL_VECTOR, npc.FindAttachment("anim_attachment_LH"), PATTACH_POINT_FOLLOW, true);
 									npc.PlayMeleeSound();
 									float damage = 60.0;
-									if(ZR_GetWaveCount()>30)
+									if(iRuinaWave()>20)
 									{
 										damage=125.0;
 									}
@@ -381,8 +370,8 @@ public void AltCombineMage_ClotThink(int iNPC)
 	}
 	else
 	{
-		NPC_StopPathing(npc.index);
-		npc.m_bPathing = false;
+		npc.StopPathing();
+		
 		npc.m_flGetClosestTargetTime = 0.0;
 		npc.m_iTarget = GetClosestTarget(npc.index);
 	}
@@ -390,16 +379,13 @@ public void AltCombineMage_ClotThink(int iNPC)
 }
 
 
-public Action AltCombineMage_OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3], int damagecustom)
+static Action Internal_OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3], int damagecustom)
 {
 	//Valid attackers only.
 	if(attacker <= 0)
 		return Plugin_Continue;
 		
 	AltCombineMage npc = view_as<AltCombineMage>(victim);
-		
-	if(npc.m_fbRangedSpecialOn)
-		damage *= 0.75;
 	
 	if (npc.m_flHeadshotCooldown < GetGameTime(npc.index))
 	{
@@ -410,16 +396,13 @@ public Action AltCombineMage_OnTakeDamage(int victim, int &attacker, int &inflic
 	return Plugin_Changed;
 }
 
-public void AltCombineMage_NPCDeath(int entity)
+static void Internal_NPCDeath(int entity)
 {
 	AltCombineMage npc = view_as<AltCombineMage>(entity);
 	if(!npc.m_bGib)
 	{
 		npc.PlayDeathSound();	
 	}
-	
-	
-	SDKUnhook(npc.index, SDKHook_Think, AltCombineMage_ClotThink);
 		
 	if(IsValidEntity(npc.m_iWearable2))
 		RemoveEntity(npc.m_iWearable2);

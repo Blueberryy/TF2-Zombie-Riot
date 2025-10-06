@@ -1,3 +1,6 @@
+#pragma semicolon 1
+#pragma newdecls required
+
 static ArrayList ShopListing;
 static bool FirstSuperSale;
 
@@ -8,9 +11,16 @@ public float Rogue_Encounter_Shop()
 
 	Artifact artifact;
 
-	if(Rogue_GetRandomArtfiact(artifact, true, -1) != -1)
+	if(GetURandomInt() % 5)
 	{
-		FirstSuperSale = true;
+		if(Rogue_GetRandomArtifact(artifact, true, -1) != -1)
+		{
+			FirstSuperSale = true;
+			ShopListing.PushArray(artifact);
+		}
+	}
+	else if(Rogue_GetRandomArtifact(artifact, true, 30) != -1)
+	{
 		ShopListing.PushArray(artifact);
 	}
 
@@ -18,25 +28,25 @@ public float Rogue_Encounter_Shop()
 
 	if(ingots > 7)
 	{
-		if(Rogue_GetRandomArtfiact(artifact, true, 8) != -1)
+		if(Rogue_GetRandomArtifact(artifact, true, 8) != -1)
 			ShopListing.PushArray(artifact);
 	}
 
 	if(ingots > 11)
 	{
-		if(Rogue_GetRandomArtfiact(artifact, true, 12) != -1)
+		if(Rogue_GetRandomArtifact(artifact, true, 12) != -1)
 			ShopListing.PushArray(artifact);
 	}
 
 	if(ingots > 17)
 	{
-		if(Rogue_GetRandomArtfiact(artifact, true, 18) != -1)
+		if(Rogue_GetRandomArtifact(artifact, true, 18) != -1)
 			ShopListing.PushArray(artifact);
 	}
 
 	if(ingots > 23)
 	{
-		if(Rogue_GetRandomArtfiact(artifact, true, 24) != -1)
+		if(Rogue_GetRandomArtifact(artifact, true, 24) != -1)
 			ShopListing.PushArray(artifact);
 	}
 
@@ -51,6 +61,7 @@ static void StartShopVote()
 	Artifact artifact;
 	int ingots = Rogue_GetIngots();
 	int length = ShopListing.Length;
+	bool found;
 	for(int i; i < length; i++)
 	{
 		ShopListing.GetArray(i, artifact);
@@ -65,6 +76,7 @@ static void StartShopVote()
 			strcopy(vote.Desc, sizeof(vote.Desc), "Artifact Info");
 			IntToString(i, vote.Config, sizeof(vote.Config));
 			list.PushArray(vote);
+			found = true;
 		}
 	}
 
@@ -74,7 +86,7 @@ static void StartShopVote()
 	strcopy(vote.Config, sizeof(vote.Config), "-1");
 	list.PushArray(vote);
 
-	Rogue_StartGenericVote(30.0);
+	Rogue_StartGenericVote(found ? 30.0 : 10.0);
 }
 public void Rogue_Vote_ShopEncounter(const Vote vote)
 {
@@ -90,11 +102,11 @@ public void Rogue_Vote_ShopEncounter(const Vote vote)
 		if(FirstSuperSale && index == 0)
 		{
 			FirstSuperSale = false;
-			Rogue_AddIngots(-artifact.ShopCost * 7 / 10);
+			Rogue_AddIngots(-artifact.ShopCost * 7 / 10, true);
 		}
 		else
 		{
-			Rogue_AddIngots(-artifact.ShopCost);
+			Rogue_AddIngots(-artifact.ShopCost, true);
 		}
 
 		StartShopVote();
@@ -112,7 +124,7 @@ public float Rogue_Encounter_Boons()
 	Vote vote;
 
 	Artifact artifact;
-	int index = Rogue_GetRandomArtfiact(artifact, true);
+	int index = Rogue_GetRandomArtifact(artifact, true);
 	if(index != -1)
 	{
 		strcopy(vote.Name, sizeof(vote.Name), artifact.Name);
@@ -121,7 +133,7 @@ public float Rogue_Encounter_Boons()
 		list.PushArray(vote);
 	}
 
-	index = Rogue_GetRandomArtfiact(artifact, true);
+	index = Rogue_GetRandomArtifact(artifact, true);
 	if(index != -1)
 	{
 		strcopy(vote.Name, sizeof(vote.Name), artifact.Name);
@@ -150,9 +162,7 @@ public void Rogue_Vote_ItemEncounter(const Vote vote)
 
 public float Rogue_Encounter_SwordInStone()	// Note: Occurs in Floor 4
 {
-	PrintToChatAll("%t", "Sword and Stone Lore");
-
-	ArrayList list = Rogue_CreateGenericVote(Rogue_Vote_SwordInStone, "Lore Title");
+	ArrayList list = Rogue_CreateGenericVote(Rogue_Vote_SwordInStone, "Sword and Stone Lore");
 	Vote vote;
 
 	strcopy(vote.Name, sizeof(vote.Name), "Sword and Stone Option 1");
@@ -190,16 +200,15 @@ public void Rogue_Vote_SwordInStone(const Vote vote, int index)
 		}
 		default:
 		{
-			PrintToChatAll("%t", "Sword and Stone Lore 3");
+			PrintToChatAll("%t", "Sword and Stone Lore 3a");
+			PrintToChatAll("%t", "Sword and Stone Lore 3b");
 		}
 	}
 }
 
 public float Rogue_Encounter_Theatrical()
 {
-	PrintToChatAll("%t", "Theatrical Lore");
-
-	ArrayList list = Rogue_CreateGenericVote(Rogue_Vote_Theatrical, "Lore Title");
+	ArrayList list = Rogue_CreateGenericVote(Rogue_Vote_Theatrical, "Theatrical Lore");
 	Vote vote;
 
 	strcopy(vote.Name, sizeof(vote.Name), "Theatrical Option 1");
@@ -220,7 +229,8 @@ public void Rogue_Vote_Theatrical(const Vote votee, int index)
 	{
 		case 0:
 		{
-			PrintToChatAll("%t", "Theatrical Lore 1");
+			PrintToChatAll("%t", "Theatrical Lore 1a");
+			PrintToChatAll("%t", "Theatrical Lore 1b");
 
 			Ammo_Count_Ready -= 10;
 
@@ -246,9 +256,7 @@ public void Rogue_Vote_Theatrical(const Vote votee, int index)
 
 public float Rogue_Encounter_Eccentric()	// Note: Occurs in Floor 4
 {
-	PrintToChatAll("%t", "Eccentric Lore");
-
-	ArrayList list = Rogue_CreateGenericVote(Rogue_Vote_EccentricCost, "Lore Title");
+	ArrayList list = Rogue_CreateGenericVote(Rogue_Vote_EccentricCost, 	"Eccentric Lore");
 	Vote vote;
 
 	if(Rogue_GetIngots() > 3)
@@ -268,9 +276,11 @@ public float Rogue_Encounter_Eccentric()	// Note: Occurs in Floor 4
 }
 public void Rogue_Vote_EccentricCost(const Vote votee, int index)
 {
+	GrantAllPlayersCredits_Rogue(450);
 	if(!index && Rogue_GetIngots() > 3)
 	{
-		PrintToChatAll("%t", "Eccentric Lore 1");
+		PrintToChatAll("%t", "Eccentric Lore 1a");
+		PrintToChatAll("%t", "Eccentric Lore 1b");
 
 		Rogue_AddIngots(-4);
 
@@ -306,12 +316,14 @@ public void Rogue_Vote_EccentricCost(const Vote votee, int index)
 }
 public void Rogue_Vote_EccentricItem(const Vote vote, int index)
 {
+	GrantAllPlayersCredits_Rogue(450);
 	switch(index)
 	{
 		case 0:
 		{
 			Rogue_GiveNamedArtifact(vote.Config);
-			PrintToChatAll("%t", "Eccentric Lore 1-1");
+			PrintToChatAll("%t", "Eccentric Lore 1-1a");
+			PrintToChatAll("%t", "Eccentric Lore 1-1b");
 		}
 		case 1:
 		{
@@ -341,7 +353,7 @@ public float Rogue_Encounter_ForcefieldChest()
 	list.PushArray(vote);
 
 	Artifact artifact;
-	if(Rogue_GetRandomArtfiact(artifact, true, 12) != -1)
+	if(Rogue_GetRandomArtifact(artifact, true, 12) != -1)
 	{
 		strcopy(vote.Name, sizeof(vote.Name), artifact.Name);
 		strcopy(vote.Desc, sizeof(vote.Desc), "Artifact Info");
@@ -361,48 +373,14 @@ public void Rogue_Vote_ForcefieldChest(const Vote vote, int index)
 	else
 	{
 		Artifact artifact;
-		if(Rogue_GetRandomArtfiact(artifact, true) != -1)
-			Rogue_GiveNamedArtifact(vote.Name);
-	}
-}
-
-public float Rogue_Encounter_Camp()
-{
-	ArrayList list = Rogue_CreateGenericVote(Rogue_Vote_Camp, "Camp Title");
-	Vote vote;
-
-	strcopy(vote.Name, sizeof(vote.Name), "Camp Option");
-	strcopy(vote.Desc, sizeof(vote.Desc), "Camp Desc");
-	list.PushArray(vote);
-
-	Rogue_StartGenericVote(20.0);
-
-	return 25.0;
-}
-public void Rogue_Vote_Camp(const Vote vote, int index)
-{
-	Ammo_Count_Ready += 30;
-	PrintToChatAll("%t", "Camp Lore");
-
-	for(int client = 1; client <= MaxClients; client++)
-	{
-		if(IsClientInGame(client) && IsPlayerAlive(client) && TeutonType[client] == TEUTON_NONE)
-			StartHealingTimer(client, 0.1, 10.0, 250, false);
-	}
-	
-	for(int i; i < i_MaxcountNpc_Allied; i++)
-	{
-		int entity = EntRefToEntIndex(i_ObjectsNpcs_Allied[i]);
-		if(entity != INVALID_ENT_REFERENCE && IsEntityAlive(entity))
-			StartHealingTimer(entity, 0.1, 10.0, 250, false);
+		if(Rogue_GetRandomArtifact(artifact, true) != -1)
+			Rogue_GiveNamedArtifact(artifact.Name);
 	}
 }
 
 public float Rogue_Encounter_CoffinOfEvil()
 {
-	PrintToChatAll("%t", "Coffin of Evil Lore");
-
-	ArrayList list = Rogue_CreateGenericVote(Rogue_Vote_CoffinOfEvil, "Lore Title");
+	ArrayList list = Rogue_CreateGenericVote(Rogue_Vote_CoffinOfEvil, "Coffin of Evil Lore");
 	Vote vote;
 
 	strcopy(vote.Name, sizeof(vote.Name), "Coffin of Evil Option 1");
@@ -423,7 +401,7 @@ public void Rogue_Vote_CoffinOfEvil(const Vote vote, int index)
 	{
 		PrintToChatAll("%t", "Coffin of Evil Lore 2");
 
-		Rogue_AddIngots(4);
+		Rogue_AddIngots(8);
 	}
 	else
 	{
@@ -436,9 +414,7 @@ public void Rogue_Vote_CoffinOfEvil(const Vote vote, int index)
 
 public float Rogue_Encounter_EyeForAnEye()
 {
-	PrintToChatAll("%t", "Eye for an Eye Lore");
-
-	ArrayList list = Rogue_CreateGenericVote(Rogue_Vote_EyeForAnEye, "Lore Title");
+	ArrayList list = Rogue_CreateGenericVote(Rogue_Vote_EyeForAnEye, "Eye for an Eye Lore");
 	Vote vote;
 
 	if(Rogue_HasFriendship())
@@ -470,23 +446,17 @@ public void Rogue_Vote_EyeForAnEye(const Vote vote, int index)
 	{
 		case 0:
 		{
-			Rogue_AddIngots(20);
+			Rogue_AddIngots(30);
 			
 			PrintToChatAll("%t", "Eye for an Eye Lore 1");
 		}
 		case 1:
 		{
 			Ammo_Count_Ready -= 20;
-
-			CurrentCash += 1500;
-			for(int client = 1; client <= MaxClients; client++)
-			{
-				if(IsClientInGame(client))
-				{
-					CashRecievedNonWave[client] += 1500;
-				}
-			}
-
+			
+			CurrentCash += 3000;
+			GlobalExtraCash += 3000;
+			
 			PrintToChatAll("%t", "Eye for an Eye Lore 2");
 		}
 		default:
@@ -496,4 +466,192 @@ public void Rogue_Vote_EyeForAnEye(const Vote vote, int index)
 			PrintToChatAll("%t", "Eye for an Eye Lore 3");
 		}
 	}
+}
+
+public float Rogue_Encounter_BrokenCrown()
+{
+	ArrayList list = Rogue_CreateGenericVote(Rogue_Vote_BrokenCrown, "Broken Crown Lore");
+	Vote vote;
+
+	strcopy(vote.Name, sizeof(vote.Name), "Broken Crown Option 1");
+	strcopy(vote.Desc, sizeof(vote.Desc), "Broken Crown Desc 1");
+	list.PushArray(vote);
+
+	strcopy(vote.Name, sizeof(vote.Name), "Broken Crown Option 2");
+	strcopy(vote.Desc, sizeof(vote.Desc), "Broken Crown Desc 2");
+	list.PushArray(vote);
+
+	Rogue_StartGenericVote(20.0);
+
+	return 25.0;
+}
+public void Rogue_Vote_BrokenCrown(const Vote vote, int index)
+{
+	if(index)
+	{
+		PrintToChatAll("%t", "Broken Crown Lore 2");
+
+		Rogue_AddIngots(8);
+	}
+	else
+	{
+		PrintToChatAll("%t", "Broken Crown Lore 1");
+
+		Rogue_GiveNamedArtifact("Broken Combine Crown");
+	}
+}
+
+public float Rogue_Encounter_BobResearch()
+{
+	ArrayList list = Rogue_CreateGenericVote(Rogue_Vote_BobResearch, "Bob Research Lore");
+	Vote vote;
+
+	strcopy(vote.Name, sizeof(vote.Name), "Bob Research Option 1");
+	strcopy(vote.Desc, sizeof(vote.Desc), "Unknown Artifact Desc");
+	list.PushArray(vote);
+
+	strcopy(vote.Name, sizeof(vote.Name), "Bob Research Option 2");
+	strcopy(vote.Desc, sizeof(vote.Desc), "Leave this encounter");
+	list.PushArray(vote);
+
+	Rogue_StartGenericVote(20.0);
+
+	return 25.0;
+}
+public void Rogue_Vote_BobResearch(const Vote vote, int index)
+{
+	if(index)
+	{
+		PrintToChatAll("%t", "Bob Research Lore 2");
+	}
+	else
+	{
+		PrintToChatAll("%t", "Bob Research Lore 1");
+
+		Rogue_GiveNamedArtifact("Bob's Reseach Papers");
+	}
+}
+
+public float Rogue_Encounter_BobFinal()
+{
+	ArrayList list = Rogue_CreateGenericVote(Rogue_Vote_BobFinal, "Bob Final Lore");
+	Vote vote;
+
+	bool altfinal = Rogue_HasNamedArtifact("Revenge Squad");
+	bool LockOut = altfinal;
+	bool BeatenBob = false;
+	for(int client = 1; client <= MaxClients; client++)
+	{
+		if(IsClientInGame(client) && GetClientTeam(client) == 2 && (CvarRogueSpecialLogic.BoolValue || Items_HasNamedItem(client, "Bob's true fear")))
+		{
+			BeatenBob = true;
+			break;
+		}
+	}
+	if(altfinal && !BeatenBob)
+	{
+		LockOut = false;
+	}
+	strcopy(vote.Name, sizeof(vote.Name), "Bob Final Option 1");
+	strcopy(vote.Desc, sizeof(vote.Desc), "Bob Final Desc 1");
+	vote.Locked = LockOut;
+	list.PushArray(vote);
+
+	strcopy(vote.Name, sizeof(vote.Name), "Bob Final Option 2");
+	strcopy(vote.Desc, sizeof(vote.Desc), "Leave this encounter");
+	vote.Locked = LockOut;
+	list.PushArray(vote);
+
+	if(altfinal)
+	{
+		if(LockOut)
+		{
+			//Incase the top ones are locked
+			strcopy(vote.Name, sizeof(vote.Name), "Bob Final Option 3");
+			strcopy(vote.Desc, sizeof(vote.Desc), "Bob Final Desc 3");
+			vote.Locked = false;
+			list.PushArray(vote);
+		}
+		else
+		{
+			strcopy(vote.Name, sizeof(vote.Name), "Bob Final Option 3 No");
+			strcopy(vote.Desc, sizeof(vote.Desc), "Bob Final Option 3 No desc");
+			strcopy(vote.Append, sizeof(vote.Append), " (Win against Bladedance)");
+			vote.Locked = true;
+			list.PushArray(vote);
+		}
+	}
+
+	Rogue_StartGenericVote(20.0);
+
+	return 25.0;
+}
+public void Rogue_Vote_BobFinal(const Vote vote, int index)
+{
+	GrantAllPlayersCredits_Rogue(1000);
+
+	switch(index)
+	{
+		case 0:
+		{
+			PrintToChatAll("%t", "Bob Final Lore 1");
+
+			Rogue_GiveNamedArtifact("Bob's Final Draft");
+		}
+		case 1:
+		{
+			PrintToChatAll("%t", "Bob Final Lore 2");
+		}
+		case 2:
+		{
+			PrintToChatAll("%t", "Bob Final Lore 3");
+
+			Rogue_GiveNamedArtifact("Bob's Orders");
+		}
+	}
+}
+
+public float Rogue_Encounter_BrokenBridge()
+{
+	ArrayList list = Rogue_CreateGenericVote(Rogue_Vote_BrokenBridge, "Broken Bridge Title");
+	Vote vote;
+
+	if(Rogue_GetIngots() > 2)
+	{
+		strcopy(vote.Name, sizeof(vote.Name), "Broken Bridge Option 1");
+		strcopy(vote.Desc, sizeof(vote.Desc), "Broken Bridge Desc 1");
+		list.PushArray(vote);
+	}
+	
+	strcopy(vote.Name, sizeof(vote.Name), "Broken Bridge Option 2");
+	strcopy(vote.Desc, sizeof(vote.Desc), "Leave this encounter");
+	list.PushArray(vote);
+
+	Rogue_StartGenericVote(20.0);
+
+	return 25.0;
+}
+public void Rogue_Vote_BrokenBridge(const Vote vote, int index)
+{
+	if(Rogue_GetIngots() < 3 || index)
+	{
+		PrintToChatAll("%t", "Broken Bridge Lore 2");
+	}
+	else
+	{
+		PrintToChatAll("%t", "Broken Bridge Lore 1");
+
+		Rogue_AddIngots(-3);
+		
+		Artifact artifact;
+		if(Rogue_GetRandomArtifact(artifact, true, 24) != -1 || Rogue_GetRandomArtifact(artifact, true, 18) != -1)
+			Rogue_GiveNamedArtifact(artifact.Name);
+	}
+}
+
+static void GrantAllPlayersCredits_Rogue(int cash)
+{
+	cash *= (Rogue_GetFloor()+1);
+	CPrintToChatAll("{green}%t","Cash Gained!", cash);
+	CurrentCash += cash;
 }

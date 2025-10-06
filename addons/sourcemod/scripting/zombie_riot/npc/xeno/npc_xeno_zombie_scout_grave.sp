@@ -58,8 +58,21 @@ public void XenoScout_OnMapStart_NPC()
 	for (int i = 0; i < (sizeof(g_MeleeMissSounds));   i++) { PrecacheSound(g_MeleeMissSounds[i]);   }
 
 	PrecacheSound("player/flow.wav");
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Xeno Scout Assaulter");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_xeno_zombie_scout_grave");
+	strcopy(data.Icon, sizeof(data.Icon), "scout_bat");
+	data.IconCustom = false;
+	data.Flags = 0;
+	data.Category = Type_Xeno;
+	data.Func = ClotSummon;
+	NPC_Add(data);
 }
 
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team)
+{
+	return XenoScout(vecPos, vecAng, team);
+}
 methodmap XenoScout < CClotBody
 {
 	public void PlayIdleSound() {
@@ -68,9 +81,7 @@ methodmap XenoScout < CClotBody
 		EmitSoundToAll(g_IdleSounds[GetRandomInt(0, sizeof(g_IdleSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 80);
 		this.m_flNextIdleSound = GetGameTime(this.index) + GetRandomFloat(24.0, 48.0);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayIdleSound()");
-		#endif
+
 	}
 	
 	public void PlayIdleAlertSound() {
@@ -80,9 +91,7 @@ methodmap XenoScout < CClotBody
 		EmitSoundToAll(g_IdleAlertedSounds[GetRandomInt(0, sizeof(g_IdleAlertedSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 80);
 		this.m_flNextIdleSound = GetGameTime(this.index) + GetRandomFloat(12.0, 24.0);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayIdleAlertSound()");
-		#endif
+		
 	}
 	
 	public void PlayHurtSound() {
@@ -94,45 +103,35 @@ methodmap XenoScout < CClotBody
 		EmitSoundToAll(g_HurtSounds[GetRandomInt(0, sizeof(g_HurtSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 80);
 		
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayHurtSound()");
-		#endif
+		
 	}
 	
 	public void PlayDeathSound() {
 	
 		EmitSoundToAll(g_DeathSounds[GetRandomInt(0, sizeof(g_DeathSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 80);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayDeathSound()");
-		#endif
+		
 	}
 	
 	public void PlayMeleeSound() {
-		EmitSoundToAll(g_MeleeAttackSounds[GetRandomInt(0, sizeof(g_MeleeAttackSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 80);
+		EmitSoundToAll(g_MeleeAttackSounds[GetRandomInt(0, sizeof(g_MeleeAttackSounds) - 1)], this.index, SNDCHAN_STATIC, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 80);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayMeleeHitSound()");
-		#endif
+		
 	}
 	public void PlayMeleeHitSound() {
 		EmitSoundToAll(g_MeleeHitSounds[GetRandomInt(0, sizeof(g_MeleeHitSounds) - 1)], this.index, SNDCHAN_STATIC, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 80);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayMeleeHitSound()");
-		#endif
+		
 	}
 
 	public void PlayMeleeMissSound() {
 		EmitSoundToAll(g_MeleeMissSounds[GetRandomInt(0, sizeof(g_MeleeMissSounds) - 1)], this.index, SNDCHAN_STATIC, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 80);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CGoreFast::PlayMeleeMissSound()");
-		#endif
+		
 	}
 	
 	
-	public XenoScout(int client, float vecPos[3], float vecAng[3], bool ally)
+	public XenoScout(float vecPos[3], float vecAng[3], int ally)
 	{
 		XenoScout npc = view_as<XenoScout>(CClotBody(vecPos, vecAng, "models/player/scout.mdl", "1.0", "1500", ally));
 		
@@ -140,7 +139,6 @@ methodmap XenoScout < CClotBody
 		if(iActivity > 0) npc.StartActivity(iActivity);
 		
 		
-		i_NpcInternalId[npc.index] = XENO_SCOUT_ZOMBIE;
 		i_NpcWeight[npc.index] = 1;
 		
 		FormatEx(c_HeadPlaceAttachmentGibName[npc.index], sizeof(c_HeadPlaceAttachmentGibName[]), "head");
@@ -151,7 +149,9 @@ methodmap XenoScout < CClotBody
 		npc.m_iNpcStepVariation = STEPTYPE_NORMAL;		
 		
 		
-		SDKHook(npc.index, SDKHook_Think, XenoScout_ClotThink);
+		func_NPCDeath[npc.index] = XenoScout_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = XenoScout_OnTakeDamage;
+		func_NPCThink[npc.index] = XenoScout_ClotThink;		
 		
 		npc.m_flNextMeleeAttack = 0.0;
 		
@@ -188,8 +188,7 @@ methodmap XenoScout < CClotBody
 	
 }
 
-//TODO 
-//Rewrite
+
 public void XenoScout_ClotThink(int iNPC)
 {
 	XenoScout npc = view_as<XenoScout>(iNPC);
@@ -228,14 +227,15 @@ public void XenoScout_ClotThink(int iNPC)
 	
 	if(IsValidEnemy(npc.index, PrimaryThreatIndex))
 	{
-			float vecTarget[3]; vecTarget = WorldSpaceCenter(PrimaryThreatIndex);
+			float vecTarget[3]; WorldSpaceCenter(PrimaryThreatIndex, vecTarget);
 		
-			float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+			float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+			float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 			
 			//Predict their pos.
 			if(flDistanceToTarget < npc.GetLeadRadius()) {
 				
-				float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, PrimaryThreatIndex);
+				float vPredictedPos[3]; PredictSubjectPosition(npc, PrimaryThreatIndex,_,_, vPredictedPos);
 				
 			/*	int color[4];
 				color[0] = 255;
@@ -248,15 +248,15 @@ public void XenoScout_ClotThink(int iNPC)
 				TE_SetupBeamPoints(vPredictedPos, vecTarget, xd, xd, 0, 0, 0.25, 0.5, 0.5, 5, 5.0, color, 30);
 				TE_SendToAllInRange(vecTarget, RangeType_Visibility);*/
 				
-				NPC_SetGoalVector(npc.index, vPredictedPos);
+				npc.SetGoalVector(vPredictedPos);
 			} else {
-				NPC_SetGoalEntity(npc.index, PrimaryThreatIndex);
+				npc.SetGoalEntity(PrimaryThreatIndex);
 			}
 
 			npc.StartPathing();
 			
 			//Target close enough to hit
-			if(flDistanceToTarget < 10000 || npc.m_flAttackHappenswillhappen)
+			if(flDistanceToTarget < NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED || npc.m_flAttackHappenswillhappen)
 			{
 				//Look at target so we hit.
 				//npc.FaceTowards(vecTarget, 1000.0);
@@ -289,7 +289,7 @@ public void XenoScout_ClotThink(int iNPC)
 							{
 								
 								if(!ShouldNpcDealBonusDamage(target))
-									SDKHooks_TakeDamage(target, npc.index, npc.index, 75.0, DMG_CLUB, -1, _, vecHit);
+									SDKHooks_TakeDamage(target, npc.index, npc.index, 60.0, DMG_CLUB, -1, _, vecHit);
 								else
 									SDKHooks_TakeDamage(target, npc.index, npc.index, 150.0, DMG_CLUB, -1, _, vecHit);
 								
@@ -325,8 +325,8 @@ public void XenoScout_ClotThink(int iNPC)
 		}
 	else
 	{
-		NPC_StopPathing(npc.index);
-		npc.m_bPathing = false;
+		npc.StopPathing();
+		
 		npc.m_flGetClosestTargetTime = 0.0;
 		npc.m_iTarget = GetClosestTarget(npc.index);
 	}
@@ -346,12 +346,12 @@ public Action XenoScout_OnTakeDamage(int victim, int &attacker, int &inflictor, 
 		{
 			npc.bXenoInfectedSpecialHurt = true;
 			npc.flXenoInfectedSpecialHurtTime = GetGameTime(npc.index) + 2.0;
-			SetEntityRenderMode(npc.index, RENDER_TRANSCOLOR);
+			SetEntityRenderMode(npc.index, RENDER_NORMAL);
 			SetEntityRenderColor(npc.index, 255, 0, 0, 255);
-			SetEntityRenderMode(npc.m_iWearable2, RENDER_TRANSCOLOR);
+			SetEntityRenderMode(npc.m_iWearable2, RENDER_NORMAL);
 			SetEntityRenderColor(npc.m_iWearable2, 255, 0, 0, 255);
 			
-			SetEntityRenderMode(npc.m_iWearable1, RENDER_TRANSCOLOR);
+			SetEntityRenderMode(npc.m_iWearable1, RENDER_NORMAL);
 			SetEntityRenderColor(npc.m_iWearable1, 255, 0, 0, 255);
 			npc.m_flSpeed = 400.0;
 			CreateTimer(2.0, XenoScout_Revert_Poison_Zombie_Resistance, EntIndexToEntRef(victim), TIMER_FLAG_NO_MAPCHANGE);
@@ -375,16 +375,16 @@ public Action XenoScout_Revert_Poison_Zombie_Resistance(Handle timer, int ref)
 	{
 		XenoScout npc = view_as<XenoScout>(zombie);
 		npc.m_flSpeed = 300.0;
-		SetEntityRenderMode(zombie, RENDER_TRANSCOLOR);
+		SetEntityRenderMode(zombie, RENDER_NORMAL);
 		SetEntityRenderColor(zombie, 150, 255, 150, 255);
 		if(IsValidEntity(npc.m_iWearable2))
 		{
-			SetEntityRenderMode(npc.m_iWearable2, RENDER_TRANSCOLOR);
+			SetEntityRenderMode(npc.m_iWearable2, RENDER_NORMAL);
 			SetEntityRenderColor(npc.m_iWearable2, 150, 255, 150, 255);
 		}
 		if(IsValidEntity(npc.m_iWearable1))
 		{
-			SetEntityRenderMode(npc.m_iWearable1, RENDER_TRANSCOLOR);
+			SetEntityRenderMode(npc.m_iWearable1, RENDER_NORMAL);
 			SetEntityRenderColor(npc.m_iWearable1, 150, 255, 150, 255);
 		}
 	}
@@ -421,9 +421,6 @@ public void XenoScout_NPCDeath(int entity)
 	{
 		npc.PlayDeathSound();	
 	}
-	
-	
-	SDKUnhook(npc.index, SDKHook_Think, XenoScout_ClotThink);
 	
 	if(IsValidEntity(npc.m_iWearable2))
 		RemoveEntity(npc.m_iWearable2);

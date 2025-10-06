@@ -1,12 +1,10 @@
 #pragma semicolon 1
 #pragma newdecls required
 
-//Handle h_TimerBlemishineManagement[MAXPLAYERS+1] = {INVALID_HANDLE, ...};
-//static float f_BlemishineHudDelay[MAXTF2PLAYERS];
-static float f_BlemishineThinkDelay[MAXTF2PLAYERS];
-static float f_Blemishine_AbilityActive[MAXTF2PLAYERS];
-static int i_BlemishineWhichAbility[MAXTF2PLAYERS];
-static float f_AbilityHealAmmount[MAXTF2PLAYERS];
+static float f_BlemishineThinkDelay[MAXPLAYERS];
+static float f_Blemishine_AbilityActive[MAXPLAYERS];
+static int i_BlemishineWhichAbility[MAXPLAYERS];
+static float f_AbilityHealAmmount[MAXPLAYERS];
 
 #define BLEMISHINE_RANGE_ABILITY	150.0
 #define BLEMISHINE_COOLDOWN			40.0
@@ -23,12 +21,7 @@ void Blemishine_Map_Precache() //Anything that needs to be precaced like sounds 
 
 void Reset_stats_Blemishine_Singular(int client) //This is on disconnect/connect
 {
-//	if (h_TimerBlemishineManagement[client] != INVALID_HANDLE)
-//	{
-//		KillTimer(h_TimerBlemishineManagement[client]);
-//	}	
 	f_Blemishine_AbilityActive[client] = 0.0;
-//	h_TimerBlemishineManagement[client] = INVALID_HANDLE;
 }
 
 public void Weapon_BlemishineAttackM2Base(int client, int weapon, bool &result, int slot)
@@ -36,7 +29,7 @@ public void Weapon_BlemishineAttackM2Base(int client, int weapon, bool &result, 
 	//This melee is too unique, we have to code it in a different way.
 	if (Ability_Check_Cooldown(client, slot) < 0.0 || CvarInfiniteCash.BoolValue)
 	{
-		Rogue_OnAbilityUse(weapon);
+		Rogue_OnAbilityUse(client, weapon);
 		Ability_Apply_Cooldown(client, slot, BLEMISHINE_COOLDOWN);
 		f_Blemishine_AbilityActive[client] = GetGameTime() + BLEMISHINE_ABILITY_ACTIVE;
 		float flPos[3];
@@ -52,8 +45,8 @@ public void Weapon_BlemishineAttackM2Base(int client, int weapon, bool &result, 
 		Explode_Logic_Custom(0.0, client, client, weapon, _, BLEMISHINE_RANGE_ABILITY,_,_,_,_,_,_,BlemishineAbilityHit);
 		FinishLagCompensation_Base_boss();
 		i_BlemishineWhichAbility[client] = 1;
-		float value = Attributes_FindOnWeapon(client, weapon, 180);
-		f_AbilityHealAmmount[client] = value * 1.9;
+		float value = Attributes_Get(weapon, 180, 0.0);
+		f_AbilityHealAmmount[client] = value * 2.0;
 		SDKUnhook(client, SDKHook_PreThink, Blemishine_Think);
 		SDKHook(client, SDKHook_PreThink, Blemishine_Think);
 		/*
@@ -80,7 +73,7 @@ public void Weapon_BlemishineAttackM2Stronger(int client, int weapon, bool &resu
 	//This melee is too unique, we have to code it in a different way.
 	if (Ability_Check_Cooldown(client, slot) < 0.0 || CvarInfiniteCash.BoolValue)
 	{
-		Rogue_OnAbilityUse(weapon);
+		Rogue_OnAbilityUse(client, weapon);
 		Ability_Apply_Cooldown(client, slot, BLEMISHINE_COOLDOWN);
 		f_Blemishine_AbilityActive[client] = GetGameTime() + BLEMISHINE_ABILITY_ACTIVE;
 		float flPos[3];
@@ -97,8 +90,8 @@ public void Weapon_BlemishineAttackM2Stronger(int client, int weapon, bool &resu
 		Explode_Logic_Custom(0.0, client, client, weapon, _, BLEMISHINE_RANGE_ABILITY,_,_,_,_,_,_,BlemishineAbilityHit2);
 		FinishLagCompensation_Base_boss();
 		i_BlemishineWhichAbility[client] = 2;
-		float value = Attributes_FindOnWeapon(client, weapon, 180);
-		f_AbilityHealAmmount[client] = value * 1.9;
+		float value = Attributes_Get(weapon, 180, 0.0);
+		f_AbilityHealAmmount[client] = value * 2.0;
 		SDKUnhook(client, SDKHook_PreThink, Blemishine_Think);
 		SDKHook(client, SDKHook_PreThink, Blemishine_Think);
 		/*
@@ -124,7 +117,7 @@ public void Weapon_BlemishineAttackM2Strongest(int client, int weapon, bool &res
 	//This melee is too unique, we have to code it in a different way.
 	if (Ability_Check_Cooldown(client, slot) < 0.0 || CvarInfiniteCash.BoolValue)
 	{
-		Rogue_OnAbilityUse(weapon);
+		Rogue_OnAbilityUse(client, weapon);
 		Ability_Apply_Cooldown(client, slot, BLEMISHINE_COOLDOWN);
 		f_Blemishine_AbilityActive[client] = GetGameTime() + BLEMISHINE_ABILITY_ACTIVE;
 		float flPos[3];
@@ -141,8 +134,8 @@ public void Weapon_BlemishineAttackM2Strongest(int client, int weapon, bool &res
 		Explode_Logic_Custom(0.0, client, client, weapon, _, BLEMISHINE_RANGE_ABILITY,_,_,_,_,_,_,BlemishineAbilityHit3);
 		FinishLagCompensation_Base_boss();
 		i_BlemishineWhichAbility[client] = 2;
-		float value = Attributes_FindOnWeapon(client, weapon, 180);
-		f_AbilityHealAmmount[client] = value * 1.9;
+		float value = Attributes_Get(weapon, 180, 0.0);
+		f_AbilityHealAmmount[client] = value * 2.0;
 		SDKUnhook(client, SDKHook_PreThink, Blemishine_Think);
 		SDKHook(client, SDKHook_PreThink, Blemishine_Think);
 		/*
@@ -206,111 +199,11 @@ void BlemishineAbilityHit3(int entity, int victim, float damage, int weapon)
 
 	FreezeNpcInTime(victim, StunDuration);
 }
-/*
-public void Enable_Blemishine(int client, int weapon) 
+public float Player_OnTakeDamage_Blemishine(int victim, int attacker, float &damage, int damagetype)
 {
-	if (h_TimerBlemishineManagement[client] != INVALID_HANDLE)
-	{
-		//This timer already exists.
-		if(i_CustomWeaponEquipLogic[weapon] == WEAPON_BLEMISHINE) 
-		{
-			//Is the weapon it again?
-			//Yes?
-			KillTimer(h_TimerBlemishineManagement[client]);
-			h_TimerBlemishineManagement[client] = INVALID_HANDLE;
-			DataPack pack;
-			h_TimerBlemishineManagement[client] = CreateDataTimer(0.1, Timer_Management_Blemishine, pack, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
-			pack.WriteCell(client);
-			pack.WriteCell(EntIndexToEntRef(weapon));
-		}
-		return;
-	}
-		
-	if(i_CustomWeaponEquipLogic[weapon] == WEAPON_BLEMISHINE) //9 Is for Passanger
-	{
-		DataPack pack;
-		h_TimerBlemishineManagement[client] = CreateDataTimer(0.1, Timer_Management_Blemishine, pack, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
-		pack.WriteCell(client);
-		pack.WriteCell(EntIndexToEntRef(weapon));
-	}
-}
+	if(damagetype & DMG_TRUEDAMAGE)
+		return damage;
 
-
-
-public Action Timer_Management_Blemishine(Handle timer, DataPack pack)
-{
-	pack.Reset();
-	int client = pack.ReadCell();
-	if(IsValidClient(client))
-	{
-		if (IsClientInGame(client))
-		{
-			if (IsPlayerAlive(client))
-			{
-				Blemishine_Cooldown_Logic(client, EntRefToEntIndex(pack.ReadCell()));
-			}
-			else
-				Kill_Timer_Blemishine(client);
-		}
-		else
-			Kill_Timer_Blemishine(client);
-	}
-	else
-		Kill_Timer_Blemishine(client);
-		
-	return Plugin_Continue;
-}
-
-public void Blemishine_Cooldown_Logic(int client, int weapon)
-{
-	if (!IsValidMulti(client))
-		return;
-		
-	if(IsValidEntity(weapon))
-	{
-		if(i_CustomWeaponEquipLogic[weapon] == WEAPON_BLEMISHINE)
-		{
-			int weapon_holding = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
-			if(weapon_holding == weapon) //Only show if the weapon is actually in your hand right now.
-			{
-				if(f_BlemishineHudDelay[client] < GetGameTime())
-				{
-					float cooldown = Ability_Check_Cooldown(client, 2);
-					if(cooldown > 0.0)
-					{
-						PrintHintText(client,"%.1f％",cooldown);	
-					}
-					else
-					{
-						PrintHintText(client,"%.1f％",cooldown);	
-					}
-					StopSound(client, SNDCHAN_STATIC, "UI/hint.wav");
-					f_BlemishineHudDelay[client] = GetGameTime() + 0.5;
-				}
-			}
-		}
-		else
-		{
-			Kill_Timer_Blemishine(client);
-		}
-	}
-	else
-	{
-		Kill_Timer_Blemishine(client);
-	}
-}
-
-public void Kill_Timer_Blemishine(int client)
-{
-	if (h_TimerBlemishineManagement[client] != INVALID_HANDLE)
-	{
-		KillTimer(h_TimerBlemishineManagement[client]);
-		h_TimerBlemishineManagement[client] = INVALID_HANDLE;
-	}
-}
-*/
-public float Player_OnTakeDamage_Blemishine(int victim, int attacker, float &damage)
-{
 	if(GetGameTime() < f_Blemishine_AbilityActive[victim])
 	{
 		switch(i_BlemishineWhichAbility[victim])
@@ -327,6 +220,26 @@ public float Player_OnTakeDamage_Blemishine(int victim, int attacker, float &dam
 	}
 
 	return damage;
+}
+
+public float Player_OnTakeDamage_Blemishine_Hud(int victim)
+{
+	if(GetGameTime() < f_Blemishine_AbilityActive[victim])
+	{
+		switch(i_BlemishineWhichAbility[victim])
+		{
+			case 1:
+			{
+				return 0.8;
+			}
+			case 2:
+			{
+				return 0.75;
+			}
+		}
+	}
+
+	return 1.0;
 }
 
 public float NPC_OnTakeDamage_Blemishine(int attacker, int victim, float &damage, int weapon)
@@ -346,9 +259,9 @@ public float NPC_OnTakeDamage_Blemishine(int attacker, int victim, float &damage
 			}
 			case 2:
 			{
-				float value = Attributes_FindOnWeapon(attacker, weapon, 180);
+				float value = Attributes_Get(weapon, 180, 0.0);
 				value *= 8.0;
-				DoHealingOcean(attacker, attacker, (150.0 * 150.0), value, true);
+				DoHealingOcean(attacker, attacker, (150.0 * 150.0), value * 1.35, true);
 				damage *= 2.0;
 			}
 		}
@@ -374,9 +287,12 @@ public void Blemishine_Think(int client)
 				SDKUnhook(client, SDKHook_PreThink, Blemishine_Think);
 				return;
 			}
-			if(f_AbilityHealAmmount[client] > 0)
+			if(f_AbilityHealAmmount[client] > 0.0)
 			{
-				DoHealingOcean(client, client, (150.0 * 150.0), f_AbilityHealAmmount[client], true);
+				DoHealingOcean(client, client, (200.0 * 200.0), f_AbilityHealAmmount[client] * 1.0, true);
+				float flPos[3];
+				GetEntPropVector(client, Prop_Data, "m_vecAbsOrigin", flPos);		
+				spawnRing_Vectors(flPos, /*RANGE*/ 200.0 * 2.0, 0.0, 0.0, 15.0, EMPOWER_MATERIAL, 231, 231, 4, 125, 1, /*DURATION*/ 0.12, 3.0, 2.5, 5);
 				return;
 			}
 			
@@ -397,11 +313,14 @@ void BlemishineAuraEffects(int client, float duration)
 	if(!IsValidEntity(viewmodelModel))
 		return;
 
+	if(AtEdictLimit(EDICT_PLAYER))
+		return;
+		
 	float flPos[3];
 	float flAng[3];
 	GetAttachment(viewmodelModel, "flag", flPos, flAng);
 
-	int particle_1 = ParticleEffectAt({0.0,0.0,0.0}, "", duration);
+	int particle_1 = InfoTargetParentAt({0.0,0.0,0.0}, "", duration);
 	int particle_2 = ParticleEffectAt({50.0,-10.0,10.0}, "rockettrail_fire_airstrike", duration);
 	int particle_2_1 = ParticleEffectAt({80.0,-5.0,-20.0}, "rockettrail_fire_airstrike", duration);
 	SetParent(particle_1, particle_2, "",_, true);
@@ -417,10 +336,10 @@ void BlemishineAuraEffects(int client, float duration)
 	SetParent(viewmodelModel, particle_1, "flag",_);
 
 
-	int Laser_1 = ConnectWithBeamClient(particle_2, particle_1, 200, 166, 35, 2.0, 6.0, 1.0, LASERBEAM);
-	int Laser_2 = ConnectWithBeamClient(particle_3, particle_1, 200, 166, 35, 2.0, 6.0, 1.0, LASERBEAM);
-	int Laser_3 = ConnectWithBeamClient(particle_3_1, particle_3, 200, 166, 35, 1.0, 2.0, 1.0, LASERBEAM);
-	int Laser_4 = ConnectWithBeamClient(particle_2_1, particle_2, 200, 166, 35, 1.0, 2.0, 1.0, LASERBEAM);
+	int Laser_1 = ConnectWithBeamClient(particle_2, particle_1, 200, 166, 35, 2.0, 6.0, 1.0, LASERBEAM, client);
+	int Laser_2 = ConnectWithBeamClient(particle_3, particle_1, 200, 166, 35, 2.0, 6.0, 1.0, LASERBEAM, client);
+	int Laser_3 = ConnectWithBeamClient(particle_3_1, particle_3, 200, 166, 35, 1.0, 2.0, 1.0, LASERBEAM, client);
+	int Laser_4 = ConnectWithBeamClient(particle_2_1, particle_2, 200, 166, 35, 1.0, 2.0, 1.0, LASERBEAM, client);
 
 	CreateTimer(duration, Timer_RemoveEntity, EntIndexToEntRef(Laser_1), TIMER_FLAG_NO_MAPCHANGE);
 	CreateTimer(duration, Timer_RemoveEntity, EntIndexToEntRef(Laser_2), TIMER_FLAG_NO_MAPCHANGE);

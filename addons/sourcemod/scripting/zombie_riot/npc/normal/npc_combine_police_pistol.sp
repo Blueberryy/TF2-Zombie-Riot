@@ -76,8 +76,22 @@ public void Combine_Police_Pistol_OnMapStart_NPC()
 	
 	PrecacheSound("player/flow.wav");
 	PrecacheModel("models/police.mdl");
+
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Metro Cop");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_combine_police_pistol");
+	strcopy(data.Icon, sizeof(data.Icon), "combine_pistol");
+	data.IconCustom = true;
+	data.Flags = 0;
+	data.Category = Type_Common;
+	data.Func = ClotSummon;
+	NPC_Add(data);
 }
 
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team)
+{
+	return Combine_Police_Pistol(vecPos, vecAng, team);
+}
 methodmap Combine_Police_Pistol < CClotBody
 {
 	public void PlayIdleSound() {
@@ -135,11 +149,10 @@ methodmap Combine_Police_Pistol < CClotBody
 	
 	
 	
-	public Combine_Police_Pistol(int client, float vecPos[3], float vecAng[3], bool ally)
+	public Combine_Police_Pistol(float vecPos[3], float vecAng[3], int ally)
 	{
 		Combine_Police_Pistol npc = view_as<Combine_Police_Pistol>(CClotBody(vecPos, vecAng, "models/police.mdl", "1.15", "550", ally, false));
 		
-		i_NpcInternalId[npc.index] = COMBINE_POLICE_PISTOL;
 		i_NpcWeight[npc.index] = 1;
 		
 		int iActivity = npc.LookupActivity("ACT_RUN");
@@ -160,13 +173,9 @@ methodmap Combine_Police_Pistol < CClotBody
 		npc.m_iState = 0;
 		npc.m_flSpeed = 160.0;
 		
-		if(EscapeModeForNpc)
-		{
-			npc.m_flSpeed = 270.0;
-		}
-		
-		
-		SDKHook(npc.index, SDKHook_Think, Combine_Police_Pistol_ClotThink);
+		func_NPCDeath[npc.index] = CombinePolicePistol_NPCDeath;
+		func_NPCThink[npc.index] = Combine_Police_Pistol_ClotThink;
+
 		
 		npc.m_flNextRangedAttack = 0.0;
 		npc.m_flAttackHappenswillhappen = false;
@@ -188,8 +197,7 @@ methodmap Combine_Police_Pistol < CClotBody
 	}
 }
 
-//TODO 
-//Rewrite
+
 public void Combine_Police_Pistol_ClotThink(int iNPC)
 {
 	Combine_Police_Pistol npc = view_as<Combine_Police_Pistol>(iNPC);
@@ -227,7 +235,7 @@ public void Combine_Police_Pistol_ClotThink(int iNPC)
 	
 	if(IsValidEnemy(npc.index, PrimaryThreatIndex))
 	{
-			float vecTarget[3]; vecTarget = WorldSpaceCenter(PrimaryThreatIndex);
+			float vecTarget[3]; WorldSpaceCenter(PrimaryThreatIndex, vecTarget);
 			if (npc.m_fbGunout == false && npc.m_flReloadDelay < GetGameTime(npc.index))
 			{
 				if (!npc.m_bmovedelay)
@@ -251,17 +259,18 @@ public void Combine_Police_Pistol_ClotThink(int iNPC)
 				AcceptEntityInput(npc.m_iWearable1, "Enable");
 				AcceptEntityInput(npc.m_iWearable2, "Disable");
 			//	npc.FaceTowards(vecTarget, 1000.0);
-				NPC_StopPathing(npc.index);
-				npc.m_bPathing = false;
+				npc.StopPathing();
+				
 			}
 			
 		
-			float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+			float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+			float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 			
 			//Predict their pos.
 			if(flDistanceToTarget < npc.GetLeadRadius()) {
 				
-				float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, PrimaryThreatIndex);
+				float vPredictedPos[3]; PredictSubjectPosition(npc, PrimaryThreatIndex,_,_, vPredictedPos);
 				
 			/*	int color[4];
 				color[0] = 255;
@@ -274,9 +283,9 @@ public void Combine_Police_Pistol_ClotThink(int iNPC)
 				TE_SetupBeamPoints(vPredictedPos, vecTarget, xd, xd, 0, 0, 0.25, 0.5, 0.5, 5, 5.0, color, 30);
 				TE_SendToAllInRange(vecTarget, RangeType_Visibility);*/
 				
-				NPC_SetGoalVector(npc.index, vPredictedPos);
+				npc.SetGoalVector(vPredictedPos);
 			} else {
-				NPC_SetGoalEntity(npc.index, PrimaryThreatIndex);
+				npc.SetGoalEntity(PrimaryThreatIndex);
 			}
 			if(npc.m_flNextRangedAttack < GetGameTime(npc.index) && flDistanceToTarget > 62500 && flDistanceToTarget < 122500 && npc.m_flReloadDelay < GetGameTime(npc.index))
 			{
@@ -322,7 +331,8 @@ public void Combine_Police_Pistol_ClotThink(int iNPC)
 					float vecDirShooting[3], vecRight[3], vecUp[3];
 					
 					vecTarget[2] += 15.0;
-					MakeVectorFromPoints(WorldSpaceCenter(npc.index), vecTarget, vecDirShooting);
+					float SelfVecPos[3]; WorldSpaceCenter(npc.index, SelfVecPos);
+					MakeVectorFromPoints(SelfVecPos, vecTarget, vecDirShooting);
 					GetVectorAngles(vecDirShooting, vecDirShooting);
 					vecDirShooting[1] = eyePitch[1];
 					GetAngleVectors(vecDirShooting, vecDirShooting, vecRight, vecUp);
@@ -342,15 +352,9 @@ public void Combine_Police_Pistol_ClotThink(int iNPC)
 					vecDir[1] = vecDirShooting[1] + x * vecSpread * vecRight[1] + y * vecSpread * vecUp[1]; 
 					vecDir[2] = vecDirShooting[2] + x * vecSpread * vecRight[2] + y * vecSpread * vecUp[2]; 
 					NormalizeVector(vecDir, vecDir);
+					float WorldSpaceVec[3]; WorldSpaceCenter(npc.index, WorldSpaceVec);
 					
-					if(EscapeModeForNpc)
-					{
-						FireBullet(npc.index, npc.m_iWearable1, WorldSpaceCenter(npc.index), vecDir, 10.0, 9000.0, DMG_BULLET, "bullet_tracer01_red");
-					}
-					else
-					{
-						FireBullet(npc.index, npc.m_iWearable1, WorldSpaceCenter(npc.index), vecDir, 2.0, 9000.0, DMG_BULLET, "bullet_tracer01_red");
-					}
+					FireBullet(npc.index, npc.m_iWearable1, WorldSpaceVec, vecDir, 10.0, 9000.0, DMG_BULLET, "bullet_tracer01_red");
 					
 					npc.PlayRangedSound();
 				}
@@ -363,7 +367,7 @@ public void Combine_Police_Pistol_ClotThink(int iNPC)
 				//Look at target so we hit.
 			//	npc.FaceTowards(vecTarget, 500.0);
 				
-				if((npc.m_flNextMeleeAttack < GetGameTime(npc.index) && flDistanceToTarget < 10000) || npc.m_flAttackHappenswillhappen)
+				if((npc.m_flNextMeleeAttack < GetGameTime(npc.index) && flDistanceToTarget < NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED) || npc.m_flAttackHappenswillhappen)
 				{
 					if (!npc.m_flAttackHappenswillhappen)
 					{
@@ -388,15 +392,8 @@ public void Combine_Police_Pistol_ClotThink(int iNPC)
 								
 								if(target > 0) 
 								{
+									SDKHooks_TakeDamage(target, npc.index, npc.index, 50.0, DMG_CLUB, -1, _, vecHit);
 									
-									if(EscapeModeForNpc)
-									{
-										SDKHooks_TakeDamage(target, npc.index, npc.index, 70.0, DMG_CLUB, -1, _, vecHit);
-									}
-									else
-									{
-										SDKHooks_TakeDamage(target, npc.index, npc.index, 50.0, DMG_CLUB, -1, _, vecHit);
-									}
 									// Hit particle
 									
 									
@@ -418,8 +415,8 @@ public void Combine_Police_Pistol_ClotThink(int iNPC)
 	}
 	else
 	{
-		NPC_StopPathing(npc.index);
-		npc.m_bPathing = false;
+		npc.StopPathing();
+		
 		npc.m_flGetClosestTargetTime = 0.0;
 		npc.m_iTarget = GetClosestTarget(npc.index);
 	}
@@ -456,9 +453,6 @@ public void CombinePolicePistol_NPCDeath(int entity)
 {
 	Combine_Police_Pistol npc = view_as<Combine_Police_Pistol>(entity);
 	
-	
-	SDKUnhook(npc.index, SDKHook_Think, Combine_Police_Pistol_ClotThink);
-		
 	if(!npc.m_bGib)
 	{
 		npc.PlayDeathSound();	

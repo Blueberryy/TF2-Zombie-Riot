@@ -53,15 +53,32 @@ static char g_TeleportSounds[][] = {
 
 void Lanius_OnMapStart_NPC()
 {
-	for (int i = 0; i < (sizeof(g_DeathSounds));	   i++) { PrecacheSound(g_DeathSounds[i]);	   }
-	for (int i = 0; i < (sizeof(g_HurtSounds));		i++) { PrecacheSound(g_HurtSounds[i]);		}
-	for (int i = 0; i < (sizeof(g_IdleSounds));		i++) { PrecacheSound(g_IdleSounds[i]);		}
-	for (int i = 0; i < (sizeof(g_IdleAlertedSounds)); i++) { PrecacheSound(g_IdleAlertedSounds[i]); }
-	for (int i = 0; i < (sizeof(g_MeleeHitSounds));	i++) { PrecacheSound(g_MeleeHitSounds[i]);	}
-	for (int i = 0; i < (sizeof(g_MeleeAttackSounds));	i++) { PrecacheSound(g_MeleeAttackSounds[i]);	}
-	for (int i = 0; i < (sizeof(g_MeleeMissSounds));   i++) { PrecacheSound(g_MeleeMissSounds[i]);   }
-	for (int i = 0; i < (sizeof(g_TeleportSounds));   i++) { PrecacheSound(g_TeleportSounds[i]);  			}
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Lanius");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_ruina_lanius");
+	data.Category = Type_Ruina;
+	data.Func = ClotSummon;
+	data.Precache = ClotPrecache;
+	strcopy(data.Icon, sizeof(data.Icon), "swordsman");
+	data.IconCustom = true;												//download needed?
+	data.Flags = 0;						//example: MVM_CLASS_FLAG_MINIBOSS|MVM_CLASS_FLAG_ALWAYSCRIT;, forces these flags.	
+	NPC_Add(data);
+}
+static void ClotPrecache()
+{
+	PrecacheSoundArray(g_DeathSounds);
+	PrecacheSoundArray(g_HurtSounds);
+	PrecacheSoundArray(g_IdleSounds);
+	PrecacheSoundArray(g_IdleAlertedSounds);
+	PrecacheSoundArray(g_MeleeHitSounds);
+	PrecacheSoundArray(g_MeleeAttackSounds);
+	PrecacheSoundArray(g_MeleeMissSounds);
+	PrecacheSoundArray(g_TeleportSounds);
 	PrecacheModel("models/player/scout.mdl");
+}
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team)
+{
+	return Lanius(vecPos, vecAng, team);
 }
 
 methodmap Lanius < CClotBody
@@ -73,17 +90,13 @@ methodmap Lanius < CClotBody
 		EmitSoundToAll(g_IdleSounds[GetRandomInt(0, sizeof(g_IdleSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, RUINA_NPC_PITCH);
 		this.m_flNextIdleSound = GetGameTime(this.index) + GetRandomFloat(24.0, 48.0);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayIdleSound()");
-		#endif
+
 	}
 	
 	public void PlayTeleportSound() {
 		EmitSoundToAll(g_TeleportSounds[GetRandomInt(0, sizeof(g_TeleportSounds) - 1)], this.index, SNDCHAN_STATIC, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayTeleportSound()");
-		#endif
+
 	}
 	
 	public void PlayIdleAlertSound() {
@@ -93,9 +106,7 @@ methodmap Lanius < CClotBody
 		EmitSoundToAll(g_IdleAlertedSounds[GetRandomInt(0, sizeof(g_IdleAlertedSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, RUINA_NPC_PITCH);
 		this.m_flNextIdleSound = GetGameTime(this.index) + GetRandomFloat(12.0, 24.0);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayIdleAlertSound()");
-		#endif
+		
 	}
 	
 	public void PlayHurtSound() {
@@ -107,49 +118,58 @@ methodmap Lanius < CClotBody
 		EmitSoundToAll(g_HurtSounds[GetRandomInt(0, sizeof(g_HurtSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, RUINA_NPC_PITCH);
 		
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayHurtSound()");
-		#endif
+		
 	}
 	
 	public void PlayDeathSound() {
 	
 		EmitSoundToAll(g_DeathSounds[GetRandomInt(0, sizeof(g_DeathSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, RUINA_NPC_PITCH);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayDeathSound()");
-		#endif
+		
 	}
 	
 	public void PlayMeleeSound() {
-		EmitSoundToAll(g_MeleeAttackSounds[GetRandomInt(0, sizeof(g_MeleeAttackSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, RUINA_NPC_PITCH);
+		EmitSoundToAll(g_MeleeAttackSounds[GetRandomInt(0, sizeof(g_MeleeAttackSounds) - 1)], this.index, SNDCHAN_STATIC, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, RUINA_NPC_PITCH);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayMeleeHitSound()");
-		#endif
+
 	}
 	public void PlayMeleeHitSound() {
 		EmitSoundToAll(g_MeleeHitSounds[GetRandomInt(0, sizeof(g_MeleeHitSounds) - 1)], this.index, SNDCHAN_STATIC, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, RUINA_NPC_PITCH);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayMeleeHitSound()");
-		#endif
+
 	}
 
 	public void PlayMeleeMissSound() {
 		EmitSoundToAll(g_MeleeMissSounds[GetRandomInt(0, sizeof(g_MeleeMissSounds) - 1)], this.index, SNDCHAN_STATIC, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, RUINA_NPC_PITCH);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CGoreFast::PlayMeleeMissSound()");
-		#endif
+		
+	}
+
+	public void AdjustWalkCycle()
+	{
+		if(this.IsOnGround())
+		{
+			if(this.m_iChanged_WalkCycle == 0)
+			{
+				this.SetActivity("ACT_MP_RUN_MELEE_ALLCLASS");
+				this.m_iChanged_WalkCycle = 1;
+			}
+		}
+		else
+		{
+			if(this.m_iChanged_WalkCycle == 1)
+			{
+				this.SetActivity("ACT_MP_JUMP_FLOAT_MELEE");
+				this.m_iChanged_WalkCycle = 0;
+			}
+		}
 	}
 	
 	
-	public Lanius(int client, float vecPos[3], float vecAng[3], bool ally)
+	public Lanius(float vecPos[3], float vecAng[3], int ally)
 	{
 		Lanius npc = view_as<Lanius>(CClotBody(vecPos, vecAng, "models/player/scout.mdl", "1.0", "1250", ally));
 		
-		i_NpcInternalId[npc.index] = RUINA_LANIUS;
 		i_NpcWeight[npc.index] = 1;
 		
 		FormatEx(c_HeadPlaceAttachmentGibName[npc.index], sizeof(c_HeadPlaceAttachmentGibName[]), "head");
@@ -166,18 +186,21 @@ methodmap Lanius < CClotBody
 			Herzenvrecher		"models/workshop/player/items/medic/sf14_medic_herzensbrecher/sf14_medic_herzensbrecher.mdl");
 		
 		*/
+
+		SetVariantInt(1);
+		AcceptEntityInput(npc.index, "SetBodyGroup");
 		
 		npc.m_flNextMeleeAttack = 0.0;
 		
 		npc.m_iBleedType = BLEEDTYPE_NORMAL;
 		npc.m_iStepNoiseType = STEPSOUND_NORMAL;	
 		npc.m_iNpcStepVariation = STEPTYPE_NORMAL;
-		
-		
-		
-		SDKHook(npc.index, SDKHook_Think, Lanius_ClotThink);
-		
-		npc.m_flSpeed = 300.0;
+
+		func_NPCDeath[npc.index] = view_as<Function>(NPC_Death);
+		func_NPCOnTakeDamage[npc.index] = view_as<Function>(OnTakeDamage);
+		func_NPCThink[npc.index] = view_as<Function>(ClotThink);
+
+		npc.m_flSpeed = 250.0;
 		npc.m_flGetClosestTargetTime = 0.0;
 		npc.StartPathing();
 		
@@ -209,14 +232,15 @@ methodmap Lanius < CClotBody
 		SetEntProp(npc.m_iWearable3, Prop_Send, "m_nSkin", skin);
 		SetEntProp(npc.m_iWearable4, Prop_Send, "m_nSkin", skin);
 		SetEntProp(npc.m_iWearable5, Prop_Send, "m_nSkin", skin);
-				
+		
 		npc.m_flNextTeleport = GetGameTime(npc.index) + 1.0;
-				
+		
+		fl_ruina_battery_max[npc.index] = 750.0;
 		fl_ruina_battery[npc.index] = 0.0;
 		b_ruina_battery_ability_active[npc.index] = false;
 		fl_ruina_battery_timer[npc.index] = 0.0;
 		
-		Ruina_Set_Heirarchy(npc.index, 1);	//is a melee npc
+		Ruina_Set_Heirarchy(npc.index, RUINA_MELEE_NPC);	//is a melee npc
 		
 		return npc;
 	}
@@ -224,9 +248,8 @@ methodmap Lanius < CClotBody
 	
 }
 
-//TODO 
-//Rewrite
-public void Lanius_ClotThink(int iNPC)
+
+static void ClotThink(int iNPC)
 {
 	Lanius npc = view_as<Lanius>(iNPC);
 	
@@ -236,7 +259,7 @@ public void Lanius_ClotThink(int iNPC)
 		return;
 	}
 	
-	fl_ruina_battery[npc.index] += 5.0;
+	
 	
 	npc.m_flNextDelayTime = GameTime + DEFAULT_UPDATE_DELAY_FLOAT;
 	
@@ -256,197 +279,90 @@ public void Lanius_ClotThink(int iNPC)
 	
 	npc.m_flNextThinkTime = GameTime + 0.1;
 
+	Ruina_Add_Battery(npc.index, 0.75);
+
+	if(npc.m_flDoingAnimation > GameTime)
+		return;
+
+	npc.AdjustWalkCycle();
+
 	
-	if(npc.m_flGetClosestTargetTime < GameTime)
-	{
-		npc.m_iTarget = GetClosestTarget(npc.index);
-		npc.m_flGetClosestTargetTime = GameTime + GetRandomRetargetTime();
-	}
+	int PrimaryThreatIndex = npc.m_iTarget;	//when the npc first spawns this will obv be invalid, the core handles this.
+
+	Ruina_Ai_Override_Core(npc.index, PrimaryThreatIndex, GameTime);	//handles movement, also handles targeting
 	
-	int PrimaryThreatIndex = npc.m_iTarget;
-	
-	if(fl_ruina_battery[npc.index]>500.0)
+	if(fl_ruina_battery[npc.index]>fl_ruina_battery_max[npc.index])
 	{
 		fl_ruina_battery[npc.index] = 0.0;
-		fl_ruina_battery_timer[npc.index] = GameTime + 2.5;
+		fl_ruina_battery_timer[npc.index] = GameTime + 1.5;
 		
 	}
 	if(fl_ruina_battery_timer[npc.index]>GameTime)	//apply buffs
 	{
-		bool buff_array[3];
-		buff_array[0] = false;	//defense
-		buff_array[1] = true;	//speed
-		buff_array[2] = false;	//attack
-		
-		float buff_array_amt[3];
-		//buff_array_amt[0] = 0.2;	//20% dmg bonus
-		buff_array_amt[1] = 1.3;	//going bellow 1.0 will reduce speed. 30% speed boost
-		//buff_array_amt[2] = 0.05;	//5% dmg resist
-				
-				
-		Apply_Master_Buff(npc.index, buff_array, 125.0, 1.0, buff_array_amt);
+		Master_Apply_Speed_Buff(npc.index, 125.0, 1.0, 1.05);
 	}
-	if(IsValidEnemy(npc.index, PrimaryThreatIndex))
+	if(IsValidEnemy(npc.index, PrimaryThreatIndex))	//a final final failsafe
 	{
-			float vecTarget[3]; vecTarget = WorldSpaceCenter(PrimaryThreatIndex);
+		float vecTarget[3]; WorldSpaceCenter(PrimaryThreatIndex, vecTarget);	
+		float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+		float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 		
-			float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
-			
-			//Predict their pos.
-			Ruina_Ai_Override_Core(npc.index, PrimaryThreatIndex);	//handles movement
-			
-			if(npc.m_flNextTeleport < GetGameTime(npc.index) && flDistanceToTarget > (125.0* 125.0) && flDistanceToTarget < (500.0 * 500.0))
-			{
-				float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, PrimaryThreatIndex);
-				static float flVel[3];
-				GetEntPropVector(PrimaryThreatIndex, Prop_Data, "m_vecVelocity", flVel);
-		
-				if (flVel[0] >= 190.0)
-				{
-					npc.FaceTowards(vPredictedPos);
-					npc.FaceTowards(vPredictedPos);
-					npc.m_flNextTeleport = GetGameTime(npc.index) + 30.0;
-					float Tele_Check = GetVectorDistance(WorldSpaceCenter(npc.index), vPredictedPos);
-					
-					
-					float start_offset[3], end_offset[3];
-					start_offset = WorldSpaceCenter(npc.index);
-					
-					if(Tele_Check > 200.0)
-					{
-						bool Succeed = NPC_Teleport(npc.index, vPredictedPos);
-						if(Succeed)
-						{
-							npc.PlayTeleportSound();
-							
-							float effect_duration = 0.25;
-							
-							
-							end_offset = WorldSpaceCenter(npc.index);
-							
-							start_offset[2]-= 25.0;
-							end_offset[2] -= 25.0;
-							
-							for(int help=1 ; help<=8 ; help++)
-							{	
-								Lanius_Teleport_Effect(RUINA_BALL_PARTICLE_BLUE, effect_duration, start_offset, end_offset);
-								
-								start_offset[2] += 12.5;
-								end_offset[2] += 12.5;
-							}
-						}
-						else
-						{
-							npc.m_flNextTeleport = GetGameTime(npc.index) + 1.0;
-						}
-					}
-				}
-			}
-				
-			
-			//Target close enough to hit
-			if(flDistanceToTarget < 10000 || npc.m_flAttackHappenswillhappen)
-			{
-				//Look at target so we hit.
-				//npc.FaceTowards(vecTarget, 1000.0);
-				
-				//Can we attack right now?
-				if(npc.m_flNextMeleeAttack < GetGameTime(npc.index))
-				{
-					//Play attack ani
-					if (!npc.m_flAttackHappenswillhappen)
-					{
-						npc.AddGesture("ACT_MP_ATTACK_STAND_MELEE_ALLCLASS");
-						npc.PlayMeleeSound();
-						npc.m_flAttackHappens = GetGameTime(npc.index)+0.4;
-						npc.m_flAttackHappens_bullshit = GetGameTime(npc.index)+0.54;
-						npc.m_flAttackHappenswillhappen = true;
-					}
-						
-					if (npc.m_flAttackHappens < GetGameTime(npc.index) && npc.m_flAttackHappens_bullshit >= GetGameTime(npc.index) && npc.m_flAttackHappenswillhappen)
-					{
-						Handle swingTrace;
-						npc.FaceTowards(vecTarget, 20000.0);
-						if(npc.DoSwingTrace(swingTrace, PrimaryThreatIndex))
-						{
-							int target = TR_GetEntityIndex(swingTrace);	
-							
-							float vecHit[3];
-							TR_GetEndPosition(vecHit, swingTrace);
-							
-							if(target > 0) 
-							{
-								
-								if(!ShouldNpcDealBonusDamage(target))
-									SDKHooks_TakeDamage(target, npc.index, npc.index, 25.0, DMG_CLUB, -1, _, vecHit);
-								else
-									SDKHooks_TakeDamage(target, npc.index, npc.index, 125.0, DMG_CLUB, -1, _, vecHit);
-								
-								
-								
-								
-								// Hit sound
-								npc.PlayMeleeHitSound();
-								
-							} 
-						}
-						delete swingTrace;
-						npc.m_flNextMeleeAttack = GetGameTime(npc.index) + 0.6;
-						npc.m_flAttackHappenswillhappen = false;
-					}
-					else if (npc.m_flAttackHappens_bullshit < GetGameTime(npc.index) && npc.m_flAttackHappenswillhappen)
-					{
-						npc.m_flAttackHappenswillhappen = false;
-						npc.m_flNextMeleeAttack = GetGameTime(npc.index) + 0.6;
-					}
-				}
-			}
-			else
-			{
-				npc.StartPathing();
-				
-			}
+		//if(Lanius_Teleport_Logic(npc.index, PrimaryThreatIndex, 150.0*150.0, 750.0*750.0, 45.0))
+		//	npc.PlayTeleportSound();
+
+		Ruina_Self_Defense Melee;
+
+		Melee.iNPC = npc.index;
+		Melee.target = PrimaryThreatIndex;
+		Melee.fl_distance_to_target = flDistanceToTarget;
+		Melee.range = NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED;
+		Melee.damage = 25.0;
+		Melee.bonus_dmg = 125.0;
+		Melee.attack_anim = "ACT_MP_ATTACK_STAND_MELEE_ALLCLASS";
+		Melee.swing_speed = 0.54;
+		Melee.swing_delay = 0.4;
+		Melee.turn_speed = 20000.0;
+		Melee.gameTime = GameTime;
+		Melee.status = 0;
+		Melee.Swing_Melee(OnRuina_MeleeAttack);
+
+		switch(Melee.status)
+		{
+			case 1:	//we swung
+				npc.PlayMeleeSound();
+			case 2:	//we hit something
+				npc.PlayMeleeHitSound();
+			case 3:	//we missed
+				npc.PlayMeleeMissSound();
+			//0 means nothing.
 		}
+	}
 	else
 	{
-		NPC_StopPathing(npc.index);
-		npc.m_bPathing = false;
+		npc.StopPathing();
+		
 		npc.m_flGetClosestTargetTime = 0.0;
 		npc.m_iTarget = GetClosestTarget(npc.index);
 	}
 	npc.PlayIdleAlertSound();
 }
 
-static void Lanius_Teleport_Effect(char type[255], float duration = 0.0, float start_point[3], float end_point[3])
+static void OnRuina_MeleeAttack(int iNPC, int Target)
 {
-	int part1 = CreateEntityByName("info_particle_system");
-	if(IsValidEdict(part1))
-	{
-		TeleportEntity(part1, start_point, NULL_VECTOR, NULL_VECTOR);
-		DispatchKeyValue(part1, "effect_name", type);
-		SetVariantString("!activator");
-		DispatchSpawn(part1);
-		ActivateEntity(part1);
-		AcceptEntityInput(part1, "Start");
-		
-		DataPack pack;
-		CreateDataTimer(0.1, Timer_Move_Particle, pack, TIMER_FLAG_NO_MAPCHANGE);
-		pack.WriteCell(EntIndexToEntRef(part1));
-		pack.WriteCell(end_point[0]);
-		pack.WriteCell(end_point[1]);
-		pack.WriteCell(end_point[2]);
-		pack.WriteCell(duration);
-	}
+	Ruina_Add_Mana_Sickness(iNPC, Target, 0.0, 25);
 }
 
-public Action Lanius_OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3], int damagecustom)
+static Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3], int damagecustom)
 {
+
 	Lanius npc = view_as<Lanius>(victim);
 		
 	if(attacker <= 0)
 		return Plugin_Continue;
 		
-	fl_ruina_battery[npc.index] += damage;	//turn damage taken into energy
+	Ruina_NPC_OnTakeDamage_Override(npc.index, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
+		
+	//Ruina_Add_Battery(npc.index, damage);	//turn damage taken into energy
 	
 	if (npc.m_flHeadshotCooldown < GetGameTime(npc.index))
 	{
@@ -457,7 +373,7 @@ public Action Lanius_OnTakeDamage(int victim, int &attacker, int &inflictor, flo
 	return Plugin_Changed;
 }
 
-public void Lanius_NPCDeath(int entity)
+static void NPC_Death(int entity)
 {
 	Lanius npc = view_as<Lanius>(entity);
 	if(!npc.m_bGib)
@@ -465,8 +381,7 @@ public void Lanius_NPCDeath(int entity)
 		npc.PlayDeathSound();	
 	}
 	
-	
-	SDKUnhook(npc.index, SDKHook_Think, Lanius_ClotThink);
+	Ruina_NPCDeath_Override(entity);
 		
 	if(IsValidEntity(npc.m_iWearable2))
 		RemoveEntity(npc.m_iWearable2);

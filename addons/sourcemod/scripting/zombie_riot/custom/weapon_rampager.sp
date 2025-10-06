@@ -7,7 +7,7 @@ static int attacks_made[MAXPLAYERS+1]={12, ...};
 static int weapon_id[MAXPLAYERS+1]={0, ...};
 static bool Handle_on[MAXPLAYERS+1]={false, ...};
 
-public void Weapon_Rampager(int client, int weapon, const char[] classname, bool &result)
+public void Weapon_Rampager(int client, int weapon, bool crit, int slot)
 {
 	if(weapon >= MaxClients)
 	{
@@ -21,7 +21,7 @@ public void Weapon_Rampager(int client, int weapon, const char[] classname, bool
 		Attributes_Set(weapon, 396, RampagerAttackSpeed(attacks_made[client]));
 		if(Handle_on[client])
 		{
-			KillTimer(Revert_Weapon_Back_Timer[client]);
+			delete Revert_Weapon_Back_Timer[client];
 		}
 		Revert_Weapon_Back_Timer[client] = CreateTimer(3.0, Reset_weapon_rampager, client, TIMER_FLAG_NO_MAPCHANGE);
 		Handle_on[client] = true;

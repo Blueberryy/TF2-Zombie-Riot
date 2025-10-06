@@ -5,29 +5,48 @@
 #define WAND_GERMAN_M2_SOUND	"Taunt.MedicViolinUber"
 #define WAND_GERMAN_M1_SOUND	"WeaponMedigun_Vaccinator.Charged_tier_0%d"
 
-static Handle GermanTimer[MAXTF2PLAYERS];
-static Handle GermanSilence[MAXTF2PLAYERS];
-static int GermanCharges[MAXTF2PLAYERS];
-static int GermanWeapon[MAXTF2PLAYERS];
+static Handle GermanTimer[MAXPLAYERS];
+static Handle GermanSilence[MAXPLAYERS];
+static int GermanCharges[MAXPLAYERS];
+static int GermanWeapon[MAXPLAYERS];
+static int GermanAltModule[MAXPLAYERS];
+static float f3_GermanFiredFromHere[MAXENTITIES][3];
 
 void Weapon_German_MapStart()
 {
+	Zero2(f3_GermanFiredFromHere);
 	PrecacheSound(WAND_GERMAN_HIT_SOUND);
 }
 
 public void Weapon_German_M1_Normal(int client, int weapon, bool &result, int slot)
 {
+	GermanAltModule[client] = 0;
 	Weapon_German_M1(client, weapon, GermanSilence[client] ? 4 : 3);
 }
 
 public void Weapon_German_M1_Module(int client, int weapon, bool &result, int slot)
 {
+	GermanAltModule[client] = 0;
 	Weapon_German_M1(client, weapon, GermanSilence[client] ? 5 : 4);
+}
+
+public void Weapon_German_M1_AltModule(int client, int weapon, bool &result, int slot)
+{
+	GermanAltModule[client] = 1;
+	Weapon_German_M1(client, weapon, GermanSilence[client] ? 4 : 3);
+}
+
+public void Weapon_German_M1_AltModule2(int client, int weapon, bool &result, int slot)
+{
+	GermanAltModule[client] = 2;
+	Weapon_German_M1(client, weapon, GermanSilence[client] ? 4 : 3);
 }
 
 static void Weapon_German_M1(int client, int weapon, int maxcharge)
 {
 	int cost = GermanSilence[client] ? 75 : 100;
+	cost = RoundToNearest(Attributes_Get(weapon, 733, 1.0) * float(cost));
+
 	if(Current_Mana[client] < cost)
 	{
 		ClientCommand(client, "playgamesound items/medshotno1.wav");
@@ -48,7 +67,7 @@ static void Weapon_German_M1(int client, int weapon, int maxcharge)
 		EmitGameSoundToClient(client, buffer);
 		EmitGameSoundToClient(client, buffer);
 
-		Mana_Regen_Delay[client] = GetGameTime() + 1.0;
+		SDKhooks_SetManaRegenDelayTime(client, 1.0);
 		Mana_Hud_Delay[client] = 0.0;
 		delay_hud[client] = 0.0;
 		Current_Mana[client] -= cost;
@@ -118,6 +137,7 @@ public void Weapon_German_Frame(DataPack pack)
 			SetEntPropFloat(weapon, Prop_Send, "m_flNextPrimaryAttack", duration);
 		}
 	}
+	delete pack;
 }
 
 public Action Weapon_German_Timer(Handle timer, int client)
@@ -175,29 +195,31 @@ public Action Weapon_German_Timer(Handle timer, int client)
 					
 					EmitSoundToAll(SOUND_WAND_SHOT, client, _, 65, _, 0.45);
 					int projectile = Wand_Projectile_Spawn(client, speed, time, damage, WEAPON_GERMAN, weapon, "unusual_tesla_flash");
-					
+					WorldSpaceCenter(client, f3_GermanFiredFromHere[projectile]);
 					static float ang_Look[3];
 					GetEntPropVector(projectile, Prop_Send, "m_angRotation", ang_Look);
-					
-					Initiate_HomingProjectile(projectile,
-						client,
-						80.0,		// float lockonAngleMax,
-						20.0,		// float homingaSec,
-						false,		// bool LockOnlyOnce,
-						true,		// bool changeAngles,
-						ang_Look,	// float AnglesInitiate[3]);
-						target);
+					if(target > 0)
+					{
+						Initiate_HomingProjectile(projectile,
+							client,
+							80.0,		// float lockonAngleMax,
+							20.0,		// float homingaSec,
+							false,		// bool LockOnlyOnce,
+							true,		// bool changeAngles,
+							ang_Look,	// float AnglesInitiate[3]);
+							target);
+					}
 				}
 
 				PrintHintText(client, "Charges: %d", GermanCharges[client]);
-				StopSound(client, SNDCHAN_STATIC, "UI/hint.wav");
+				
 			}
 			else
 			{
 				PrintHintText(client, "Charges: %d", GermanCharges[client]);
-				StopSound(client, SNDCHAN_STATIC, "UI/hint.wav");
+				
 
-				Mana_Regen_Delay[client] = GetGameTime() + 1.0;
+				SDKhooks_SetManaRegenDelayTime(client, 1.0);
 				return Plugin_Continue;
 			}
 		}
@@ -249,12 +271,36 @@ void Weapon_German_WandTouch(int entity, int target)
 		float vecForward[3];
 		GetAngleVectors(angles, vecForward, NULL_VECTOR, NULL_VECTOR);
 		static float Entity_Position[3];
-		Entity_Position = WorldSpaceCenter(target);
+		WorldSpaceCenter(target, Entity_Position);
 
 		int weapon = EntRefToEntIndex(i_WandWeapon[entity]);
-
-		SDKHooks_TakeDamage(target, owner, owner, f_WandDamage[entity], DMG_PLASMA, weapon, CalculateDamageForce(vecForward, 10000.0), Entity_Position, _ , ZR_DAMAGE_LASER_NO_BLAST);
 		
+		float DamageWand = f_WandDamage[entity];
+
+		float distance = GetVectorDistance(f3_GermanFiredFromHere[entity], Entity_Position, true);
+		
+		distance -= 1600.0;// Give 60 units of range cus its not going from their hurt pos
+
+		if(distance < 0.1)
+		{
+			distance = 0.1;
+		}
+		float WeaponDamageFalloff = 0.85;
+
+		DamageWand *= Pow(WeaponDamageFalloff, (distance/1000000.0)); //this is 1000, we use squared for optimisations sake
+
+		float Dmg_Force[3]; CalculateDamageForce(vecForward, 10000.0, Dmg_Force);
+		SDKHooks_TakeDamage(target, owner, owner, DamageWand, DMG_PLASMA, weapon, Dmg_Force, Entity_Position, _ , ZR_DAMAGE_LASER_NO_BLAST);
+		
+		if(GermanAltModule[owner] > 0)
+			Elemental_AddNecrosisDamage(target, owner, RoundFloat(DamageWand), weapon);
+
+		if(GermanAltModule[owner] > 1)
+		{
+			if(Nymph_AllowBonusDamage(target))
+				StartBleedingTimer(target, owner, DamageWand * 0.075, 4, weapon, DMG_PLASMA, ZR_DAMAGE_NOAPPLYBUFFS_OR_DEBUFFS);
+		}
+
 		int particle = EntRefToEntIndex(i_WandParticle[entity]);
 		if(particle > MaxClients)
 			RemoveEntity(particle);
@@ -293,9 +339,9 @@ public void Weapon_German_M2(int client, int weapon, bool &result, int slot)
 		}
 		else
 		{
-			Rogue_OnAbilityUse(weapon);
+			Rogue_OnAbilityUse(client, weapon);
 			Ability_Apply_Cooldown(client, slot, 50.0);
-			Mana_Regen_Delay[client] = GetGameTime() + 1.0;
+			SDKhooks_SetManaRegenDelayTime(client, 1.0);
 
 			TF2_AddCondition(client, TFCond_FocusBuff, 30.0);
 			Attributes_SetMulti(weapon, 6, 0.6);

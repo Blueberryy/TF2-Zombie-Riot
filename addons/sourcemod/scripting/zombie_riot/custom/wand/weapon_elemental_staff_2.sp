@@ -3,12 +3,13 @@
 
 static float ability_cooldown[MAXPLAYERS+1]={0.0, ...};
 
-static int client_slammed_how_many_times[MAXTF2PLAYERS];
-static int client_slammed_how_many_times_limit[MAXTF2PLAYERS];
-static float client_slammed_pos[MAXTF2PLAYERS][3];
-static float client_slammed_forward[MAXTF2PLAYERS][3];
-static float client_slammed_right[MAXTF2PLAYERS][3];
-static float f_OriginalDamage[MAXTF2PLAYERS];
+static int client_slammed_how_many_times[MAXPLAYERS];
+static int client_slammed_how_many_times_limit[MAXPLAYERS];
+static float client_slammed_pos[MAXPLAYERS][3];
+static float client_slammed_forward[MAXPLAYERS][3];
+static float client_slammed_right[MAXPLAYERS][3];
+static float f_OriginalDamage[MAXPLAYERS];
+static bool HitAlreadyWithSame[MAXPLAYERS][MAXENTITIES];
 
 public void Wand_Elemental_2_ClearAll()
 {
@@ -34,15 +35,15 @@ public void Weapon_Elemental_Wand_2(int client, int weapon, bool crit, int slot)
 		{
 			if (Ability_Check_Cooldown(client, slot) < 0.0)
 			{
-				Rogue_OnAbilityUse(weapon);
+				Rogue_OnAbilityUse(client, weapon);
 				Ability_Apply_Cooldown(client, slot, 15.0);
-				Mana_Regen_Delay[client] = GetGameTime() + 1.0;
+				SDKhooks_SetManaRegenDelayTime(client, 1.0);
 				Mana_Hud_Delay[client] = 0.0;
 				
 				Current_Mana[client] -= mana_cost;
 				
 				delay_hud[client] = 0.0;
-				float damage = 160.0;
+				float damage = 500.0;
 				damage *= Attributes_Get(weapon, 410, 1.0);
 					
 				f_OriginalDamage[client] = damage;
@@ -51,7 +52,7 @@ public void Weapon_Elemental_Wand_2(int client, int weapon, bool crit, int slot)
 				float vecUp[3];
 				
 				GetVectors(client, client_slammed_forward[client], client_slammed_right[client], vecUp); //Sorry i dont know any other way with this :(
-				client_slammed_pos[client] = GetAbsOrigin(client);
+				GetAbsOrigin(client, client_slammed_pos[client]);
 				client_slammed_pos[client][2] += 5.0;
 				
 				float vecSwingEnd[3];
@@ -69,7 +70,11 @@ public void Weapon_Elemental_Wand_2(int client, int weapon, bool crit, int slot)
 				pack.WriteCell(1);
 				RequestFrame(MakeExplosionFrameLater, pack);
 				
-				Explode_Logic_Custom(damage, client, client, weapon,vecUp,_,_,_,false);
+				for(int i; i<MAXENTITIES; i++)
+				{
+					HitAlreadyWithSame[client][i] = false;
+				}
+				Explode_Logic_Custom(damage, client, client, weapon,vecUp,_,_,_,false, .FunctionToCallBeforeHit = Elemental_BeforeExplodeHit);
 			
 				CreateTimer(0.1, shockwave_explosions, client, TIMER_FLAG_NO_MAPCHANGE|TIMER_REPEAT);
 			}
@@ -94,6 +99,29 @@ public void Weapon_Elemental_Wand_2(int client, int weapon, bool crit, int slot)
 			ShowSyncHudText(client,  SyncHud_Notifaction, "%t", "Not Enough Mana", mana_cost);
 		}
 	}
+}
+
+static float Elemental_BeforeExplodeHit(int attacker, int victim, float &damage, int weapon)
+{
+	if(HitAlreadyWithSame[attacker][victim])
+	{
+		//Each next hit deals much less damage.
+		damage *= 0.1;
+	}
+	HitAlreadyWithSame[attacker][victim] = true;
+	if(NpcStats_ElementalAmp(victim))
+	{
+		//double!
+		bool PlaySound = false;
+		if(f_MinicritSoundDelay[attacker] < GetGameTime())
+		{
+			PlaySound = true;
+			f_MinicritSoundDelay[attacker] = GetGameTime() + 0.01;
+		}
+		DisplayCritAboveNpc(victim, attacker, PlaySound); //Display crit above head
+		return damage;
+	}
+	return 0.0;
 }
 
 public Action shockwave_explosions(Handle timer, int client)
@@ -128,7 +156,7 @@ public Action shockwave_explosions(Handle timer, int client)
 						
 			AcceptEntityInput(ent, "explode");
 			AcceptEntityInput(ent, "kill");
-			Explode_Logic_Custom(f_OriginalDamage[client], client, client, -1, vecSwingEnd,_,_,_,false);
+			Explode_Logic_Custom(f_OriginalDamage[client], client, client, -1, vecSwingEnd,_,_,_,false, .FunctionToCallBeforeHit = Elemental_BeforeExplodeHit);
 		}
 		if(client_slammed_how_many_times[client] > client_slammed_how_many_times_limit[client])
 		{
@@ -145,8 +173,8 @@ public Action shockwave_explosions(Handle timer, int client)
 
 //Passanger Ability stuff.
 
-Handle h_TimerPassangerManagement[MAXPLAYERS+1] = {INVALID_HANDLE, ...};
-static float f_PassangerHudDelay[MAXTF2PLAYERS];
+Handle h_TimerPassangerManagement[MAXPLAYERS+1] = {null, ...};
+static float f_PassangerHudDelay[MAXPLAYERS];
 static int i_PassangerAbilityCount[MAXPLAYERS+1]={0, ...};
 static float f_PassangerAbilityCooldownRegen[MAXPLAYERS+1]={0.0, ...};
 
@@ -160,7 +188,7 @@ static int BeamWand_Glow;
 #define PASSANGER_DURATION 8
 #define PASSANGER_DELAY_ABILITY 0.2
 #define PASSANGER_MAX_ABILITIES 2
-#define PASSANGER_ABILITY_REGARGE_TIME 45.0
+#define PASSANGER_ABILITY_REGARGE_TIME 38.0
 #define SOUND_WAND_LIGHTNING_ABILITY_PAP_INTRO "misc/halloween/spell_lightning_ball_cast.wav"
 #define SOUND_WAND_LIGHTNING_ABILITY_PAP_HIT "misc/halloween/spell_lightning_ball_impact.wav"
 #define SOUND_WAND_PASSANGER "npc/scanner/scanner_electric2.wav"
@@ -186,11 +214,11 @@ void Reset_stats_Passanger_Singular(int client) //This is on disconnect/connect
 {
 	f_PassangerAbilityCooldownRegen[client] = 0.0;
 	i_PassangerAbilityCount[client] = 0;
-	if (h_TimerPassangerManagement[client] != INVALID_HANDLE)
+	if (h_TimerPassangerManagement[client] != null)
 	{
-		KillTimer(h_TimerPassangerManagement[client]);
+		delete h_TimerPassangerManagement[client];
 	}	
-	h_TimerPassangerManagement[client] = INVALID_HANDLE;
+	h_TimerPassangerManagement[client] = null;
 }
 static bool b_EntityHitByLightning[MAXENTITIES];
 
@@ -199,9 +227,10 @@ public void Weapon_Passanger_Attack(int client, int weapon, bool crit, int slot)
 	if(weapon >= MaxClients)
 	{
 		int mana_cost = 75;
+		mana_cost = RoundToNearest(float(mana_cost) * LaserWeapons_ReturnManaCost(weapon));
 		if(mana_cost <= Current_Mana[client])
 		{
-			Mana_Regen_Delay[client] = GetGameTime() + 2.0;
+			SDKhooks_SetManaRegenDelayTime(client, 2.0);
 			Mana_Hud_Delay[client] = 0.0;
 			
 			Current_Mana[client] -= mana_cost;
@@ -220,12 +249,16 @@ public void Weapon_Passanger_Attack(int client, int weapon, bool crit, int slot)
 			delete swingTrace;
 			static float belowBossEyes[3];
 
+			belowBossEyes[0] = 0.0;
+			belowBossEyes[1] = 0.0;
+			belowBossEyes[2] = 0.0;
+
 			float damage = 65.0;
 			damage *= Attributes_Get(weapon, 410, 1.0);
 
 			EmitSoundToAll(SOUND_WAND_PASSANGER, client, SNDCHAN_AUTO, 80, _, 0.9, GetRandomInt(95, 110));
 
-			if(IsValidEnemy(client, target))
+			if(IsValidEnemy(client, target, true, true)) //Must detect camo.
 			{
 				//We have found a victim.
 				GetBeamDrawStartPoint_Stock(client, belowBossEyes);
@@ -255,10 +288,10 @@ stock int GetClosestTargetNotAffectedByLightning(float EntityLocation[3])
 	float TargetDistance = 0.0; 
 	int ClosestTarget = 0; 
 
-	for(int targ; targ<i_MaxcountNpc; targ++)
+	for(int targ; targ<i_MaxcountNpcTotal; targ++)
 	{
-		int baseboss_index = EntRefToEntIndex(i_ObjectsNpcs[targ]);
-		if (IsValidEntity(baseboss_index) && !b_NpcHasDied[baseboss_index] && !b_EntityHitByLightning[baseboss_index])
+		int baseboss_index = EntRefToEntIndexFast(i_ObjectsNpcsTotal[targ]);
+		if (IsValidEntity(baseboss_index) && !b_NpcHasDied[baseboss_index] && !b_EntityHitByLightning[baseboss_index] && GetTeam(baseboss_index) != TFTeam_Red)
 		{
 			float TargetLocation[3]; 
 			GetEntPropVector( baseboss_index, Prop_Data, "m_vecAbsOrigin", TargetLocation ); 
@@ -290,7 +323,7 @@ stock int GetClosestTargetNotAffectedByLightning(float EntityLocation[3])
 }
 
 
-void Passanger_Lightning_Effect(float belowBossEyes[3], float vecHit[3], int Power)
+void Passanger_Lightning_Effect(float belowBossEyes[3], float vecHit[3], int Power, float diameter_override = 0.0, int color[3] = {0,0,0})
 {	
 	
 	int r = 255; //Yellow.
@@ -304,6 +337,16 @@ void Passanger_Lightning_Effect(float belowBossEyes[3], float vecHit[3], int Pow
 	if(Power == 3)
 	{
 		diameter = 25.0;
+	}
+	if(diameter_override != 0.0)
+	{
+		diameter = diameter_override;
+	}
+	if(color[0] != 0)
+	{
+		r = color[0]; //Yellow.
+		g = color[1];
+		b = color[2];
 	}
 	int colorLayer4[4];
 	SetColorRGBA(colorLayer4, r, g, b, 125);
@@ -334,17 +377,17 @@ void Passanger_Lightning_Effect(float belowBossEyes[3], float vecHit[3], int Pow
 
 public void Enable_Passanger(int client, int weapon) // Enable management, handle weapons change but also delete the timer if the client have the max weapon
 {
-	if (h_TimerPassangerManagement[client] != INVALID_HANDLE)
+	if (h_TimerPassangerManagement[client] != null)
 	{
 		//This timer already exists.
 		if(i_CustomWeaponEquipLogic[weapon] == 9) //9 Is for Passanger
 		{
 			//Is the weapon it again?
 			//Yes?
-			KillTimer(h_TimerPassangerManagement[client]);
-			h_TimerPassangerManagement[client] = INVALID_HANDLE;
+			delete h_TimerPassangerManagement[client];
+			h_TimerPassangerManagement[client] = null;
 			DataPack pack;
-			h_TimerPassangerManagement[client] = CreateDataTimer(0.1, Timer_Management_Passanger, pack, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
+			h_TimerPassangerManagement[client] = CreateDataTimer(0.1, Timer_Management_Passanger, pack, TIMER_REPEAT);
 			pack.WriteCell(client);
 			pack.WriteCell(EntIndexToEntRef(weapon));
 		}
@@ -354,15 +397,10 @@ public void Enable_Passanger(int client, int weapon) // Enable management, handl
 	if(i_CustomWeaponEquipLogic[weapon] == 9) //9 Is for Passanger
 	{
 		DataPack pack;
-		h_TimerPassangerManagement[client] = CreateDataTimer(0.1, Timer_Management_Passanger, pack, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
+		h_TimerPassangerManagement[client] = CreateDataTimer(0.1, Timer_Management_Passanger, pack, TIMER_REPEAT);
 		pack.WriteCell(client);
 		pack.WriteCell(EntIndexToEntRef(weapon));
 	}
-
-//	else
-//	{	
-//		Kill_Timer_Passanger(client);
-//	}
 }
 
 
@@ -371,96 +409,94 @@ public Action Timer_Management_Passanger(Handle timer, DataPack pack)
 {
 	pack.Reset();
 	int client = pack.ReadCell();
-	if(IsValidClient(client))
+	int weapon = EntRefToEntIndex(pack.ReadCell());
+	if(!IsValidClient(client) || !IsClientInGame(client) || !IsPlayerAlive(client) || !IsValidEntity(weapon))
 	{
-		if (IsClientInGame(client))
-		{
-			if (IsPlayerAlive(client))
-			{
-				Passanger_Cooldown_Logic(client, EntRefToEntIndex(pack.ReadCell()));
-			}
-			else
-				Kill_Timer_Passanger(client);
-		}
-		else
-			Kill_Timer_Passanger(client);
-	}
-	else
-		Kill_Timer_Passanger(client);
+		h_TimerPassangerManagement[client] = null;
+		return Plugin_Stop;
+	}	
+
+	Passanger_Cooldown_Logic(client, weapon);
 		
 	return Plugin_Continue;
 }
 
 bool Passanger_HasCharge(int client)
 {
-	return h_TimerPassangerManagement[client] != INVALID_HANDLE;
+	return h_TimerPassangerManagement[client] != null;
 }
 
 void Passanger_ChargeReduced(int client, float time)
 {
-	if(h_TimerPassangerManagement[client] != INVALID_HANDLE)
+	if(h_TimerPassangerManagement[client] != null)
 		f_PassangerAbilityCooldownRegen[client] -= time;
 }
-
+bool b_PassangerExtraCharge[MAXPLAYERS];
 public void Passanger_Cooldown_Logic(int client, int weapon)
 {
-	if (!IsValidMulti(client))
-		return;
-		
-	if(IsValidEntity(weapon))
+	if(f_PassangerHudDelay[client] < GetGameTime())
 	{
-		if(i_CustomWeaponEquipLogic[weapon] == 9)
-		{	
-			if(f_PassangerHudDelay[client] < GetGameTime())
+		if(f_PassangerAbilityCooldownRegen[client] < GetGameTime())
+		{
+			f_PassangerAbilityCooldownRegen[client] = GetGameTime() +(PASSANGER_ABILITY_REGARGE_TIME * CooldownReductionAmount(client));
+			i_PassangerAbilityCount[client]++;
+			if(i_PassangerAbilityCount[client] >= 2)
 			{
-				if(f_PassangerAbilityCooldownRegen[client] < GetGameTime())
-				{
-					f_PassangerAbilityCooldownRegen[client] = GetGameTime() + PASSANGER_ABILITY_REGARGE_TIME;
-					i_PassangerAbilityCount[client]++;
-					if(i_PassangerAbilityCount[client] >= 2)
-					{
-						f_PassangerAbilityCooldownRegen[client] = FAR_FUTURE;
-						i_PassangerAbilityCount[client] = 2;
-					}
-
-				}
-				int weapon_holding = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
-				if(weapon_holding == weapon) //Only show if the weapon is actually in your hand right now.
-				{
-					
-					if(i_PassangerAbilityCount[client] != 2)
-					{
-						PrintHintText(client,"Glorious Shards [%i/%i] (Recharge in: %.1f)",i_PassangerAbilityCount[client], PASSANGER_MAX_ABILITIES,f_PassangerAbilityCooldownRegen[client]-GetGameTime());
-					}
-					else
-					{
-						PrintHintText(client,"Glorious Shards [%i/%i]",PASSANGER_MAX_ABILITIES,PASSANGER_MAX_ABILITIES);
-					}
-					StopSound(client, SNDCHAN_STATIC, "UI/hint.wav");
-					f_PassangerHudDelay[client] = GetGameTime() + 0.5;
-				}
+				f_PassangerAbilityCooldownRegen[client] = FAR_FUTURE;
+				i_PassangerAbilityCount[client] = 2;
 			}
 		}
-		else
+		int weapon_holding = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+		if(weapon_holding == weapon) //Only show if the weapon is actually in your hand right now.
 		{
-			Kill_Timer_Passanger(client);
+			b_PassangerExtraCharge[client] = true;
+			float ClientPos[3];
+			WorldSpaceCenter(client, ClientPos);
+			TR_EnumerateEntitiesSphere(ClientPos, 300.0, PARTITION_NON_STATIC_EDICTS, TraceEntityEnumerator_Passanger, client);
+
+			if(b_PassangerExtraCharge[client])
+			{
+				f_PassangerAbilityCooldownRegen[client] -= 0.1;
+			}
+			if(b_PassangerExtraCharge[client])
+			{
+				if(i_PassangerAbilityCount[client] != 2)
+				{
+					PrintHintText(client,"Glorious Shards!! [%i/%i] (Recharge in: %.1f)",i_PassangerAbilityCount[client], PASSANGER_MAX_ABILITIES,f_PassangerAbilityCooldownRegen[client]-GetGameTime());
+				}
+				else
+				{
+					PrintHintText(client,"Glorious Shards!! [%i/%i]",PASSANGER_MAX_ABILITIES,PASSANGER_MAX_ABILITIES);
+				}
+			}
+			else
+			{
+				if(i_PassangerAbilityCount[client] != 2)
+				{
+					PrintHintText(client,"Glorious Shards [%i/%i] (Recharge in: %.1f)",i_PassangerAbilityCount[client], PASSANGER_MAX_ABILITIES,f_PassangerAbilityCooldownRegen[client]-GetGameTime());
+				}
+				else
+				{
+					PrintHintText(client,"Glorious Shards [%i/%i]",PASSANGER_MAX_ABILITIES,PASSANGER_MAX_ABILITIES);
+				}				
+			}
+
+			
+			f_PassangerHudDelay[client] = GetGameTime() + 0.5;
 		}
 	}
-	else
-	{
-		Kill_Timer_Passanger(client);
-	}
 }
 
-public void Kill_Timer_Passanger(int client)
+public bool TraceEntityEnumerator_Passanger(int entity, int filterentity)
 {
-	if (h_TimerPassangerManagement[client] != INVALID_HANDLE)
+	if(IsValidEnemy(filterentity, entity, true, true)) //Must detect camo.
 	{
-		KillTimer(h_TimerPassangerManagement[client]);
-		h_TimerPassangerManagement[client] = INVALID_HANDLE;
+		b_PassangerExtraCharge[filterentity] = false;
+		return false; //stop.
 	}
+	//always keep going!
+	return true;
 }
-
 public void Weapon_Passanger_LightningArea(int client, int weapon, bool crit, int slot)
 {
 	if(i_PassangerAbilityCount[client] > 0 || CvarInfiniteCash.BoolValue)
@@ -468,8 +504,8 @@ public void Weapon_Passanger_LightningArea(int client, int weapon, bool crit, in
 		int mana_cost = 350;
 		if(mana_cost <= Current_Mana[client])
 		{		
-			Rogue_OnAbilityUse(weapon);
-			Mana_Regen_Delay[client] = GetGameTime() + 1.0;
+			Rogue_OnAbilityUse(client, weapon);
+			SDKhooks_SetManaRegenDelayTime(client, 1.0);
 			Mana_Hud_Delay[client] = 0.0;
 			
 			Current_Mana[client] -= mana_cost;
@@ -477,7 +513,7 @@ public void Weapon_Passanger_LightningArea(int client, int weapon, bool crit, in
 			delay_hud[client] = 0.0;
 			if(i_PassangerAbilityCount[client] == 2)
 			{
-				f_PassangerAbilityCooldownRegen[client] = GetGameTime() + PASSANGER_ABILITY_REGARGE_TIME;
+				f_PassangerAbilityCooldownRegen[client] = GetGameTime() + (PASSANGER_ABILITY_REGARGE_TIME * CooldownReductionAmount(client));
 			}
 			i_PassangerAbilityCount[client] -= 1;
 
@@ -493,10 +529,14 @@ public void Weapon_Passanger_LightningArea(int client, int weapon, bool crit, in
 
 			delete swingTrace;
 			
-			if(IsValidEnemy(client, target))
+			if(IsValidEnemy(client, target, true, true)) //Must detect camo.
 			{
 				//We have found a victim.
 				static float belowBossEyes[3];
+				belowBossEyes[0] = 0.0;
+				belowBossEyes[1] = 0.0;
+				belowBossEyes[2] = 0.0;
+
 				GetBeamDrawStartPoint_Stock(client, belowBossEyes);
 				GetEntPropVector(target, Prop_Data, "m_vecAbsOrigin", vecHit);
 				Passanger_Activate_Storm(client, weapon, vecHit);
@@ -554,23 +594,32 @@ public void Weapon_Passanger_LightningArea(int client, int weapon, bool crit, in
 void Passanger_Lightning_Strike(int client, int target, int weapon, float damage, float StartLightningPos[3], bool Firstlightning = true)
 {
 	static float vecHit[3];
-	GetBeamDrawStartPoint_Stock(client, StartLightningPos);
+	if(weapon != -2)
+		GetBeamDrawStartPoint_Stock(client, StartLightningPos);
+		
 	GetEntPropVector(target, Prop_Data, "m_vecAbsOrigin", vecHit);
+	vecHit[2] += 40.0;
+
+	//weapon = -1 means its a building that caused it, i guess.
 
 	//deal more damage during raids, otherwise its really weak in most cases.
-	if(IsValidEntity(EntRefToEntIndex(RaidBossActive)))
+	if(client <= MaxClients && b_PassangerExtraCharge[client])
 	{
-		damage *= 1.25;
+		damage *= 1.1;
 	}
-
 	if(Firstlightning)
 	{
-		Passanger_Lightning_Effect(StartLightningPos, WorldSpaceCenter(target), 1);
+		float EnemyVecPos[3]; WorldSpaceCenter(target, EnemyVecPos);
+		Passanger_Lightning_Effect(StartLightningPos, EnemyVecPos, 1);
 	}
-	StartLightningPos = WorldSpaceCenter(target);
-	f_PassangerDebuff[target] = GetGameTime() + 0.3;
+	WorldSpaceCenter(target, StartLightningPos);
+	ApplyStatusEffect(client, target, "Electric Impairability", 0.3);
 	SDKHooks_TakeDamage(target, client, client, damage, DMG_PLASMA, weapon, {0.0, 0.0, -50000.0}, vecHit);	//BURNING TO THE GROUND!!!
-	f_CooldownForHurtHud[client] = 0.0;
+	if(weapon == -2)
+		ApplyStatusEffect(client, target, "Medusa's Teslar", 5.0);
+
+	if(client <= MaxClients)
+		f_CooldownForHurtHud[client] = 0.0;
 	b_EntityHitByLightning[target] = true;
 	float original_damage = damage;
 	for (int loop = 6; loop > 2; loop--)
@@ -581,14 +630,22 @@ void Passanger_Lightning_Strike(int client, int target, int weapon, float damage
 			damage = (original_damage * (0.15 * loop));
 			if(b_thisNpcIsARaid[enemy])
 			{
-				damage *= 1.35;
+				damage *= 1.5;
+				//undo damage nerf that we did before for the ability
+				if(Firstlightning == false)
+					damage /= 0.5;
 			}
-			f_PassangerDebuff[enemy] = GetGameTime() + 0.3;
-			SDKHooks_TakeDamage(enemy, client, client, damage, DMG_PLASMA, weapon, {0.0, 0.0, -50000.0}, vecHit);		
-			f_CooldownForHurtHud[client] = 0.0;
+			ApplyStatusEffect(client, enemy, "Electric Impairability", 0.3);
+			SDKHooks_TakeDamage(enemy, client, client, damage, DMG_PLASMA, weapon, {0.0, 0.0, -50000.0}, vecHit);	
+			if(weapon == -2)
+				ApplyStatusEffect(client, target, "Medusa's Teslar", 5.0);
+
+			if(client <= MaxClients)	
+				f_CooldownForHurtHud[client] = 0.0;
 			GetEntPropVector(enemy, Prop_Data, "m_vecAbsOrigin", vecHit);
-			Passanger_Lightning_Effect(StartLightningPos, WorldSpaceCenter(enemy), 3);
-			StartLightningPos = WorldSpaceCenter(enemy);
+			float EnemyVecPos[3]; WorldSpaceCenter(enemy, EnemyVecPos);
+			Passanger_Lightning_Effect(StartLightningPos, EnemyVecPos, 3);
+			WorldSpaceCenter(enemy, StartLightningPos);
 		}
 		else
 		{
@@ -614,20 +671,22 @@ void Passanger_CauseCoolSoundEffect(float StartLightningPos[3])
 	Angles [1] = GetRandomFloat(-180.0, 180.0);
 	TeleportEntity(particle_extra, NULL_VECTOR, Angles, NULL_VECTOR);				
 
-	EmitSoundToAll(SOUND_WAND_LIGHTNING_ABILITY_PAP_HIT, 0, SNDCHAN_AUTO, SNDLEVEL_NORMAL, SND_NOFLAGS, SNDVOL_NORMAL, SNDPITCH_NORMAL, -1, StartLightningPos);
-	EmitSoundToAll(SOUND_WAND_LIGHTNING_ABILITY_PAP_HIT, 0, SNDCHAN_AUTO, SNDLEVEL_NORMAL, SND_NOFLAGS, SNDVOL_NORMAL, SNDPITCH_NORMAL, -1, StartLightningPos);	
+	EmitSoundToAll(SOUND_WAND_LIGHTNING_ABILITY_PAP_HIT, 0, SNDCHAN_AUTO, 80, SND_NOFLAGS, 0.9, SNDPITCH_NORMAL, -1, StartLightningPos);
+	EmitSoundToAll(SOUND_WAND_LIGHTNING_ABILITY_PAP_HIT, 0, SNDCHAN_AUTO, 80, SND_NOFLAGS, 0.9, SNDPITCH_NORMAL, -1, StartLightningPos);	
 }
 
 void Passanger_Activate_Storm(int client, int weapon, float lightningpos[3])
 {
-	float damage = 165.0;
+	float damage = 150.0;
 	damage *= Attributes_Get(weapon, 410, 1.0); //massive damage!
+	damage *= 0.5;
+	damage *= 0.7;
 
 
 	FakeClientCommand(client, "voicemenu 0 2"); //Go go go! Cause them to point!
 	PassangerHandLightningEffect(client, lightningpos);
 	DataPack pack;
-	CreateDataTimer(PASSANGER_DELAY_ABILITY, TimerPassangerAbility, pack, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
+	CreateDataTimer(PASSANGER_DELAY_ABILITY, TimerPassangerAbility, pack, TIMER_REPEAT);
 	pack.WriteCell(client);
 	pack.WriteCell(EntIndexToEntRef(weapon));
 	pack.WriteFloat(damage);
@@ -663,10 +722,10 @@ public Action TimerPassangerAbility(Handle timer, DataPack pack)
 	{
 		int count;
 		static int targets[i_MaxcountNpc];
-		for(int targ; targ<i_MaxcountNpc; targ++)
+		for(int targ; targ<i_MaxcountNpcTotal; targ++)
 		{
-			int baseboss_index = EntRefToEntIndex(i_ObjectsNpcs[targ]);
-			if (IsValidEntity(baseboss_index) && !b_NpcHasDied[baseboss_index])
+			int baseboss_index = EntRefToEntIndexFast(i_ObjectsNpcsTotal[targ]);
+			if (IsValidEntity(baseboss_index) && !b_NpcHasDied[baseboss_index] && GetTeam(baseboss_index) != TFTeam_Red)
 			{
 				static float TargetLocation[3]; 
 				GetEntPropVector( baseboss_index, Prop_Data, "m_vecAbsOrigin", TargetLocation ); 
@@ -734,4 +793,17 @@ static void PassangerHandLightningEffect(int entity = -1, float VecPos_target[3]
 	laser = ConnectWithBeam(entity, -1, r, g, b, 3.0, 3.0, 2.35, LASERBEAM, _, VecPos_target,"effect_hand_l");
 
 	CreateTimer(1.1, Timer_RemoveEntity, EntIndexToEntRef(laser), TIMER_FLAG_NO_MAPCHANGE);
+}
+
+
+
+float LaserWeapons_ReturnManaCost(int weapon)
+{
+	float ManaCost = 1.0;
+	//This will take into account projectile stuff for lasers, so tinkers and other stuff dont give free damage.
+	ManaCost *= (1.0 / Attributes_Get(weapon, 101, 1.0));
+	ManaCost *= (1.0 / Attributes_Get(weapon, 102, 1.0));
+	ManaCost *= (1.0 / Attributes_Get(weapon, 103, 1.0));
+	ManaCost *= (1.0 / Attributes_Get(weapon, 104, 1.0));
+	return ManaCost;
 }

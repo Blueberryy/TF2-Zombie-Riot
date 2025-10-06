@@ -24,15 +24,25 @@ public void Lighting_Wand_Spell_ClearAll()
 
 public void Weapon_Wand_LightningSpell(int client, int weapon, bool &result, int slot)
 {
+	Weapon_Wand_LightningSpell_Internal(client, weapon, result, slot, false);
+}
+public void Weapon_Wand_LightningSpell_Internal(int client, int weapon, bool &result, int slot, bool free)
+{
 	if(weapon >= MaxClients)
 	{
 		int mana_cost = 100;
-		if(mana_cost <= Current_Mana[client])
+		if(mana_cost <= Current_Mana[client] || free)
 		{
-			if (Ability_Check_Cooldown(client, slot) < 0.0)
+			if (Ability_Check_Cooldown(client, slot) < 0.0 || free)
 			{
-				Rogue_OnAbilityUse(weapon);
-				Ability_Apply_Cooldown(client, slot, 15.0);
+				Rogue_OnAbilityUse(client, weapon);
+				if(!free)
+				{
+					Ability_Apply_Cooldown(client, slot, 15.0);
+					SDKhooks_SetManaRegenDelayTime(client, 1.0);
+					
+					Current_Mana[client] -= mana_cost;
+				}
 				
 				float damage = 130.0;
 				
@@ -42,10 +52,6 @@ public void Weapon_Wand_LightningSpell(int client, int weapon, bool &result, int
 			
 				Fireball_Damage[client] = damage;
 					
-				Mana_Regen_Delay[client] = GetGameTime() + 1.0;
-				Mana_Hud_Delay[client] = 0.0;
-				
-				Current_Mana[client] -= mana_cost;
 					
 				delay_hud[client] = 0.0;
 				Damage_Reduction[client] = 1.0;
@@ -63,8 +69,6 @@ public void Weapon_Wand_LightningSpell(int client, int weapon, bool &result, int
 				if(TR_DidHit(trace))
 				{   
 		   		 	TR_GetEndPosition(vEnd, trace);
-			
-					CloseHandle(trace);
 					
 					Explode_Logic_Custom(damage, client, client, weapon, vEnd,_,_,_,false);
 					
@@ -127,6 +131,7 @@ public void Weapon_Wand_LightningSpell(int client, int weapon, bool &result, int
 					EmitSoundToAll(SOUND_WAND_LIGHTNING_ABILITY, 0, SNDCHAN_AUTO, SNDLEVEL_NORMAL, SND_NOFLAGS, SNDVOL_NORMAL, SNDPITCH_NORMAL, -1, vEnd);	
 
 				}
+				delete trace;
 				FinishLagCompensation_Base_boss();
 				
 			}

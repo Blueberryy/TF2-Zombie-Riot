@@ -73,10 +73,6 @@ static const char g_MeleeAttackSounds[][] = {
 	"weapons/shovel_swing.wav",
 };
 
-static const char g_MeleeMissSounds[][] = {
-	"weapons/cbar_miss1.wav",
-};
-
 void MedivalConstruct_OnMapStart_NPC()
 {
 	for (int i = 0; i < (sizeof(g_DeathSounds));	   i++) { PrecacheSound(g_DeathSounds[i]);	   }
@@ -85,10 +81,23 @@ void MedivalConstruct_OnMapStart_NPC()
 	for (int i = 0; i < (sizeof(g_IdleAlertedSounds)); i++) { PrecacheSound(g_IdleAlertedSounds[i]); }
 	for (int i = 0; i < (sizeof(g_MeleeHitSounds));	i++) { PrecacheSound(g_MeleeHitSounds[i]);	}
 	for (int i = 0; i < (sizeof(g_MeleeAttackSounds));	i++) { PrecacheSound(g_MeleeAttackSounds[i]);	}
-	for (int i = 0; i < (sizeof(g_MeleeMissSounds));   i++) { PrecacheSound(g_MeleeMissSounds[i]);   }
+	for (int i = 0; i < (sizeof(g_DefaultMeleeMissSounds));   i++) { PrecacheSound(g_DefaultMeleeMissSounds[i]);   }
 	PrecacheModel(COMBINE_CUSTOM_MODEL);
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Medieval Construct");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_medival_construct");
+	strcopy(data.Icon, sizeof(data.Icon), "construct");
+	data.IconCustom = true;
+	data.Flags = 0;
+	data.Category = Type_Medieval;
+	data.Func = ClotSummon;
+	NPC_Add(data);
 }
 
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team)
+{
+	return MedivalConstruct(vecPos, vecAng, team);
+}
 methodmap MedivalConstruct < CClotBody
 {
 	public void PlayIdleSound() {
@@ -97,9 +106,7 @@ methodmap MedivalConstruct < CClotBody
 		EmitSoundToAll(g_IdleSounds[GetRandomInt(0, sizeof(g_IdleSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 100);
 		this.m_flNextIdleSound = GetGameTime(this.index) + GetRandomFloat(24.0, 48.0);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayIdleSound()");
-		#endif
+
 	}
 	
 	public void PlayIdleAlertSound() {
@@ -109,9 +116,7 @@ methodmap MedivalConstruct < CClotBody
 		EmitSoundToAll(g_IdleAlertedSounds[GetRandomInt(0, sizeof(g_IdleAlertedSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 100);
 		this.m_flNextIdleSound = GetGameTime(this.index) + GetRandomFloat(12.0, 24.0);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayIdleAlertSound()");
-		#endif
+		
 	}
 	
 	public void PlayHurtSound() {
@@ -123,50 +128,39 @@ methodmap MedivalConstruct < CClotBody
 		EmitSoundToAll(g_HurtSounds[GetRandomInt(0, sizeof(g_HurtSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 100);
 		
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayHurtSound()");
-		#endif
+		
 	}
 	
 	public void PlayDeathSound() {
 	
 		EmitSoundToAll(g_DeathSounds[GetRandomInt(0, sizeof(g_DeathSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 100);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayDeathSound()");
-		#endif
+		
 	}
 	
 	public void PlayMeleeSound() {
 		EmitSoundToAll(g_MeleeAttackSounds[GetRandomInt(0, sizeof(g_MeleeAttackSounds) - 1)], this.index, _, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 100);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayMeleeHitSound()");
-		#endif
+
 	}
 	
 	public void PlayMeleeHitSound() {
 		EmitSoundToAll(g_MeleeHitSounds[GetRandomInt(0, sizeof(g_MeleeHitSounds) - 1)], this.index, _, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 100);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayMeleeHitSound()");
-		#endif
+
 	}
 
 	public void PlayMeleeMissSound() {
-		EmitSoundToAll(g_MeleeMissSounds[GetRandomInt(0, sizeof(g_MeleeMissSounds) - 1)], this.index, _, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 100);
+		EmitSoundToAll(g_DefaultMeleeMissSounds[GetRandomInt(0, sizeof(g_DefaultMeleeMissSounds) - 1)], this.index, _, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 100);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CGoreFast::PlayMeleeMissSound()");
-		#endif
+		
 	}
 	
-	public MedivalConstruct(int client, float vecPos[3], float vecAng[3], bool ally)
+	public MedivalConstruct(float vecPos[3], float vecAng[3], int ally)
 	{
 		MedivalConstruct npc = view_as<MedivalConstruct>(CClotBody(vecPos, vecAng, COMBINE_CUSTOM_MODEL, "1.85", "20000", ally, false, true));
 		SetVariantInt(1);
-		AcceptEntityInput(npc.index, "SetBodyGroup");				
-		i_NpcInternalId[npc.index] = MEDIVAL_CONSTRUCT;
+		AcceptEntityInput(npc.index, "SetBodyGroup");
 		i_NpcWeight[npc.index] = 3;
 		
 		FormatEx(c_HeadPlaceAttachmentGibName[npc.index], sizeof(c_HeadPlaceAttachmentGibName[]), "head");
@@ -183,7 +177,9 @@ methodmap MedivalConstruct < CClotBody
 		npc.m_iNpcStepVariation = STEPTYPE_COMBINE;
 		
 		
-		SDKHook(npc.index, SDKHook_Think, MedivalConstruct_ClotThink);
+		func_NPCDeath[npc.index] = MedivalConstruct_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = MedivalConstruct_OnTakeDamage;
+		func_NPCThink[npc.index] = MedivalConstruct_ClotThink;
 
 		npc.m_iState = 0;
 		npc.m_flSpeed = 280.0;
@@ -196,14 +192,12 @@ methodmap MedivalConstruct < CClotBody
 		npc.m_flMeleeArmor = 1.0;
 		npc.m_flRangedArmor = 0.75;
 
-		SetEntityRenderMode(npc.index, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(npc.index, 255, 215, 0, 255);
 		
 		npc.m_iWearable2 = npc.EquipItem("weapon_bone", "models/weapons/c_models/c_claymore/c_claymore.mdl");
 		SetVariantString("1.25");
 		AcceptEntityInput(npc.m_iWearable2, "SetModelScale");
 		
-		SetEntityRenderMode(npc.m_iWearable2, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(npc.m_iWearable2, 255, 215, 0, 255);
 		
 		SetEntProp(npc.m_iWearable2, Prop_Send, "m_nSkin", 2);
@@ -212,7 +206,6 @@ methodmap MedivalConstruct < CClotBody
 		SetVariantString("1.25");
 		AcceptEntityInput(npc.m_iWearable1, "SetModelScale");
 		
-		SetEntityRenderMode(npc.m_iWearable1, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(npc.m_iWearable1, 255, 215, 0, 255);
 
 
@@ -222,8 +215,7 @@ methodmap MedivalConstruct < CClotBody
 	}
 }
 
-//TODO 
-//Rewrite
+
 public void MedivalConstruct_ClotThink(int iNPC)
 {
 	MedivalConstruct npc = view_as<MedivalConstruct>(iNPC);
@@ -268,7 +260,8 @@ public void MedivalConstruct_ClotThink(int iNPC)
 			if(IsValidEnemy(npc.index, npc.m_iTarget))
 			{
 				Handle swingTrace;
-				npc.FaceTowards(WorldSpaceCenter(npc.m_iTarget), 15000.0); //Snap to the enemy. make backstabbing hard to do.
+				float TargetVecPos[3]; WorldSpaceCenter(npc.m_iTarget, TargetVecPos);
+				npc.FaceTowards(TargetVecPos, 15000.0); 
 				if(npc.DoSwingTrace(swingTrace, npc.m_iTarget, _, _, _, 1)) //Big range, but dont ignore buildings if somehow this doesnt count as a raid to be sure.
 				{
 					int target = TR_GetEntityIndex(swingTrace);	
@@ -277,9 +270,10 @@ public void MedivalConstruct_ClotThink(int iNPC)
 					TR_GetEndPosition(vecHit, swingTrace);
 					float damage = 100.0;
 
-					npc.PlayMeleeHitSound();
+					
 					if(target > 0) 
 					{
+						npc.PlayMeleeHitSound();
 						SDKHooks_TakeDamage(target, npc.index, npc.index, damage, DMG_CLUB, -1, _, vecHit);
 					}
 				}
@@ -296,7 +290,8 @@ public void MedivalConstruct_ClotThink(int iNPC)
 			if(IsValidEnemy(npc.index, npc.m_iTarget))
 			{
 				Handle swingTrace;
-				npc.FaceTowards(WorldSpaceCenter(npc.m_iTarget), 15000.0); //Snap to the enemy. make backstabbing hard to do.
+				float TargetVecPos[3]; WorldSpaceCenter(npc.m_iTarget, TargetVecPos);
+				npc.FaceTowards(TargetVecPos, 15000.0); 
 				if(npc.DoSwingTrace(swingTrace, npc.m_iTarget, _, _, _, 1)) //Big range, but dont ignore buildings if somehow this doesnt count as a raid to be sure.
 				{
 					int target = TR_GetEntityIndex(swingTrace);	
@@ -308,10 +303,22 @@ public void MedivalConstruct_ClotThink(int iNPC)
 					{
 						damage = 2500.0;
 					}
+
 					if(target > 0) 
 					{
 						SDKHooks_TakeDamage(target, npc.index, npc.index, damage, DMG_CLUB, -1, _, vecHit);
 					}
+					
+					// April Fools 2025
+					if(Elemental_HasDamage(npc.index, Element_Burger))
+					{
+						Elemental_AddBurgerDamage(npc.index, target, RoundFloat(damage));
+					}
+					if(f_ArmorCurrosionImmunity[npc.index][Element_Burger] > GetGameTime())
+					{
+						SDKHooks_TakeDamage(npc.index, target, target, ReturnEntityMaxHealth(npc.index) * 3.0, DMG_TRUEDAMAGE|DMG_PREVENT_PHYSICS_FORCE);
+					}
+					
 					SetEntProp(npc.index, Prop_Data, "m_iHealth", GetEntProp(npc.index, Prop_Data, "m_iHealth") + RoundToCeil(damage * 0.5));
 				}
 				delete swingTrace;
@@ -321,19 +328,20 @@ public void MedivalConstruct_ClotThink(int iNPC)
 	
 	if(IsValidEnemy(npc.index, npc.m_iTarget))
 	{
-		float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
-		float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+		float vecTarget[3]; WorldSpaceCenter(npc.m_iTarget, vecTarget );
+		float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+		float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 			
 		//Predict their pos.
 		if(flDistanceToTarget < npc.GetLeadRadius()) 
 		{
-			float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, npc.m_iTarget);
+			float vPredictedPos[3]; PredictSubjectPosition(npc, npc.m_iTarget,_,_, vPredictedPos);
 			
-			NPC_SetGoalVector(npc.index, vPredictedPos);
+			npc.SetGoalVector(vPredictedPos);
 		}
 		else
 		{
-			NPC_SetGoalEntity(npc.index, npc.m_iTarget);
+			npc.SetGoalEntity(npc.m_iTarget);
 		}
 		//Get position for just travel here.
 
@@ -371,11 +379,9 @@ public void MedivalConstruct_ClotThink(int iNPC)
 			}
 			case 1:
 			{			
-				int Enemy_I_See;
-							
-				Enemy_I_See = Can_I_See_Enemy(npc.index, npc.m_iTarget);
+				int Enemy_I_See = Can_I_See_Enemy(npc.index, npc.m_iTarget);
 				//Can i see This enemy, is something in the way of us?
-				//Dont even check if its the same enemy, just engage in rape, and also set our new target to this just in case.
+				//Dont even check if its the same enemy, just engage in killing, and also set our new target to this just in case.
 				if(IsValidEntity(Enemy_I_See) && IsValidEnemy(npc.index, Enemy_I_See))
 				{
 					npc.m_iTarget = Enemy_I_See;
@@ -407,8 +413,8 @@ public void MedivalConstruct_ClotThink(int iNPC)
 	}
 	else
 	{
-		NPC_StopPathing(npc.index);
-		npc.m_bPathing = false;
+		npc.StopPathing();
+		
 		npc.m_flGetClosestTargetTime = 0.0;
 		npc.m_iTarget = GetClosestTarget(npc.index);
 	}
@@ -441,9 +447,6 @@ public void MedivalConstruct_NPCDeath(int entity)
 	{
 		npc.PlayDeathSound();	
 	}
-	
-	
-	SDKUnhook(npc.index, SDKHook_Think, MedivalConstruct_ClotThink);
 		
 	if(IsValidEntity(npc.m_iWearable1))
 		RemoveEntity(npc.m_iWearable1);

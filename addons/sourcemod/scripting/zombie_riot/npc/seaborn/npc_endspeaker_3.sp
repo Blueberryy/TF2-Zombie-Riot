@@ -3,17 +3,16 @@
 
 methodmap EndSpeaker3 < EndSpeakerNormal
 {
-	public EndSpeaker3(bool ally)
+	public EndSpeaker3(int ally)
 	{
 		float vecPos[3], vecAng[3];
 		view_as<EndSpeaker>(0).GetSpawn(vecPos, vecAng);
 
 		char health[12];
-		IntToString(view_as<EndSpeaker>(0).m_iBaseHealth * 5 / 2, health, sizeof(health));
+		IntToString(view_as<EndSpeaker>(0).m_iBaseHealth * 4, health, sizeof(health));
 
 		EndSpeaker3 npc = view_as<EndSpeaker3>(CClotBody(vecPos, vecAng, "models/antlion.mdl", "1.15", health, ally, false));
 		
-		i_NpcInternalId[npc.index] = ENDSPEAKER_3;
 		i_NpcWeight[npc.index] = 3;
 		npc.SetActivity("ACT_RUN");
 		npc.AddGesture("ACT_ANTLION_BURROW_OUT");
@@ -26,7 +25,9 @@ methodmap EndSpeaker3 < EndSpeakerNormal
 		npc.m_iNpcStepVariation = STEPTYPE_SEABORN;
 		npc.m_bDissapearOnDeath = true;
 		
-		SDKHook(npc.index, SDKHook_Think, EndSpeaker3_ClotThink);
+		func_NPCDeath[npc.index] = EndSpeaker3_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = EndSpeaker_OnTakeDamage;
+		func_NPCThink[npc.index] = EndSpeaker3_ClotThink;
 		
 		npc.m_flSpeed = 325.0;	// 0.8 + 0.5 x 250
 		npc.m_flGetClosestTargetTime = 0.0;
@@ -36,8 +37,19 @@ methodmap EndSpeaker3 < EndSpeakerNormal
 		npc.m_flAttackHappens = 0.0;
 		npc.m_fbGunout = true;
 		
-		SetEntityRenderMode(npc.index, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(npc.index, 200, 200, 255, 255);
+
+		if(!npc.m_bHardMode && ally != TFTeam_Red && !IsValidEntity(RaidBossActive))
+		{
+			RaidBossActive = EntIndexToEntRef(npc.index);
+			RaidModeTime = GetGameTime() + 9000.0;
+			RaidModeScaling = MultiGlobalHealth;
+			if(RaidModeScaling == 1.0) //Dont show scaling if theres none.
+				RaidModeScaling = 0.0;
+			else
+				RaidModeScaling *= 1.5;
+			RaidAllowsBuildings = true;
+		}
 		return npc;
 	}
 }
@@ -75,8 +87,9 @@ public void EndSpeaker3_ClotThink(int iNPC)
 	
 	if(npc.m_iTarget > 0)
 	{
-		float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
-		float distance = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+		float vecTarget[3]; WorldSpaceCenter(npc.m_iTarget, vecTarget );
+		float npc_vec[3]; WorldSpaceCenter(npc.index, npc_vec );
+		float distance = GetVectorDistance(vecTarget, npc_vec, true);
 		
 		if(npc.m_flAttackHappens)
 		{
@@ -84,7 +97,7 @@ public void EndSpeaker3_ClotThink(int iNPC)
 			
 			if(npc.m_flAttackHappens < gameTime)
 			{
-				vecTarget = PredictSubjectPositionForProjectiles(npc, npc.m_iTarget, 1200.0);
+				PredictSubjectPositionForProjectiles(npc, npc.m_iTarget, 1200.0, _,vecTarget);
 
 				npc.m_flAttackHappens = 0.0;
 				
@@ -113,10 +126,9 @@ public void EndSpeaker3_ClotThink(int iNPC)
 						if(IsValidEntity(f_ArrowTrailParticle[entity]))
 							RemoveEntity(f_ArrowTrailParticle[entity]);
 						
-						SetEntityRenderMode(entity, RENDER_TRANSCOLOR);
 						SetEntityRenderColor(entity, 100, 100, 255, 255);
 						
-						vecTarget = WorldSpaceCenter(entity);
+						WorldSpaceCenter(entity, vecTarget);
 						f_ArrowTrailParticle[entity] = ParticleEffectAt(vecTarget, "rockettrail_bubbles", 3.0);
 						SetParent(entity, f_ArrowTrailParticle[entity]);
 						f_ArrowTrailParticle[entity] = EntIndexToEntRef(f_ArrowTrailParticle[entity]);
@@ -138,6 +150,13 @@ public void EndSpeaker3_ClotThink(int iNPC)
 								attack *= 15.0;
 							
 							KillFeed_SetKillIcon(npc.index, "warrior_spirit");
+							
+							float DamageDoExtra = MultiGlobalHealth;
+							if(DamageDoExtra != 1.0)
+							{
+								DamageDoExtra *= 1.5;
+							}
+							attack*= DamageDoExtra; //Incase too many enemies, boost damage.
 							SDKHooks_TakeDamage(target, npc.index, npc.index, attack, DMG_CLUB);
 						}
 					}
@@ -149,7 +168,7 @@ public void EndSpeaker3_ClotThink(int iNPC)
 
 		if(npc.m_flNextMeleeAttack < gameTime)
 		{
-			if(distance < 10000.0)
+			if(distance < 10000.0 && !b_IsCamoNPC[npc.m_iTarget])
 			{
 				int target = Can_I_See_Enemy(npc.index, npc.m_iTarget);
 				if(IsValidEnemy(npc.index, target, true))
@@ -191,12 +210,12 @@ public void EndSpeaker3_ClotThink(int iNPC)
 		{
 			if(distance < npc.GetLeadRadius())
 			{
-				float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, npc.m_iTarget);
-				NPC_SetGoalVector(npc.index, vPredictedPos);
+				float vPredictedPos[3]; PredictSubjectPosition(npc, npc.m_iTarget,_,_, vPredictedPos);
+				npc.SetGoalVector(vPredictedPos);
 			}
 			else 
 			{
-				NPC_SetGoalEntity(npc.index, npc.m_iTarget);
+				npc.SetGoalEntity(npc.m_iTarget);
 			}
 
 			npc.StartPathing();
@@ -258,7 +277,6 @@ void EndSpeaker3_NPCDeath(int entity)
 		
 		HookSingleEntityOutput(entity_death, "OnAnimationDone", EndSpeaker_BurrowAnim, true);
 
-		SetEntityRenderMode(entity_death, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(entity_death, 200, 200, 255, 255);
 	}
 }

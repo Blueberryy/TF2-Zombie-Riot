@@ -37,8 +37,21 @@ void Pistoleer_OnMapStart_NPC()
 	for (int i = 0; i < (sizeof(g_IdleAlertedSounds)); i++) { PrecacheSound(g_IdleAlertedSounds[i]); }
 	for (int i = 0; i < (sizeof(g_MeleeAttackSounds)); i++) { PrecacheSound(g_MeleeAttackSounds[i]); }
 	PrecacheModel("models/player/scout.mdl");
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Pistoleer");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_benera_pistoleer");
+	strcopy(data.Icon, sizeof(data.Icon), "pistoleer");
+	data.IconCustom = true;
+	data.Flags = 0;
+	data.Category = Type_Expidonsa;
+	data.Func = ClotSummon;
+	NPC_Add(data);
 }
 
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team)
+{
+	return Pistoleer(vecPos, vecAng, team);
+}
 methodmap Pistoleer < CClotBody
 {
 	public void PlayIdleAlertSound() 
@@ -73,11 +86,10 @@ methodmap Pistoleer < CClotBody
 	}
 	
 	
-	public Pistoleer(int client, float vecPos[3], float vecAng[3], bool ally)
+	public Pistoleer(float vecPos[3], float vecAng[3], int ally)
 	{
 		Pistoleer npc = view_as<Pistoleer>(CClotBody(vecPos, vecAng, "models/player/scout.mdl", "1.0", "600", ally));
 		
-		i_NpcInternalId[npc.index] = EXPIDONSA_PISTOLEER;
 		i_NpcWeight[npc.index] = 1;
 		FormatEx(c_HeadPlaceAttachmentGibName[npc.index], sizeof(c_HeadPlaceAttachmentGibName[]), "head");
 		
@@ -94,12 +106,13 @@ methodmap Pistoleer < CClotBody
 		npc.m_iBleedType = BLEEDTYPE_NORMAL;
 		npc.m_iStepNoiseType = STEPSOUND_NORMAL;	
 		npc.m_iNpcStepVariation = STEPTYPE_NORMAL;
+		SetEntPropFloat(npc.index, Prop_Data, "m_flElementRes", 1.0, Element_Chaos);
 		
-		SDKHook(npc.index, SDKHook_Think, Pistoleer_ClotThink);
 		
-		//IDLE
-		npc.m_iState = 0;
-		npc.m_flGetClosestTargetTime = 0.0;
+		func_NPCDeath[npc.index] = Pistoleer_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = Pistoleer_OnTakeDamage;
+		func_NPCThink[npc.index] = Pistoleer_ClotThink;
+		
 		npc.StartPathing();
 		npc.m_flSpeed = 300.0;
 		
@@ -171,18 +184,19 @@ public void Pistoleer_ClotThink(int iNPC)
 	PistoleerSelfDefense(npc,GetGameTime(npc.index)); 
 	if(IsValidEnemy(npc.index, npc.m_iTarget))
 	{
-		float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
+		float vecTarget[3]; WorldSpaceCenter(npc.m_iTarget, vecTarget );
 	
-		float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+		float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+		float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 		if(flDistanceToTarget < npc.GetLeadRadius()) 
 		{
 			float vPredictedPos[3];
-			vPredictedPos = PredictSubjectPosition(npc, npc.m_iTarget);
-			NPC_SetGoalVector(npc.index, vPredictedPos);
+			PredictSubjectPosition(npc, npc.m_iTarget,_,_, vPredictedPos);
+			npc.SetGoalVector(vPredictedPos);
 		}
 		else 
 		{
-			NPC_SetGoalEntity(npc.index, npc.m_iTarget);
+			npc.SetGoalEntity(npc.m_iTarget);
 		}
 	}
 	else
@@ -216,7 +230,6 @@ public void Pistoleer_NPCDeath(int entity)
 	{
 		npc.PlayDeathSound();	
 	}
-	SDKUnhook(npc.index, SDKHook_Think, Pistoleer_ClotThink);
 		
 	if(IsValidEntity(npc.m_iWearable4))
 		RemoveEntity(npc.m_iWearable4);
@@ -249,9 +262,10 @@ void PistoleerSelfDefense(Pistoleer npc, float gameTime)
 		}
 		return;
 	}
-	float vecTarget[3]; vecTarget = WorldSpaceCenter(GetClosestEnemyToAttack);
+	float vecTarget[3]; WorldSpaceCenter(GetClosestEnemyToAttack, vecTarget);
 
-	float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+	float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+	float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 	if(flDistanceToTarget < (NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED * 10.0))
 	{
 		if(npc.m_iChanged_WalkCycle != 5)
@@ -273,13 +287,14 @@ void PistoleerSelfDefense(Pistoleer npc, float gameTime)
 				//This will predict as its relatively easy to dodge
 				float projectile_speed = 800.0;
 				//lets pretend we have a projectile.
-				vecTarget = PredictSubjectPositionForProjectiles(npc, GetClosestEnemyToAttack, projectile_speed, 40.0);
+				PredictSubjectPositionForProjectiles(npc, GetClosestEnemyToAttack, projectile_speed, 40.0, vecTarget);
 				if(!Can_I_See_Enemy_Only(npc.index, GetClosestEnemyToAttack)) //cant see enemy in the predicted position, we will instead just attack normally
 				{
-					vecTarget = WorldSpaceCenter(GetClosestEnemyToAttack);
+					WorldSpaceCenter(GetClosestEnemyToAttack, vecTarget );
 				}
 
-				PistoleerInitiateLaserAttack(npc.index, vecTarget, WorldSpaceCenter(npc.index));
+				float WorldSpaceVec[3]; WorldSpaceCenter(npc.index, WorldSpaceVec);
+				PistoleerInitiateLaserAttack(npc.index, vecTarget, WorldSpaceVec);
 				npc.FaceTowards(vecTarget, 20000.0);
 				npc.m_flNextMeleeAttack = GetGameTime(npc.index) + 2.5;
 			}
@@ -297,8 +312,6 @@ void PistoleerSelfDefense(Pistoleer npc, float gameTime)
 		}
 	}
 }
-
-int PistoleerHitDetected[MAXENTITIES];
 
 void PistoleerInitiateLaserAttack(int entity, float VectorTarget[3], float VectorStart[3])
 {
@@ -358,7 +371,7 @@ void PistoleerInitiateLaserAttack_DamagePart(DataPack pack)
 {
 	for (int i = 1; i < MAXENTITIES; i++)
 	{
-		PistoleerHitDetected[i] = false;
+		LaserVarious_HitDetection[i] = false;
 	}
 	pack.Reset();
 	int entity = EntRefToEntIndex(pack.ReadCell());
@@ -409,7 +422,7 @@ void PistoleerInitiateLaserAttack_DamagePart(DataPack pack)
 	float playerPos[3];
 	for (int victim = 1; victim < MAXENTITIES; victim++)
 	{
-		if (PistoleerHitDetected[victim] && GetEntProp(entity, Prop_Send, "m_iTeamNum") != GetEntProp(victim, Prop_Send, "m_iTeamNum"))
+		if (LaserVarious_HitDetection[victim] && GetTeam(entity) != GetTeam(victim))
 		{
 			GetEntPropVector(victim, Prop_Send, "m_vecOrigin", playerPos, 0);
 			float distance = GetVectorDistance(VectorStart, playerPos, false);
@@ -433,7 +446,7 @@ public bool Pistoleer_BEAM_TraceUsers(int entity, int contentsMask, int client)
 {
 	if (IsEntityAlive(entity))
 	{
-		PistoleerHitDetected[entity] = true;
+		LaserVarious_HitDetection[entity] = true;
 	}
 	return false;
 }

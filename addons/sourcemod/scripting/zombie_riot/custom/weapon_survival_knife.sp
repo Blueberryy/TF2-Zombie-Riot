@@ -9,19 +9,20 @@ static int Knife_Count[MAXPLAYERS+1]={0, ...};
 static int Knife_Max[MAXPLAYERS+1]={0, ...};
 static bool Knife_Triple_Mode[MAXPLAYERS+1]={false, ...};
 static bool InMadness[MAXPLAYERS+1]={false, ...};
-Handle Timer_Knife_Management[MAXPLAYERS+1] = {INVALID_HANDLE, ...};
-static int Projectile_To_Weapon[MAXENTITIES]={0, ...};
-
-static float Damage_Projectile[MAXENTITIES]={0.0, ...};
+Handle Timer_Knife_Management[MAXPLAYERS+1] = {null, ...};
 static float f_KnifeHudDelay[MAXENTITIES]={0.0, ...};
-static int Projectile_To_Client[MAXENTITIES]={0, ...};
-static int Projectile_To_Particle[MAXENTITIES]={0, ...};
 
 #define KNIFE_SPEED_1 2500.0
 #define KNIFE_SPEED_2 2700.0
 #define KNIFE_SPEED_3 3000.0
 
-
+bool IsSurvivalKnife(int weaponid)
+{
+	if(weaponid == WEAPON_10 || weaponid == WEAPON_SURVIVAL_KNIFE_PAP1 || weaponid == WEAPON_SURVIVAL_KNIFE_PAP2 || weaponid == WEAPON_SURVIVAL_KNIFE_PAP3)
+		return true;
+	
+	return false;
+}
 
 public void Survival_Knife_ClearAll()
 {
@@ -59,11 +60,11 @@ void Survival_Knife_Map_Precache()
 
 void Reset_stats_Survival_Singular(int client) //This is on disconnect/connect
 {
-	if (Timer_Knife_Management[client] != INVALID_HANDLE)
+	if (Timer_Knife_Management[client] != null)
 	{
-		KillTimer(Timer_Knife_Management[client]);
+		delete Timer_Knife_Management[client];
 	}	
-	Timer_Knife_Management[client] = INVALID_HANDLE;
+	Timer_Knife_Management[client] = null;
 }
 
 
@@ -74,10 +75,10 @@ public void Survival_Knife_Attack(int client, int weapon, bool crit)
 
 public void Enable_Management_Knife(int client, int weapon) // Enable management, handle weapons change but also delete the timer if the client have the max weapon
 {
-	if (Timer_Knife_Management[client] != INVALID_HANDLE)
+	if (Timer_Knife_Management[client] != null)
 	{
 		//This timer already exists.
-		if(i_CustomWeaponEquipLogic[weapon] == 10) //10 Is for Survival Knife
+		if(IsSurvivalKnife(i_CustomWeaponEquipLogic[weapon])) //10 Is for Survival Knife
 		{
 			int iTier = i_SurvivalKnifeCount[weapon];
 			
@@ -90,35 +91,42 @@ public void Enable_Management_Knife(int client, int weapon) // Enable management
 					Knife_Max[client] = 3;	// Max knife
 			//		Knife_Count[client] = 3;	// Knife count
 				}
-				
+					
 				case 2:
 				{
 					CD_KnifeSet[client] = 4.5;	// Cd for knife
 					Knife_Max[client] = 6;	// Max knife
 			//		Knife_Count[client] = 6;	// Knife count
 				}
-				
+					
 				case 3:
 				{
 					CD_KnifeSet[client] = 3.3;	// Cd for knife
 					Knife_Max[client] = 7;	// Max knife
 			//		Knife_Count[client] = 7;	// Knife count
 				}
+				
+				case 4:
+				{
+					CD_KnifeSet[client] = 2.8;	// Cd for knife
+					Knife_Max[client] = 8;	// Max knife
+			//		Knife_Count[client] = 7;	// Knife count
+				}
 			}
 
 			//Is the weapon it again?
 			//Yes?
-			KillTimer(Timer_Knife_Management[client]);
-			Timer_Knife_Management[client] = INVALID_HANDLE;
+			delete Timer_Knife_Management[client];
+			Timer_Knife_Management[client] = null;
 			DataPack pack;
-			Timer_Knife_Management[client] = CreateDataTimer(0.1, Timer_Management_Survival, pack, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
+			Timer_Knife_Management[client] = CreateDataTimer(0.1, Timer_Management_Survival, pack, TIMER_REPEAT);
 			pack.WriteCell(client);
 			pack.WriteCell(EntIndexToEntRef(weapon));
 		}
 		return;
 	}
 		
-	if(i_CustomWeaponEquipLogic[weapon] == 10) //10 Is for Survival Knife
+	if(IsSurvivalKnife(i_CustomWeaponEquipLogic[weapon])) //10 Is for Survival Knife
 	{
 		int iTier = i_SurvivalKnifeCount[weapon];
 			
@@ -145,10 +153,17 @@ public void Enable_Management_Knife(int client, int weapon) // Enable management
 				Knife_Max[client] = 7;	// Max knife
 		//		Knife_Count[client] = 7;	// Knife count
 			}
+			
+			case 4:
+			{
+				CD_KnifeSet[client] = 2.8;	// Cd for knife
+				Knife_Max[client] = 8;	// Max knife
+		//		Knife_Count[client] = 7;	// Knife count
+			}
 		}
 
 		DataPack pack;
-		Timer_Knife_Management[client] = CreateDataTimer(0.1, Timer_Management_Survival, pack, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
+		Timer_Knife_Management[client] = CreateDataTimer(0.1, Timer_Management_Survival, pack, TIMER_REPEAT);
 		pack.WriteCell(client);
 		pack.WriteCell(EntIndexToEntRef(weapon));
 	}
@@ -160,103 +175,61 @@ public Action Timer_Management_Survival(Handle timer, DataPack pack)
 	pack.Reset();
 	int client = pack.ReadCell();
 	int weapon = EntRefToEntIndex(pack.ReadCell());
-
-	if (!IsValidMulti(client))
-		Kill_Timer_Management(client);
-		
-	if(IsValidEntity(weapon))
+	if(!IsValidClient(client) || !IsClientInGame(client) || !IsPlayerAlive(client) || !IsValidEntity(weapon))
 	{
-		if (IsPlayerAlive(client))
+		Timer_Knife_Management[client] = null;
+		return Plugin_Stop;
+	}	
+		
+	if (CD_Knife[client]<=GetGameTime())
+	{
+		if(Knife_Max[client] > Knife_Count[client])
 		{
-			if (CD_Knife[client]<=GetGameTime())
-			{
-				if(Knife_Max[client] > Knife_Count[client])
-				{
-						
-					Knife_Count[client]++;
+				
+			Knife_Count[client]++;
 
-					CD_Knife[client] = GetGameTime() + CD_KnifeSet[client];
-				}
-			}
-			if(f_KnifeHudDelay[client] < GetGameTime())
-			{
-				int weapon_holding = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
-				if(weapon_holding == weapon) //Only show if the weapon is actually in your hand right now.
-				{
-					int iTier = i_SurvivalKnifeCount[weapon];
-					if(iTier == 2)
-					{
-						if(Knife_Count[client] != Knife_Max[client])
-						{
-							if(Knife_Triple_Mode[client])
-							{
-								PrintHintText(client,"Triple Throw! Knives [%i/%i] (Recharge in: %.1f)",Knife_Count[client], Knife_Max[client],CD_Knife[client]-GetGameTime());
-							}
-							else
-							{
-								PrintHintText(client,"Knives [%i/%i] (Recharge in: %.1f)",Knife_Count[client], Knife_Max[client],CD_Knife[client]-GetGameTime());
-							}
-						}
-						else
-						{
-							if(Knife_Triple_Mode[client])
-							{
-								PrintHintText(client,"Triple Throw! Knives [%i/%i]",Knife_Count[client],Knife_Max[client]);
-							}
-							else
-							{
-								PrintHintText(client,"Knives [%i/%i]",Knife_Count[client],Knife_Max[client]);	
-							}
-						}
-					}
-					else if(InMadness[client])
-					{
-						PrintHintText(client,"Infinite Knives!");				
-					}
-					else
-					{
-						if(Knife_Count[client] != Knife_Max[client])
-						{
-							PrintHintText(client,"Knives [%i/%i] (Recharge in: %.1f)",Knife_Count[client], Knife_Max[client],CD_Knife[client]-GetGameTime());
-						}
-						else
-						{
-							PrintHintText(client,"Knives [%i/%i]",Knife_Count[client],Knife_Max[client]);
-						}							
-					}
-
-					StopSound(client, SNDCHAN_STATIC, "UI/hint.wav");
-					f_KnifeHudDelay[client] = GetGameTime() + 0.5;
-				}
-			}
+			CD_Knife[client] = GetGameTime() + (CD_KnifeSet[client] * Attributes_Get(weapon, 6, 1.0)); // prevent spamming, idk if you already have something for that but hee
 		}
-		else
-			Kill_Timer_Management(client);
 	}
-	else
-		Kill_Timer_Management(client);
+	if(f_KnifeHudDelay[client] < GetGameTime())
+	{
+		int weapon_holding = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+		if(weapon_holding == weapon) //Only show if the weapon is actually in your hand right now.
+		{
+			if(InMadness[client])
+			{
+				PrintHintText(client,"Infinite Knives!");				
+			}
+			else
+			{
+				if(Knife_Count[client] != Knife_Max[client])
+				{
+					PrintHintText(client,"Knives [%i/%i] (Recharge in: %.1f)",Knife_Count[client], Knife_Max[client],CD_Knife[client]-GetGameTime());
+				}
+				else
+				{
+					PrintHintText(client,"Knives [%i/%i]",Knife_Count[client],Knife_Max[client]);
+				}							
+			}
+
+			
+			f_KnifeHudDelay[client] = GetGameTime() + 0.5;
+		}
+	}
 		
 	return Plugin_Continue;
-}
-
-public void Kill_Timer_Management(int client)
-{
-	if (Timer_Knife_Management[client] != INVALID_HANDLE)
-	{
-		KillTimer(Timer_Knife_Management[client]);
-		Timer_Knife_Management[client] = INVALID_HANDLE;
-	}
 }
 
 public void Survival_Knife_Tier1_Alt(int client, int weapon, bool crit, int slot)
 {
 	if (CD_Throw[client]>GetGameTime())
 		return;
-	
+
+	CD_Throw[client] = GetGameTime() + (0.4 * Attributes_Get(weapon, 6, 1.0)); // prevent spamming, idk if you already have something for that but hee
+
 	if(Knife_Count[client]>0)
 	{
 		Knife_Count[client] -= 1;
-		CD_Throw[client] = GetGameTime() + 0.3; // prevent spamming, idk if you already have something for that but hee
 		Throw_Knife(client, weapon, KNIFE_SPEED_1, 0);
 		
 		SetDefaultHudPosition(client);
@@ -282,21 +255,21 @@ public void Survival_Knife_Tier2_Reload(int client, int weapon, bool crit)
 		return;
 	
 	Knife_Triple_Mode[client] = (!Knife_Triple_Mode[client]);
-	CD_Mode[client] = GetGameTime() + 0.3;
+	CD_Mode[client] = GetGameTime() + (0.4 * Attributes_Get(weapon, 6, 1.0));
 }
 
 public void Survival_Knife_Tier2_Alt(int client, int weapon, bool crit, int slot)
 {
-
 	if (CD_Throw[client]>GetGameTime())
 		return;
-	
+		
+	CD_Throw[client] = GetGameTime() + (0.4 * Attributes_Get(weapon, 6, 1.0)); // prevent spamming, idk if you already have something for that but hee
 	if (!Knife_Triple_Mode[client])
 	{
 		if(Knife_Count[client]>0)
 		{
 			Knife_Count[client] -= 1;
-			CD_Throw[client] = GetGameTime() + 0.3; // prevent spamming, idk if you already have something for that but hee
+			CD_Throw[client] = GetGameTime() + (0.4 * Attributes_Get(weapon, 6, 1.0)); // prevent spamming, idk if you already have something for that but hee
 			Throw_Knife(client, weapon, KNIFE_SPEED_2, 1);
 			
 			SetDefaultHudPosition(client);
@@ -320,7 +293,7 @@ public void Survival_Knife_Tier2_Alt(int client, int weapon, bool crit, int slot
 		if(Knife_Count[client]>=3)
 		{
 			Knife_Count[client] -= 3;
-			CD_Throw[client] = GetGameTime() + 0.3; // prevent spamming, idk if you already have something for that but hee
+			CD_Throw[client] = GetGameTime() + (0.4 * Attributes_Get(weapon, 6, 1.0)); // prevent spamming, idk if you already have something for that but hee
 			Throw_Knife(client, weapon, KNIFE_SPEED_2, 1);
 
 			DataPack pack = new DataPack();
@@ -351,22 +324,30 @@ public void Survival_Knife_Tier3_Reload(int client, int weapon, bool crit, int s
 {
 	if (InMadness[client])
 		return;
-
+	
+	if(Ability_Check_Cooldown(client, slot) < 0.0 && !(GetClientButtons(client) & IN_DUCK) && NeedCrouchAbility(client))
+	{
+		ClientCommand(client, "playgamesound items/medshotno1.wav");
+		SetDefaultHudPosition(client);
+		SetGlobalTransTarget(client);
+		ShowSyncHudText(client,  SyncHud_Notifaction, "%t", "Crouch for ability");	
+		return;
+	}
+	
 	if (Ability_Check_Cooldown(client, slot) < 0.0)
 	{
-		Rogue_OnAbilityUse(weapon);
+		Rogue_OnAbilityUse(client, weapon);
 		EmitSoundToAll(SOUND_MADNESS_ENTER2, client, SNDCHAN_STATIC, 70, _, 0.9);
 		EmitSoundToAll(SOUND_MADNESS_ENTER, client, SNDCHAN_STATIC, 70, _, 0.9);
-		
-		InMadness[client] = true;
-		
+	
 		ApplyTempAttrib(weapon, 6, 0.7, 5.0);
 		ApplyTempAttrib(weapon, 205, 0.65, 5.0);
 		ApplyTempAttrib(weapon, 206, 0.65, 5.0);
 		int flMaxHealth = SDKCall_GetMaxHealth(client);
 		int flHealth = GetClientHealth(client);
 		
-		int health = flMaxHealth / 5;
+		int health = flMaxHealth / 4;
+		f_TimeUntillNormalHeal[client] = GetGameTime() + 4.0;
 
 		flHealth -= health;
 		if((flHealth) < 1)
@@ -379,9 +360,9 @@ public void Survival_Knife_Tier3_Reload(int client, int weapon, bool crit, int s
 		DataPack pack;
 		CreateDataTimer(5.0, Timer_Madness_Duration, pack, TIMER_FLAG_NO_MAPCHANGE);// Madness duration
 		pack.WriteCell(client);
-		pack.WriteCell(EntIndexToEntRef(weapon));
+		InMadness[client] = true;
 
-		Ability_Apply_Cooldown(client, slot, 15.0);
+		Ability_Apply_Cooldown(client, slot, 60.0);
 	}
 	else
 	{
@@ -396,52 +377,32 @@ public Action Timer_Madness_Duration(Handle timer, DataPack pack)
 {
 	pack.Reset();
 	int client = pack.ReadCell();
+	InMadness[client] = false;
 	if (IsClientInGame(client))
 	{
 		if (IsPlayerAlive(client))
 		{
-			InMadness[client] = false;
-			
-			EmitSoundToAll(SOUND_MADNESS_END, client, SNDCHAN_STATIC, 70, _, 0.9);
+			EmitSoundToClient(client,SOUND_MADNESS_END, client, SNDCHAN_STATIC, 70, _, 0.9);
 			
 			SetDefaultHudPosition(client);
 			SetGlobalTransTarget(client);
 			ShowSyncHudText(client,  SyncHud_Notifaction, "Madness ends");
-			
-			CreateTimer(10.0, Timer_Reable_Madness, client, TIMER_FLAG_NO_MAPCHANGE); // Next Madness
-		}
-	}
-	InMadness[client] = false;
-	return Plugin_Handled;
-}
-
-public Action Timer_Reable_Madness(Handle timer, int client)
-{
-	if (IsClientInGame(client))
-	{
-		if (IsPlayerAlive(client))
-		{
-			EmitSoundToAll(SOUND_MADNESS_BACK, client, SNDCHAN_STATIC, 70, _, 0.9);
-			SetDefaultHudPosition(client);
-			SetGlobalTransTarget(client);
-			ShowSyncHudText(client,  SyncHud_Notifaction, "Madness is back... Idk if it's a good thing");
 		}
 	}
 	return Plugin_Handled;
 }
-
 public void Survival_Knife_Tier3_Alt(int client, int weapon, bool crit, int slot)
 {
 
 	if (CD_Throw[client]>GetGameTime())
 		return;
-	
+	CD_Throw[client] = GetGameTime() + (0.4 * Attributes_Get(weapon, 6, 1.0)); // prevent spamming, idk if you already have something for that but hee
 	if (!InMadness[client])
 	{
 		if(Knife_Count[client]>0)
 		{
 			Knife_Count[client] -= 1;
-			CD_Throw[client] = GetGameTime() + 0.3; // prevent spamming, idk if you already have something for that but hee
+			CD_Throw[client] = GetGameTime() + (0.4 * Attributes_Get(weapon, 6, 1.0)); // prevent spamming, idk if you already have something for that but hee
 			Throw_Knife(client, weapon, KNIFE_SPEED_3, 2);
 			if(Knife_Count[client] <= 0)
 			{
@@ -458,8 +419,8 @@ public void Survival_Knife_Tier3_Alt(int client, int weapon, bool crit, int slot
 	}
 	else
 	{
-			CD_Throw[client] = GetGameTime() + 0.3; // prevent spamming, idk if you already have something for that but hee
-			Throw_Knife(client, weapon, KNIFE_SPEED_3, 2);
+		CD_Throw[client] = GetGameTime() + (0.4 * Attributes_Get(weapon, 6, 1.0)); // prevent spamming, idk if you already have something for that but hee
+		Throw_Knife(client, weapon, KNIFE_SPEED_3, 2);
 	}
 }
 public Action Timer_Throw_Extra_Knife(Handle timer, DataPack pack)
@@ -481,133 +442,31 @@ public Action Timer_Throw_Extra_Knife(Handle timer, DataPack pack)
 public void Throw_Knife(int client, int weapon, float speed, int iModel)
 {
 	f_KnifeHudDelay[client] = 0.0;
-	float damage = 75.0;
+	float damage = 65.0;
 	damage *= Attributes_Get(weapon, 2, 1.0);
 	
 	float fAng[3], fPos[3];
 	GetClientEyeAngles(client, fAng);
 	GetClientEyePosition(client, fPos);
+
+	int projectile = Wand_Projectile_Spawn(client, speed, 10.0, damage, -1, weapon, "");
+
+	if(IsValidEntity(i_WandParticle[projectile]))
+		RemoveEntity(i_WandParticle[projectile]);
+
+	int trail = Trail_Attach(projectile, ARROW_TRAIL_RED, 255, 0.3, 3.0, 3.0, 5);
+
+	i_WandParticle[projectile]= EntIndexToEntRef(trail);
 	
-	int iRot = CreateEntityByName("func_door_rotating");
-	if(iRot == -1) return;
+	//Just use a timer tbh.
 	
-	DispatchKeyValueVector(iRot, "origin", fPos);
-	DispatchKeyValue(iRot, "distance", "99999");
-	DispatchKeyValueFloat(iRot, "speed", speed);
-	DispatchKeyValue(iRot, "spawnflags", "12288"); // passable|silent
-	DispatchSpawn(iRot);
-	SetEntityCollisionGroup(iRot, 27);
-	
-	SetVariantString("!activator");
-	AcceptEntityInput(iRot, "Open");
 	ClientCommand(client, "playgamesound weapons/cleaver_throw.wav");
-	
-	float time = 10.0;
-	//	CreateTimer(0.1, Timer_HatThrow_Woosh, EntIndexToEntRef(iRot), TIMER_REPEAT);
-	Wand_Launch(client, iRot, speed, time, damage, iModel, weapon);
-	
-	/*
-	int Knife = SDKCall_CTFCreateArrow(fPos, fAng, flSpeed, 0.25, 8, client, client); // 0.2 gravity, not a sniper knife too
-	if(IsValidEntity(Knife))
-	{
-		ClientCommand(client, "playgamesound weapons/cleaver_throw.wav");
-		
-		SetEntityCollisionGroup(Knife, 27);
-		SetEntDataFloat(Knife, FindSendPropInfo("CTFProjectile_Rocket", "m_iDeflected")+4, damage, true);	// Damage
-		SetEntPropEnt(Knife, Prop_Send, "m_hOriginalLauncher", weapon);
-		SetEntPropEnt(Knife, Prop_Send, "m_hLauncher", weapon);
-		SetEntProp(Knife, Prop_Send, "m_bCritical", false);
-		
-		switch(iModel)
-		{
-			case 1:SetEntityModel(Knife, MODEL_KUNAI);
-			case 2: SetEntityModel(Knife, MODEL_WANGA);
-	   		default: SetEntityModel(Knife, MODEL_KNIFE);
-	  	}
-	}
-	
-	Dont use this, its arrow/bullet dmg, so anything barbarians mind will make it not work, but its a melee, time to use wand logic! 
-	*/
+	WandProjectile_ApplyFunctionToEntity(projectile, Event_Knife_Touch);
 }
 
-
-static void Wand_Launch(int client, int iRot, float speed, float time, float damage, int model, int weapon)
+public void Event_Knife_Touch(int entity, int target)
 {
-	float fAng[3], fPos[3];
-	GetClientEyeAngles(client, fAng);
-	GetClientEyePosition(client, fPos);
-
-	int iCarrier = CreateEntityByName("prop_physics_override");
-	if(iCarrier == -1) return;
-
-	float fVel[3], fBuf[3];
-	GetAngleVectors(fAng, fBuf, NULL_VECTOR, NULL_VECTOR);
-	fVel[0] = fBuf[0]*speed;
-	fVel[1] = fBuf[1]*speed;
-	fVel[2] = fBuf[2]*speed;
-
-	SetEntPropEnt(iCarrier, Prop_Send, "m_hOwnerEntity", client);
-	switch(model)
-	{
-		case 1:DispatchKeyValue(iCarrier, "model", MODEL_KUNAI);
-		case 2: DispatchKeyValue(iCarrier, "model", MODEL_WANGA);
-		default: DispatchKeyValue(iCarrier, "model", MODEL_KNIFE);
-	}
-	DispatchKeyValue(iCarrier, "modelscale", "1");
-	DispatchSpawn(iCarrier);
-	
-	TeleportEntity(iCarrier, fPos, NULL_VECTOR, fVel);
-	SetEntityMoveType(iCarrier, MOVETYPE_FLY);
-	
-	SetEntProp(iCarrier, Prop_Send, "m_iTeamNum", GetClientTeam(client));
-	SetEntProp(iRot, Prop_Send, "m_iTeamNum", GetClientTeam(client));
-
-	SetVariantString("!activator");
-	AcceptEntityInput(iRot, "SetParent", iCarrier, iRot, 0);
-	SetEntityCollisionGroup(iCarrier, 27);
-	
-	Projectile_To_Client[iCarrier] = client;
-	Damage_Projectile[iCarrier] = damage;
-	Projectile_To_Weapon[iCarrier] = EntIndexToEntRef(weapon);
-	float position[3];
-	
-	GetEntPropVector(iCarrier, Prop_Data, "m_vecAbsOrigin", position);
-	
-	int particle = 0;
-	
-	switch(GetClientTeam(client))
-	{
-		case 2:
-			particle = ParticleEffectAt(position, "raygun_projectile_red_crit", 5.0);
-
-		default:
-			particle = ParticleEffectAt(position, "raygun_projectile_red_blue", 5.0);
-	}
-	float Angles[3];
-	GetClientEyeAngles(client, Angles);
-	TeleportEntity(particle, NULL_VECTOR, Angles, NULL_VECTOR);
-	TeleportEntity(iCarrier, NULL_VECTOR, Angles, NULL_VECTOR);
-	TeleportEntity(iRot, NULL_VECTOR, Angles, NULL_VECTOR);
-	
-	SetParent(iCarrier, particle);	
-	
-	Projectile_To_Particle[iCarrier] = EntIndexToEntRef(particle);
-	/*
-	SetEntityRenderMode(iCarrier, RENDER_TRANSCOLOR);
-	SetEntityRenderColor(iCarrier, 255, 255, 255, 0);
-	*/
-	DataPack pack;
-	CreateDataTimer(time, Timer_RemoveEntity_CustomProjectile, pack, TIMER_FLAG_NO_MAPCHANGE);
-	pack.WriteCell(EntIndexToEntRef(iCarrier));
-	pack.WriteCell(EntIndexToEntRef(particle));
-	pack.WriteCell(EntIndexToEntRef(iRot));
-		
-	SDKHook(iCarrier, SDKHook_StartTouch, Event_Knife_Touch);
-}
-
-public Action Event_Knife_Touch(int entity, int other)
-{
-	int target = Target_Hit_Wand_Detection(entity, other);
+	int particle = EntRefToEntIndex(i_WandParticle[entity]);
 	if (target > 0)	
 	{
 		//Code to do damage position and ragdolls
@@ -616,28 +475,101 @@ public Action Event_Knife_Touch(int entity, int other)
 		float vecForward[3];
 		GetAngleVectors(angles, vecForward, NULL_VECTOR, NULL_VECTOR);
 		static float Entity_Position[3];
-		Entity_Position = WorldSpaceCenter(target);
-		//Code to do damage position and ragdolls
-		
-		int weapon = EntRefToEntIndex(Projectile_To_Weapon[entity]);
-		SDKHooks_TakeDamage(target, Projectile_To_Client[entity], Projectile_To_Client[entity], Damage_Projectile[entity], DMG_CLUB, weapon, CalculateDamageForce(vecForward, 10000.0), Entity_Position);	// 2048 is DMG_NOGIB?
-		int particle = EntRefToEntIndex(Projectile_To_Particle[entity]);
-		if(IsValidEntity(particle) && particle != 0)
+		WorldSpaceCenter(target, Entity_Position);
+
+		int owner = EntRefToEntIndex(i_WandOwner[entity]);
+		int weapon = EntRefToEntIndex(i_WandWeapon[entity]);
+
+		float PushforceDamage[3];
+		CalculateDamageForce(vecForward, 10000.0, PushforceDamage);
+		SDKHooks_TakeDamage(target, owner, owner, f_WandDamage[entity], DMG_CLUB, weapon, PushforceDamage, Entity_Position, _);	// 2048 is DMG_NOGIB?
+		if(IsValidEntity(particle))
 		{
-			EmitSoundToAll(SOUND_KNIFE_HIT_FLESH, entity, SNDCHAN_STATIC, 80, _, 0.9);
-			RemoveEntity(particle);
+			float f3_PositionTemp[3];
+			GetEntPropVector(particle, Prop_Data, "m_vecAbsOrigin", f3_PositionTemp);
+			AcceptEntityInput(particle, "ClearParent");
+		//	TeleportEntity(particle, f3_PositionTemp, NULL_VECTOR, NULL_VECTOR);
+			CreateTimer(0.5, Timer_RemoveEntity, EntIndexToEntRef(particle), TIMER_FLAG_NO_MAPCHANGE);
 		}
-		RemoveEntity(entity);
+		EmitSoundToAll(SOUND_KNIFE_HIT_FLESH, entity, SNDCHAN_STATIC, 65, _, 0.65);
+		CreateTimer(0.5, Timer_RemoveEntity, EntIndexToEntRef(entity), TIMER_FLAG_NO_MAPCHANGE);
+		WandProjectile_ApplyFunctionToEntity(entity, INVALID_FUNCTION);
+		SetEntityMoveType(entity, MOVETYPE_NONE);
 	}
 	else if(target == 0)
 	{
-		int particle = EntRefToEntIndex(Projectile_To_Particle[entity]);
 		if(IsValidEntity(particle) && particle != 0)
 		{
+			float f3_PositionTemp[3];
+			GetEntPropVector(particle, Prop_Data, "m_vecAbsOrigin", f3_PositionTemp);
 			EmitSoundToAll(SOUND_KNIFE_HIT_GROUND, entity, SNDCHAN_STATIC, 80, _, 0.9);
-			RemoveEntity(particle);
+			AcceptEntityInput(particle, "ClearParent");
+
+		//	TeleportEntity(particle, f3_PositionTemp, NULL_VECTOR, NULL_VECTOR);
+			CreateTimer(0.5, Timer_RemoveEntity, EntIndexToEntRef(particle), TIMER_FLAG_NO_MAPCHANGE);
 		}
-		RemoveEntity(entity);
+		CreateTimer(0.5, Timer_RemoveEntity, EntIndexToEntRef(entity), TIMER_FLAG_NO_MAPCHANGE);
+		WandProjectile_ApplyFunctionToEntity(entity, INVALID_FUNCTION);
+		//We delay deletion
+		SetEntityMoveType(entity, MOVETYPE_NONE);
 	}
-	return Plugin_Handled;
+}
+
+float f_AttackDelayKnife[MAXPLAYERS];
+
+public void Survival_Knife_ThrowBlade(int client, int weapon, bool crit, int slot)
+{
+	f_AttackDelayKnife[client] = 0.0;
+	SDKUnhook(client, SDKHook_PreThink, SurvivalKnifeAttackM2_PreThink);
+	SDKHook(client, SDKHook_PreThink, SurvivalKnifeAttackM2_PreThink);
+}
+
+
+public void SurvivalKnifeAttackM2_PreThink(int client)
+{
+	if(GetClientButtons(client) & IN_ATTACK2)
+	{
+		if(f_AttackDelayKnife[client] > GetGameTime())
+		{
+			return;
+		}
+		f_AttackDelayKnife[client] = GetGameTime() + 0.05;
+		int weapon_active = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+		if(weapon_active < 0)
+		{
+			SDKUnhook(client, SDKHook_PreThink, SurvivalKnifeAttackM2_PreThink);
+			return;
+		}
+		if(!IsSurvivalKnife(i_CustomWeaponEquipLogic[weapon_active]))
+		{
+			SDKUnhook(client, SDKHook_PreThink, SurvivalKnifeAttackM2_PreThink);
+			return;
+		}
+
+		switch(i_CustomWeaponEquipLogic[weapon_active])
+		{
+			case WEAPON_10:
+			{
+				Survival_Knife_Tier1_Alt(client, weapon_active, false, 2);
+			}
+			case WEAPON_SURVIVAL_KNIFE_PAP1:
+			{
+				Survival_Knife_Tier2_Alt(client, weapon_active, false, 2);
+			}
+			case WEAPON_SURVIVAL_KNIFE_PAP2:
+			{
+				Survival_Knife_Tier3_Alt(client, weapon_active, false, 2);
+			}
+			case WEAPON_SURVIVAL_KNIFE_PAP3:
+			{
+				Survival_Knife_Tier3_Alt(client, weapon_active, false, 2);
+			}
+		}
+
+	}
+	else
+	{
+		SDKUnhook(client, SDKHook_PreThink, SurvivalKnifeAttackM2_PreThink);
+		return;
+	}
 }

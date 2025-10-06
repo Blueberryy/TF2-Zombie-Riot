@@ -36,9 +36,6 @@ static const char g_MeleeDeflectAttack[][] = {
 	"weapons/samurai/tf_katana_impact_object_02.wav",
 };
 
-static const char g_MeleeMissSounds[][] = {
-	"weapons/cbar_miss1.wav",
-};
 
 void KazimierzKnightAssasin_OnMapStart_NPC()
 {
@@ -48,8 +45,23 @@ void KazimierzKnightAssasin_OnMapStart_NPC()
 	for (int i = 0; i < (sizeof(g_MeleeHitSounds));	i++) { PrecacheSound(g_MeleeHitSounds[i]);	}
 	for (int i = 0; i < (sizeof(g_MeleeAttackSounds));	i++) { PrecacheSound(g_MeleeAttackSounds[i]);	}
 	for (int i = 0; i < (sizeof(g_MeleeDeflectAttack));	i++) { PrecacheSound(g_MeleeDeflectAttack[i]);	}
-	for (int i = 0; i < (sizeof(g_MeleeMissSounds));   i++) { PrecacheSound(g_MeleeMissSounds[i]);   }
+	for (int i = 0; i < (sizeof(g_DefaultMeleeMissSounds));   i++) { PrecacheSound(g_DefaultMeleeMissSounds[i]);   }
 	PrecacheModel(COMBINE_CUSTOM_MODEL);
+
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Armorless Union Assassin");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_seaborn_kazimersch_melee_assasin");
+	strcopy(data.Icon, sizeof(data.Icon), "sea_assasin");
+	data.IconCustom = true;
+	data.Flags = 0;
+	data.Category = Type_Seaborn;
+	data.Func = ClotSummon;
+	NPC_Add(data);
+}
+
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team)
+{
+	return KazimierzKnightAssasin(vecPos, vecAng, team);
 }
 
 methodmap KazimierzKnightAssasin < CClotBody
@@ -102,18 +114,17 @@ methodmap KazimierzKnightAssasin < CClotBody
 
 	public void PlayMeleeMissSound() 
 	{
-		EmitSoundToAll(g_MeleeMissSounds[GetRandomInt(0, sizeof(g_MeleeMissSounds) - 1)], this.index, _, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 80);
+		EmitSoundToAll(g_DefaultMeleeMissSounds[GetRandomInt(0, sizeof(g_DefaultMeleeMissSounds) - 1)], this.index, _, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 80);
 	}
 	
 	
-	public KazimierzKnightAssasin(int client, float vecPos[3], float vecAng[3], bool ally)
+	public KazimierzKnightAssasin(float vecPos[3], float vecAng[3], int ally)
 	{
-		KazimierzKnightAssasin npc = view_as<KazimierzKnightAssasin>(CClotBody(vecPos, vecAng, COMBINE_CUSTOM_MODEL, "1.15", "9000", ally));
+		KazimierzKnightAssasin npc = view_as<KazimierzKnightAssasin>(CClotBody(vecPos, vecAng, COMBINE_CUSTOM_MODEL, "1.15", "11000", ally));
 		
 		SetVariantInt(4);
 		AcceptEntityInput(npc.index, "SetBodyGroup");
 
-		i_NpcInternalId[npc.index] = SEABORN_KAZIMIERZ_ASSASIN_MELEE;
 		i_NpcWeight[npc.index] = 1;
 		
 		FormatEx(c_HeadPlaceAttachmentGibName[npc.index], sizeof(c_HeadPlaceAttachmentGibName[]), "head");
@@ -127,8 +138,9 @@ methodmap KazimierzKnightAssasin < CClotBody
 		npc.m_iStepNoiseType = STEPSOUND_NORMAL;
 		npc.m_iNpcStepVariation = STEPTYPE_SEABORN;
 		
-		
-		SDKHook(npc.index, SDKHook_Think, KazimierzKnightAssasin_ClotThink);
+		func_NPCDeath[npc.index] = KazimierzKnightAssasin_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = KazimierzKnightAssasin_OnTakeDamage;
+		func_NPCThink[npc.index] = KazimierzKnightAssasin_ClotThink;
 
 		npc.m_iState = 0;
 		npc.m_flSpeed = 300.0;
@@ -138,7 +150,6 @@ methodmap KazimierzKnightAssasin < CClotBody
 		npc.m_flAttackHappenswillhappen = false;
 		npc.m_fbRangedSpecialOn = false;
 
-		SetEntityRenderMode(npc.index, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(npc.index, 155, 155, 255, 255);		
 
 		npc.m_iWearable1 = npc.EquipItem("weapon_bone", "models/workshop/weapons/c_models/c_scout_sword/c_scout_sword.mdl");
@@ -149,9 +160,7 @@ methodmap KazimierzKnightAssasin < CClotBody
 		SetVariantString("1.35");
 		AcceptEntityInput(npc.m_iWearable2, "SetModelScale");
 
-		SetEntityRenderMode(npc.m_iWearable2, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(npc.m_iWearable2, 155, 155, 255, 255);
-		SetEntityRenderMode(npc.m_iWearable1, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(npc.m_iWearable1, 255, 255, 255, 255);
 
 		SetEntPropFloat(npc.index, Prop_Send, "m_fadeMinDist", 350.0);
@@ -172,8 +181,7 @@ methodmap KazimierzKnightAssasin < CClotBody
 	
 }
 
-//TODO 
-//Rewrite
+
 public void KazimierzKnightAssasin_ClotThink(int iNPC)
 {
 	KazimierzKnightAssasin npc = view_as<KazimierzKnightAssasin>(iNPC);
@@ -211,14 +219,12 @@ public void KazimierzKnightAssasin_ClotThink(int iNPC)
 	if(!NpcStats_IsEnemySilenced(npc.index))
 	{
 		bool camo = true;
-		Building_CamoOrRegrowBlocker(npc.index, camo);
+		if(HasSpecificBuff(npc.index, "Revealed"))
+			camo = false;
 
 		if(camo && !KazimierzMeleeAssasinRange(npc, 500.0))
 		{
-			float SelfPos[3];
-			GetEntPropVector(npc.index, Prop_Data, "m_vecAbsOrigin", SelfPos);
-			SelfPos[2] += 20.0;
-			if(IsPointHazard(SelfPos))
+			if(i_InHurtZone[npc.index])
 			{
 				npc.m_flSpeed = 250.0;
 				npc.m_flExtraDamage += 1.0;
@@ -259,7 +265,8 @@ public void KazimierzKnightAssasin_ClotThink(int iNPC)
 			if(IsValidEnemy(npc.index, npc.m_iTarget))
 			{
 				Handle swingTrace;
-				npc.FaceTowards(WorldSpaceCenter(npc.m_iTarget), 15000.0); //Snap to the enemy. make backstabbing hard to do.
+				float TargetVecPos[3]; WorldSpaceCenter(npc.m_iTarget, TargetVecPos);
+				npc.FaceTowards(TargetVecPos, 15000.0); 
 				if(npc.DoSwingTrace(swingTrace, npc.m_iTarget, _, _, _, _)) //Big range, but dont ignore buildings if somehow this doesnt count as a raid to be sure.
 				{
 					int target = TR_GetEntityIndex(swingTrace);	
@@ -276,9 +283,10 @@ public void KazimierzKnightAssasin_ClotThink(int iNPC)
 						damage *= 4.0;
 					}
 
-					npc.PlayMeleeHitSound();
+					
 					if(target > 0) 
 					{
+						npc.PlayMeleeHitSound();
 						SDKHooks_TakeDamage(target, npc.index, npc.index, damage, DMG_CLUB, -1, _, vecHit);
 					}
 				}
@@ -289,19 +297,20 @@ public void KazimierzKnightAssasin_ClotThink(int iNPC)
 	
 	if(IsValidEnemy(npc.index, npc.m_iTarget))
 	{
-		float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
-		float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+		float vecTarget[3]; WorldSpaceCenter(npc.m_iTarget, vecTarget );
+		float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+		float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 			
 		//Predict their pos.
 		if(flDistanceToTarget < npc.GetLeadRadius()) 
 		{
-			float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, npc.m_iTarget);
+			float vPredictedPos[3]; PredictSubjectPosition(npc, npc.m_iTarget,_,_, vPredictedPos);
 			
-			NPC_SetGoalVector(npc.index, vPredictedPos);
+			npc.SetGoalVector(vPredictedPos);
 		}
 		else
 		{
-			NPC_SetGoalEntity(npc.index, npc.m_iTarget);
+			npc.SetGoalEntity(npc.m_iTarget);
 		}
 		//Get position for just travel here.
 
@@ -350,11 +359,9 @@ public void KazimierzKnightAssasin_ClotThink(int iNPC)
 					npc.SetActivity("ACT_SEABORN_WALK_TOOL_2");
 				}	
 
-				int Enemy_I_See;
-							
-				Enemy_I_See = Can_I_See_Enemy(npc.index, npc.m_iTarget);
+				int Enemy_I_See = Can_I_See_Enemy(npc.index, npc.m_iTarget);
 				//Can i see This enemy, is something in the way of us?
-				//Dont even check if its the same enemy, just engage in rape, and also set our new target to this just in case.
+				//Dont even check if its the same enemy, just engage in killing, and also set our new target to this just in case.
 				if(IsValidEntity(Enemy_I_See) && IsValidEnemy(npc.index, Enemy_I_See))
 				{
 					npc.m_iTarget = Enemy_I_See;
@@ -375,8 +382,8 @@ public void KazimierzKnightAssasin_ClotThink(int iNPC)
 	}
 	else
 	{
-		NPC_StopPathing(npc.index);
-		npc.m_bPathing = false;
+		npc.StopPathing();
+		
 		npc.m_flGetClosestTargetTime = 0.0;
 		npc.m_iTarget = GetClosestTarget(npc.index);
 	}
@@ -415,9 +422,6 @@ public void KazimierzKnightAssasin_NPCDeath(int entity)
 		npc.PlayDeathSound();	
 	}
 	
-	
-	SDKUnhook(npc.index, SDKHook_Think, KazimierzKnightAssasin_ClotThink);
-		
 	if(IsValidEntity(npc.m_iWearable1))
 		RemoveEntity(npc.m_iWearable1);
 	if(IsValidEntity(npc.m_iWearable2))
@@ -445,13 +449,13 @@ public bool KazimierzMeleeAssasinRange(KazimierzKnightAssasin npc, float range)
 			}
 		}
 	}
-	for(int entitycount; entitycount<i_MaxcountNpc_Allied; entitycount++) //RED npcs.
+	for(int entitycount; entitycount<i_MaxcountNpcTotal; entitycount++) //RED npcs.
 	{
-		int entity_close = EntRefToEntIndex(i_ObjectsNpcs_Allied[entitycount]);
+		int entity_close = EntRefToEntIndexFast(i_ObjectsNpcsTotal[entitycount]);
 		if(IsValidEntity(entity_close))
 		{
 			CClotBody npcenemy = view_as<CClotBody>(entity_close);
-			if(!npcenemy.m_bThisEntityIgnored && IsEntityAlive(entity_close) && !b_NpcIsInvulnerable[entity_close] && !b_ThisEntityIgnoredByOtherNpcsAggro[entity_close]) //Check if dead or even targetable
+			if(!npcenemy.m_bThisEntityIgnored && IsEntityAlive(entity_close) && !b_NpcIsInvulnerable[entity_close] && !b_ThisEntityIgnoredByOtherNpcsAggro[entity_close] && GetTeam(entity_close) == TFTeam_Red) //Check if dead or even targetable
 			{
 				GetEntPropVector(entity_close, Prop_Data, "m_vecAbsOrigin", AllyPos);
 				float flDistanceToTarget = GetVectorDistance(SelfPos, AllyPos, true);

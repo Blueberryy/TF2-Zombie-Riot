@@ -64,8 +64,21 @@ public void XenoHeadcrabZombie_OnMapStart_NPC()
 	for (int i = 0; i < (sizeof(g_MeleeAttackSounds));	i++) { PrecacheSound(g_MeleeAttackSounds[i]);	}
 	for (int i = 0; i < (sizeof(g_MeleeMissSounds));   i++) { PrecacheSound(g_MeleeMissSounds[i]);   }
 	PrecacheSound("player/flow.wav");
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Xeno Headcrab Zombie");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_xeno_headcrabzombie");
+	strcopy(data.Icon, sizeof(data.Icon), "norm_headcrab_zombie");
+	data.IconCustom = true;
+	data.Flags = 0;
+	data.Category = Type_Xeno;
+	data.Func = ClotSummon;
+	NPC_Add(data);
 }
 
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team)
+{
+	return XenoHeadcrabZombie(vecPos, vecAng, team);
+}
 methodmap XenoHeadcrabZombie < CClotBody
 {
 	public void PlayIdleSound() {
@@ -75,9 +88,7 @@ methodmap XenoHeadcrabZombie < CClotBody
 		EmitSoundToAll(g_IdleSounds[GetRandomInt(0, sizeof(g_IdleSounds) - 1)], this.index, SNDCHAN_STATIC, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 80);
 		this.m_flNextIdleSound = GetGameTime(this.index) + GetRandomFloat(3.0, 6.0);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayIdleSound()");
-		#endif
+
 	}
 	
 	public void PlayHurtSound() {
@@ -88,50 +99,39 @@ methodmap XenoHeadcrabZombie < CClotBody
 		
 		EmitSoundToAll(g_HurtSounds[GetRandomInt(0, sizeof(g_HurtSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 80);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayHurtSound()");
-		#endif
+		
 	}
 	
 	public void PlayDeathSound() {
 	
 		EmitSoundToAll(g_DeathSounds[GetRandomInt(0, sizeof(g_DeathSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 80);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayDeathSound()");
-		#endif
+		
 	}
 	
 	public void PlayMeleeSound() {
 		EmitSoundToAll(g_MeleeAttackSounds[GetRandomInt(0, sizeof(g_MeleeAttackSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 80);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayMeleeHitSound()");
-		#endif
+		
 	}
 	public void PlayMeleeHitSound() {
 		EmitSoundToAll(g_MeleeHitSounds[GetRandomInt(0, sizeof(g_MeleeHitSounds) - 1)], this.index, SNDCHAN_STATIC, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 80);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayMeleeHitSound()");
-		#endif
+		
 	}
 
 	public void PlayMeleeMissSound() {
 		EmitSoundToAll(g_MeleeMissSounds[GetRandomInt(0, sizeof(g_MeleeMissSounds) - 1)], this.index, SNDCHAN_STATIC, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 80);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CGoreFast::PlayMeleeMissSound()");
-		#endif
+		
 	}
 	
 	
 	
-	public XenoHeadcrabZombie(int client, float vecPos[3], float vecAng[3], bool ally)
+	public XenoHeadcrabZombie(float vecPos[3], float vecAng[3], int ally)
 	{
 		XenoHeadcrabZombie npc = view_as<XenoHeadcrabZombie>(CClotBody(vecPos, vecAng, "models/zombie/classic.mdl", "1.15", "400", ally));
 		
-		i_NpcInternalId[npc.index] = XENO_HEADCRAB_ZOMBIE;
 		i_NpcWeight[npc.index] = 1;
 		
 		FormatEx(c_HeadPlaceAttachmentGibName[npc.index], sizeof(c_HeadPlaceAttachmentGibName[]), "head");
@@ -145,19 +145,16 @@ methodmap XenoHeadcrabZombie < CClotBody
 
 		
 		
-		SDKHook(npc.index, SDKHook_Think, XenoHeadcrabZombie_ClotThink);
+		func_NPCDeath[npc.index] = XenoHeadcrabZombie_NPCDeath;
+		func_NPCThink[npc.index] = XenoHeadcrabZombie_ClotThink;
+		func_NPCOnTakeDamage[npc.index] = XenoHeadcrabZombie_OnTakeDamage;
 		
 		npc.m_flNextMeleeAttack = 0.0;
 		
 		
 		//IDLE
 		npc.m_flSpeed = 130.0;
-		if(EscapeModeForNpc)
-		{
-			npc.m_flSpeed = 210.0;
-		}
 		
-		SetEntityRenderMode(npc.index, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(npc.index, 150, 255, 150, 255);
 		
 //		SetEntPropFloat(npc.index, Prop_Data, "m_speed",npc.m_flSpeed);
@@ -169,8 +166,7 @@ methodmap XenoHeadcrabZombie < CClotBody
 	
 }
 
-//TODO 
-//Rewrite
+
 public void XenoHeadcrabZombie_ClotThink(int iNPC)
 {
 	XenoHeadcrabZombie npc = view_as<XenoHeadcrabZombie>(iNPC);
@@ -217,26 +213,27 @@ public void XenoHeadcrabZombie_ClotThink(int iNPC)
 	
 	if(IsValidEnemy(npc.index, closest))
 	{
-		float vecTarget[3]; vecTarget = WorldSpaceCenter(closest);
+		float vecTarget[3]; WorldSpaceCenter(closest, vecTarget);
 			
-		float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+		float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+		float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 				
 		//Predict their pos.
 		if(flDistanceToTarget < npc.GetLeadRadius())
 		{
-			float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, closest);
+			float vPredictedPos[3]; PredictSubjectPosition(npc, closest,_,_, vPredictedPos);
 	//		PrintToChatAll("cutoff");
-			NPC_SetGoalVector(npc.index, vPredictedPos);
+			npc.SetGoalVector(vPredictedPos);
 		}
 		else
 		{
-			NPC_SetGoalEntity(npc.index, closest);
+			npc.SetGoalEntity(closest);
 		}
 		npc.StartPathing();
 		
 		//Target close enough to hit
 		
-		if(flDistanceToTarget < 10000 || npc.m_flAttackHappenswillhappen)
+		if(flDistanceToTarget < NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED || npc.m_flAttackHappenswillhappen)
 		{
 			//Look at target so we hit.
 		//	npc.FaceTowards(vecTarget, 20000.0);
@@ -264,14 +261,6 @@ public void XenoHeadcrabZombie_ClotThink(int iNPC)
 						TR_GetEndPosition(vecHit, swingTrace);
 						if(target > 0) 
 						{
-							if(EscapeModeForNpc)
-							{
-								if(!ShouldNpcDealBonusDamage(target))
-									SDKHooks_TakeDamage(target, npc.index, npc.index, 75.0, DMG_CLUB, -1, _, vecHit);
-								else
-									SDKHooks_TakeDamage(target, npc.index, npc.index, 85.0, DMG_CLUB, -1, _, vecHit);
-							}
-							else
 							{
 								if(!ShouldNpcDealBonusDamage(target))
 									SDKHooks_TakeDamage(target, npc.index, npc.index, 60.0, DMG_CLUB, -1, _, vecHit);
@@ -304,8 +293,8 @@ public void XenoHeadcrabZombie_ClotThink(int iNPC)
 	}
 	else
 	{
-		NPC_StopPathing(npc.index);
-		npc.m_bPathing = false;
+		npc.StopPathing();
+		
 		npc.m_flGetClosestTargetTime = 0.0;
 		npc.m_iTarget = GetClosestTarget(npc.index);
 	}
@@ -324,11 +313,6 @@ public Action XenoHeadcrabZombie_OnTakeDamage(int victim, int &attacker, int &in
 	{
 		if(!npc.bXenoInfectedSpecialHurt)
 		{
-			if(EscapeModeForNpc)
-			{
-				npc.m_flSpeed = 300.0;
-			}
-			else
 			{
 				npc.m_flSpeed = 250.0;
 			}

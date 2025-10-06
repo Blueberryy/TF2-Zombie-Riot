@@ -90,7 +90,22 @@ void NearlSwordAbility_OnMapStart_NPC()
 	for (int i = 0; i < (sizeof(g_MeleeAttackSounds));	i++) { PrecacheSound(g_MeleeAttackSounds[i]);	}
 	for (int i = 0; i < (sizeof(g_MeleeMissSounds));   i++) { PrecacheSound(g_MeleeMissSounds[i]);   }
 	PrecacheModel("models/weapons/c_models/c_claymore/c_claymore.mdl");
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Nearl Radiant Sword");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_nearl_sword");
+	strcopy(data.Icon, sizeof(data.Icon), "");
+	data.IconCustom = false;
+	data.Flags = 0;
+	data.Category = Type_Ally;
+	data.Func = ClotSummon;
+	NPC_Add(data);
 }
+
+static any ClotSummon(int client, float vecPos[3], float vecAng[3],int ally)
+{
+	return NearlSwordAbility(vecPos, vecAng, ally);
+}
+
 methodmap NearlSwordAbility < CClotBody
 {
 	public void PlayHurtSound() 
@@ -115,11 +130,10 @@ methodmap NearlSwordAbility < CClotBody
 		
 	}
 	
-	public NearlSwordAbility(int client, float vecPos[3], float vecAng[3], bool ally)
+	public NearlSwordAbility(float vecPos[3], float vecAng[3], int ally)
 	{
 		NearlSwordAbility npc = view_as<NearlSwordAbility>(CClotBody(vecPos, vecAng, "models/weapons/w_models/w_drg_ball.mdl", "1.0", "100", ally));
 		
-		i_NpcInternalId[npc.index] = NEARL_SWORD;
 		i_NpcWeight[npc.index] = 999;
 		
 //		FormatEx(c_HeadPlaceAttachmentGibName[npc.index], sizeof(c_HeadPlaceAttachmentGibName[]), "head");
@@ -128,7 +142,7 @@ methodmap NearlSwordAbility < CClotBody
 //		if(iActivity > 0) npc.StartActivity(iActivity);
 		SetEntityRenderMode(npc.index, RENDER_GLOW); //cool gold.
 
-		npc.m_iWearable1 = npc.EquipItemSeperate("head", "models/workshop/weapons/c_models/c_claidheamohmor/c_claidheamohmor.mdl");
+		npc.m_iWearable1 = npc.EquipItemSeperate("models/workshop/weapons/c_models/c_claidheamohmor/c_claidheamohmor.mdl");
 		SetVariantString("1.5");
 		AcceptEntityInput(npc.m_iWearable1, "SetModelScale");
 
@@ -149,7 +163,7 @@ methodmap NearlSwordAbility < CClotBody
 		
 		TeleportEntity(npc.m_iWearable1, fPos, eyePitch, NULL_VECTOR);
 
-		npc.m_iWearable2 = npc.EquipItemSeperate("head", "models/props_debris/concrete_debris128pile001a.mdl");
+		npc.m_iWearable2 = npc.EquipItemSeperate("models/props_debris/concrete_debris128pile001a.mdl");
 		SetVariantString("0.5");
 		AcceptEntityInput(npc.m_iWearable2, "SetModelScale");
 
@@ -173,7 +187,9 @@ methodmap NearlSwordAbility < CClotBody
 		b_ThisNpcIsImmuneToNuke[npc.index] = true;
 
 		
-		SDKHook(npc.index, SDKHook_Think, NearlSwordAbility_ClotThink);
+		func_NPCDeath[npc.index] = NearlSwordAbility_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = NearlSwordAbility_OnTakeDamage;
+		func_NPCThink[npc.index] = NearlSwordAbility_ClotThink;
 
 		npc.m_iState = 0;
 		npc.m_flSpeed = 0.0;
@@ -181,7 +197,7 @@ methodmap NearlSwordAbility < CClotBody
 		npc.m_flMeleeArmor = 1.0;
 		npc.m_flRangedArmor = 1.25;
 
-		NPC_StopPathing(npc.index);
+		npc.StopPathing();
 
 		NearlSword_HealthHud(npc);
 		b_DoNotUnStuck[npc.index] = true;
@@ -212,7 +228,7 @@ public int NearlSword_HealthHud(NearlSwordAbility npc)
 {
 	char HealthText[32];
 	int HealthColour[4];
-	int MaxHealth = GetEntProp(npc.index, Prop_Data, "m_iMaxHealth");
+	int MaxHealth = ReturnEntityMaxHealth(npc.index);
 	int Health = GetEntProp(npc.index, Prop_Data, "m_iHealth");
 	for(int i=0; i<10; i++)
 	{
@@ -275,12 +291,6 @@ public Action NearlSwordAbility_OnTakeDamage(int victim, int &attacker, int &inf
 		npc.m_flHeadshotCooldown = GetGameTime(npc.index) + DEFAULT_HURTDELAY;
 		npc.m_blPlayHurtAnimation = true;
 	}
-	/*
-	if(IsValidEntity(EntRefToEntIndex(RaidBossActive)))
-	{
-		damage *= 2.0; //if raids active, then it will take 2x dmg
-	}
-	*/
 	if(b_thisNpcIsARaid[attacker])
 	{
 		damage *= 2.0; //takes 2x more dmg from raids itself.
@@ -294,10 +304,9 @@ public void NearlSwordAbility_NPCDeath(int entity)
 	npc.PlayDeathSound();	
 	float pos[3];
 	GetEntPropVector(entity, Prop_Send, "m_vecOrigin", pos);
-	makeexplosion(-1, -1, pos, "", 0, 0);
+	makeexplosion(-1, pos, 0, 0);
 
 	
-	SDKUnhook(npc.index, SDKHook_Think, NearlSwordAbility_ClotThink);
 	if(IsValidEntity(npc.m_iWearable1))
 		RemoveEntity(npc.m_iWearable1);
 	

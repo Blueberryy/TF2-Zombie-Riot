@@ -66,8 +66,21 @@ public void XenoSoldierGiant_OnMapStart_NPC()
 	for (int i = 0; i < (sizeof(g_RangedAttackSounds));   i++) { PrecacheSound(g_RangedAttackSounds[i]);   }
 
 	PrecacheSound("player/flow.wav");
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Xeno Soldier Giant Summoner");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_xeno_zombie_soldier_giant_grave");
+	strcopy(data.Icon, sizeof(data.Icon), "soldier_libertylauncher");
+	data.IconCustom = false;
+	data.Flags = 0;
+	data.Category = Type_Xeno;
+	data.Func = ClotSummon;
+	NPC_Add(data);
 }
 
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team)
+{
+	return XenoSoldierGiant(vecPos, vecAng, team);
+}
 methodmap XenoSoldierGiant < CClotBody
 {
 	public void PlayIdleSound() {
@@ -76,9 +89,7 @@ methodmap XenoSoldierGiant < CClotBody
 		EmitSoundToAll(g_IdleSounds[GetRandomInt(0, sizeof(g_IdleSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 80);
 		this.m_flNextIdleSound = GetGameTime(this.index) + GetRandomFloat(24.0, 48.0);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayIdleSound()");
-		#endif
+
 	}
 	
 	public void PlayIdleAlertSound() {
@@ -88,9 +99,7 @@ methodmap XenoSoldierGiant < CClotBody
 		EmitSoundToAll(g_IdleAlertedSounds[GetRandomInt(0, sizeof(g_IdleAlertedSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 80);
 		this.m_flNextIdleSound = GetGameTime(this.index) + GetRandomFloat(12.0, 24.0);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayIdleAlertSound()");
-		#endif
+		
 	}
 	
 	public void PlayHurtSound() {
@@ -102,60 +111,47 @@ methodmap XenoSoldierGiant < CClotBody
 		EmitSoundToAll(g_HurtSounds[GetRandomInt(0, sizeof(g_HurtSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 80);
 		
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayHurtSound()");
-		#endif
+		
 	}
 	
 	public void PlayDeathSound() {
 	
 		EmitSoundToAll(g_DeathSounds[GetRandomInt(0, sizeof(g_DeathSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 80);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayDeathSound()");
-		#endif
+		
 	}
 	
 	public void PlayMeleeSound() {
-		EmitSoundToAll(g_MeleeAttackSounds[GetRandomInt(0, sizeof(g_MeleeAttackSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 80);
+		EmitSoundToAll(g_MeleeAttackSounds[GetRandomInt(0, sizeof(g_MeleeAttackSounds) - 1)], this.index, SNDCHAN_STATIC, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 80);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayMeleeHitSound()");
-		#endif
+		
 	}
 	public void PlayRangedSound() {
 		EmitSoundToAll(g_RangedAttackSounds[GetRandomInt(0, sizeof(g_RangedAttackSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 80);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayMeleeHitSound()");
-		#endif
+		
 	}
 
 	public void PlayMeleeHitSound() {
 		EmitSoundToAll(g_MeleeHitSounds[GetRandomInt(0, sizeof(g_MeleeHitSounds) - 1)], this.index, SNDCHAN_STATIC, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 80);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayMeleeHitSound()");
-		#endif
+		
 	}
 
 	public void PlayMeleeMissSound() {
 		EmitSoundToAll(g_MeleeMissSounds[GetRandomInt(0, sizeof(g_MeleeMissSounds) - 1)], this.index, SNDCHAN_STATIC, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 80);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CGoreFast::PlayMeleeMissSound()");
-		#endif
+		
 	}
 	
 	
-	public XenoSoldierGiant(int client, float vecPos[3], float vecAng[3], bool ally)
+	public XenoSoldierGiant(float vecPos[3], float vecAng[3], int ally)
 	{
-		XenoSoldierGiant npc = view_as<XenoSoldierGiant>(CClotBody(vecPos, vecAng, "models/player/soldier.mdl", "1.5", "200000", ally, false, true));
+		XenoSoldierGiant npc = view_as<XenoSoldierGiant>(CClotBody(vecPos, vecAng, "models/player/soldier.mdl", "1.35", "200000", ally, false, true));
 		
 		int iActivity = npc.LookupActivity("ACT_MP_RUN_MELEE_ALLCLASS");
 		if(iActivity > 0) npc.StartActivity(iActivity);
 				
-		i_NpcInternalId[npc.index] = XENO_SOLDIER_ZOMBIE_BOSS;
 		i_NpcWeight[npc.index] = 3;
 		
 		FormatEx(c_HeadPlaceAttachmentGibName[npc.index], sizeof(c_HeadPlaceAttachmentGibName[]), "head");
@@ -166,7 +162,9 @@ methodmap XenoSoldierGiant < CClotBody
 		npc.m_iNpcStepVariation = STEPTYPE_NORMAL;		
 		
 		
-		SDKHook(npc.index, SDKHook_Think, XenoSoldierGiant_ClotThink);
+		func_NPCDeath[npc.index] = XenoSoldierGiant_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = XenoSoldierGiant_OnTakeDamage;
+		func_NPCThink[npc.index] = XenoSoldierGiant_ClotThink;
 		SDKHook(npc.index, SDKHook_OnTakeDamagePost, XenoSoldierGiant_ClotDamagedPost);
 		
 		//IDLE
@@ -197,15 +195,10 @@ methodmap XenoSoldierGiant < CClotBody
 		SetVariantString("1.0");
 		AcceptEntityInput(npc.m_iWearable4, "SetModelScale");
 		
-		SetEntityRenderMode(npc.index, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(npc.index, 150, 255, 150, 255);
-		SetEntityRenderMode(npc.m_iWearable1, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(npc.m_iWearable1, 150, 255, 150, 255);
-		SetEntityRenderMode(npc.m_iWearable2, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(npc.m_iWearable2, 150, 255, 150, 255);
-		SetEntityRenderMode(npc.m_iWearable3, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(npc.m_iWearable3, 150, 255, 150, 255);
-		SetEntityRenderMode(npc.m_iWearable4, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(npc.m_iWearable4, 150, 255, 150, 255);
 		
 		return npc;
@@ -213,8 +206,7 @@ methodmap XenoSoldierGiant < CClotBody
 	
 	
 }
-//TODO 
-//Rewrite
+
 public void XenoSoldierGiant_ClotThink(int iNPC)
 {
 	XenoSoldierGiant npc = view_as<XenoSoldierGiant>(iNPC);
@@ -253,14 +245,15 @@ public void XenoSoldierGiant_ClotThink(int iNPC)
 	
 	if(IsValidEnemy(npc.index, PrimaryThreatIndex))
 	{
-			float vecTarget[3]; vecTarget = WorldSpaceCenter(PrimaryThreatIndex);
+			float vecTarget[3]; WorldSpaceCenter(PrimaryThreatIndex, vecTarget);
 		
-			float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+			float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+			float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 			
 			//Predict their pos.
 			if(flDistanceToTarget < npc.GetLeadRadius()) {
 				
-				float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, PrimaryThreatIndex);
+				float vPredictedPos[3]; PredictSubjectPosition(npc, PrimaryThreatIndex,_,_, vPredictedPos);
 				
 			/*	int color[4];
 				color[0] = 255;
@@ -273,9 +266,9 @@ public void XenoSoldierGiant_ClotThink(int iNPC)
 				TE_SetupBeamPoints(vPredictedPos, vecTarget, xd, xd, 0, 0, 0.25, 0.5, 0.5, 5, 5.0, color, 30);
 				TE_SendToAllInRange(vecTarget, RangeType_Visibility);*/
 				
-				NPC_SetGoalVector(npc.index, vPredictedPos);
+				npc.SetGoalVector(vPredictedPos);
 			} else {
-				NPC_SetGoalEntity(npc.index, PrimaryThreatIndex);
+				npc.SetGoalEntity(PrimaryThreatIndex);
 			}
 
 			npc.StartPathing();
@@ -314,9 +307,9 @@ public void XenoSoldierGiant_ClotThink(int iNPC)
 								{
 									
 									if(!ShouldNpcDealBonusDamage(target))
-										SDKHooks_TakeDamage(target, npc.index, npc.index, 135.0, DMG_CLUB, -1, _, vecHit);
+										SDKHooks_TakeDamage(target, npc.index, npc.index, 200.0, DMG_CLUB, -1, _, vecHit);
 									else
-										SDKHooks_TakeDamage(target, npc.index, npc.index, 1000.0, DMG_CLUB, -1, _, vecHit);
+										SDKHooks_TakeDamage(target, npc.index, npc.index, 2000.0, DMG_CLUB, -1, _, vecHit);
 									
 									
 									Custom_Knockback(npc.index, target, 750.0);
@@ -330,13 +323,13 @@ public void XenoSoldierGiant_ClotThink(int iNPC)
 								} 
 							}
 						delete swingTrace;
-						npc.m_flNextMeleeAttack = GetGameTime(npc.index) + 0.8;
+						npc.m_flNextMeleeAttack = GetGameTime(npc.index) + 0.6;
 						npc.m_flAttackHappenswillhappen = false;
 					}
 					else if (npc.m_flAttackHappens_bullshit < GetGameTime(npc.index) && npc.m_flAttackHappenswillhappen)
 					{
 						npc.m_flAttackHappenswillhappen = false;
-						npc.m_flNextMeleeAttack = GetGameTime(npc.index) + 0.8;
+						npc.m_flNextMeleeAttack = GetGameTime(npc.index) + 0.6;
 					}
 				}
 			}
@@ -345,7 +338,7 @@ public void XenoSoldierGiant_ClotThink(int iNPC)
 				npc.AddGesture("ACT_MP_THROW");
 				npc.m_flAttackHappens_2 = GetGameTime(npc.index) + 1.0;
 				npc.PlayRangedSound();
-				npc.FireRocket(vecTarget, 20.0, 900.0);
+				npc.FireRocket(vecTarget, 50.0, 900.0);
 			}
 			else
 			{
@@ -355,8 +348,8 @@ public void XenoSoldierGiant_ClotThink(int iNPC)
 	}
 	else
 	{
-		NPC_StopPathing(npc.index);
-		npc.m_bPathing = false;
+		npc.StopPathing();
+		
 		npc.m_flGetClosestTargetTime = 0.0;
 		npc.m_iTarget = GetClosestTarget(npc.index);
 	}
@@ -384,7 +377,7 @@ public void XenoSoldierGiant_ClotDamagedPost(int victim, int attacker, int infli
 	XenoSoldierGiant npc = view_as<XenoSoldierGiant>(victim);
 	if(!NpcStats_IsEnemySilenced(npc.index))
 	{
-		int maxhealth = GetEntProp(npc.index, Prop_Data, "m_iMaxHealth");
+		int maxhealth = ReturnEntityMaxHealth(npc.index);
 		float ratio = float(GetEntProp(npc.index, Prop_Data, "m_iHealth")) / float(maxhealth);
 		if(0.9-(npc.g_TimesSummoned*0.2) > ratio)
 		{
@@ -392,18 +385,31 @@ public void XenoSoldierGiant_ClotDamagedPost(int victim, int attacker, int infli
 			maxhealth /= 7;
 			for(int i; i<1; i++)
 			{
+				if(MaxEnemiesAllowedSpawnNext(1) <= (EnemyNpcAlive - EnemyNpcAliveStatic))
+				{
+					fl_TotalArmor[npc.index] = 0.5;
+					//grrr i cant spawn!!!!
+					//become fat.
+					return;
+				}
+				fl_TotalArmor[npc.index] = 1.0;
 				float pos[3]; GetEntPropVector(npc.index, Prop_Data, "m_vecAbsOrigin", pos);
 				float ang[3]; GetEntPropVector(npc.index, Prop_Data, "m_angRotation", ang);
 				
-				int spawn_index = Npc_Create(XENO_SOLDIER_ZOMBIE_MINION, -1, pos, ang, GetEntProp(npc.index, Prop_Send, "m_iTeamNum") == 2);
+				int spawn_index = NPC_CreateByName("npc_xeno_zombie_soldier_minion_grave", -1, pos, ang, GetTeam(npc.index));
 				if(spawn_index > MaxClients)
 				{
-					Zombies_Currently_Still_Ongoing += 1;
+					NpcStats_CopyStats(npc.index, spawn_index);
+					NpcAddedToZombiesLeftCurrently(spawn_index, true);
 					SetEntProp(spawn_index, Prop_Data, "m_iHealth", maxhealth);
 					SetEntProp(spawn_index, Prop_Data, "m_iMaxHealth", maxhealth);
 				}
 			}
 		}
+	}
+	else
+	{
+		fl_TotalArmor[npc.index] = 1.0;
 	}
 }
 
@@ -415,8 +421,6 @@ public void XenoSoldierGiant_NPCDeath(int entity)
 		npc.PlayDeathSound();	
 	}
 	
-	
-	SDKUnhook(npc.index, SDKHook_Think, XenoSoldierGiant_ClotThink);
 	SDKUnhook(npc.index, SDKHook_OnTakeDamagePost, XenoSoldierGiant_ClotDamagedPost);
 	if(IsValidEntity(npc.m_iWearable1))
 		RemoveEntity(npc.m_iWearable1);

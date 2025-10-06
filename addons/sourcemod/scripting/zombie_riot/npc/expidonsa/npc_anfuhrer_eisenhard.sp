@@ -45,10 +45,7 @@ static const char g_HurtArmorSounds[][] = {
 };
 
 static const char g_AngerSounds[][] = {
-	"vo/spy_battlecry01.mp3",
-	"vo/spy_battlecry02.mp3",
-	"vo/spy_battlecry03.mp3",
-	"vo/spy_battlecry04.mp3",
+	"vo/taunts/demoman_taunts10.mp3",
 };
 
 void AnfuhrerEisenhard_OnMapStart_NPC()
@@ -61,9 +58,22 @@ void AnfuhrerEisenhard_OnMapStart_NPC()
 	for (int i = 0; i < (sizeof(g_HurtArmorSounds)); i++) { PrecacheSound(g_HurtArmorSounds[i]); }
 	for (int i = 0; i < (sizeof(g_AngerSounds));   i++) { PrecacheSound(g_AngerSounds[i]);   }
 	PrecacheModel("models/player/demo.mdl");
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Anfuhrer Eisenhard");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_anfuhrer_eisenhard");
+	strcopy(data.Icon, sizeof(data.Icon), "eisenhard");
+	data.IconCustom = true;
+	data.Flags = 0;
+	data.Category = Type_Expidonsa;
+	data.Func = ClotSummon;
+	NPC_Add(data);
 }
 
 
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team)
+{
+	return AnfuhrerEisenhard(vecPos, vecAng, team);
+}
 methodmap AnfuhrerEisenhard < CClotBody
 {
 	public void PlayIdleAlertSound() 
@@ -111,40 +121,25 @@ methodmap AnfuhrerEisenhard < CClotBody
 		EmitSoundToAll(g_AngerSounds[GetRandomInt(0, sizeof(g_AngerSounds) - 1)], this.index, _, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME);
 		EmitSoundToAll(g_AngerSounds[GetRandomInt(0, sizeof(g_AngerSounds) - 1)], this.index, _, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayAngerSound()");
-		#endif
-	}
-	property float m_flArmorCountMax
-	{
-		public get()							{ return fl_NextRangedAttack[this.index]; }
-		public set(float TempValueForProperty) 	{ fl_NextRangedAttack[this.index] = TempValueForProperty; }
-	}
-	property float m_flArmorCount
-	{
-		public get()							{ return fl_NextRangedAttackHappening[this.index]; }
-		public set(float TempValueForProperty) 	{ fl_NextRangedAttackHappening[this.index] = TempValueForProperty; }
-	}
-	property bool m_bArmorGiven
-	{
-		public get()							{ return b_Gunout[this.index]; }
-		public set(bool TempValueForProperty) 	{ b_Gunout[this.index] = TempValueForProperty; }
 	}
 	
 	
-	public AnfuhrerEisenhard(int client, float vecPos[3], float vecAng[3], bool ally)
+	public AnfuhrerEisenhard(float vecPos[3], float vecAng[3], int ally)
 	{
 		AnfuhrerEisenhard npc = view_as<AnfuhrerEisenhard>(CClotBody(vecPos, vecAng, "models/player/demo.mdl", "1.0", "500000", ally));
 		
-		i_NpcInternalId[npc.index] = EXPIDONSA_ANFUHREREISENHARD;
 		i_NpcWeight[npc.index] = 1;
 		FormatEx(c_HeadPlaceAttachmentGibName[npc.index], sizeof(c_HeadPlaceAttachmentGibName[]), "head");
 		
 		int iActivity = npc.LookupActivity("ACT_MP_RUN_ITEM1");
 		if(iActivity > 0) npc.StartActivity(iActivity);
 		
-		SetVariantInt(1);
+		SetVariantInt(4);
 		AcceptEntityInput(npc.index, "SetBodyGroup");
+
+		func_NPCDeath[npc.index] = AnfuhrerEisenhard_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = AnfuhrerEisenhard_OnTakeDamage;
+		func_NPCThink[npc.index] = AnfuhrerEisenhard_ClotThink;
 		
 		/*
 			Slow and has armor
@@ -156,14 +151,10 @@ methodmap AnfuhrerEisenhard < CClotBody
 		npc.m_iBleedType = BLEEDTYPE_NORMAL;
 		npc.m_iStepNoiseType = STEPSOUND_NORMAL;	
 		npc.m_iNpcStepVariation = STEPTYPE_NORMAL;
+		SetEntPropFloat(npc.index, Prop_Data, "m_flElementRes", 1.0, Element_Chaos);
 
-		npc.m_bArmorGiven = true;
 		
-		SDKHook(npc.index, SDKHook_Think, AnfuhrerEisenhard_ClotThink);
 		
-		//IDLE
-		npc.m_iState = 0;
-		npc.m_flGetClosestTargetTime = 0.0;
 		npc.StartPathing();
 		npc.m_flSpeed = 320.0;
 		
@@ -227,6 +218,13 @@ public void AnfuhrerEisenhard_ClotThink(int iNPC)
 		npc.m_flSpeed = 320.0;
 	}
 
+	float TrueArmor = 1.0;
+	if(npc.Anger)
+	{
+		TrueArmor *= 0.75;
+	}
+	fl_TotalArmor[npc.index] = TrueArmor;
+
 	if(npc.m_flNextThinkTime > GetGameTime(npc.index))
 	{
 		return;
@@ -241,18 +239,19 @@ public void AnfuhrerEisenhard_ClotThink(int iNPC)
 	
 	if(IsValidEnemy(npc.index, npc.m_iTarget))
 	{
-		float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
+		float vecTarget[3]; WorldSpaceCenter(npc.m_iTarget, vecTarget );
 	
-		float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+		float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+		float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 		if(flDistanceToTarget < npc.GetLeadRadius()) 
 		{
 			float vPredictedPos[3];
-			vPredictedPos = PredictSubjectPosition(npc, npc.m_iTarget);
-			NPC_SetGoalVector(npc.index, vPredictedPos);
+			PredictSubjectPosition(npc, npc.m_iTarget,_,_, vPredictedPos);
+			npc.SetGoalVector(vPredictedPos);
 		}
 		else 
 		{
-			NPC_SetGoalEntity(npc.index, npc.m_iTarget);
+			npc.SetGoalEntity(npc.m_iTarget);
 		}
 		AnfuhrerEisenhardSelfDefense(npc,GetGameTime(npc.index), npc.m_iTarget, flDistanceToTarget); 
 	}
@@ -271,31 +270,28 @@ public Action AnfuhrerEisenhard_OnTakeDamage(int victim, int &attacker, int &inf
 	if(attacker <= 0)
 		return Plugin_Continue;
 
-
+	/*
 	//if youre behind him and attack him ,you deal 2x the damage.
 	if(IsBehindAndFacingTarget(attacker, victim))
 	{
-		damage *= 1.5;
+		if(attacker <= MaxClients)
+		{
+			bool PlaySound = false;
+			if(f_MinicritSoundDelay[attacker] < GetGameTime())
+			{
+				PlaySound = true;
+				f_MinicritSoundDelay[attacker] = GetGameTime() + 0.25;
+			}
+			
+			DisplayCritAboveNpc(victim, attacker, PlaySound,_,_,true); //Display crit above head
+		}
+		damage *= 1.35;
 	}
-
-	if(npc.Anger)
-	{
-		damage *= 0.65;
-	}
+	*/
+	
 	if(npc.m_flArmorCount > 0.0)
 	{
-		if(damagetype & DMG_CLUB)
-		{
-			npc.m_flArmorCount -= (damage * 0.9) * 2.0;
-		}
-		else
-		{
-			npc.m_flArmorCount -= damage * 0.9;
-		}
-		damage *= 0.1; //negate damage heavy.
-		npc.PlayHurtArmorSound();
 		float percentageArmorLeft = npc.m_flArmorCount / npc.m_flArmorCountMax;
-
 		if(percentageArmorLeft <= 0.0)
 		{
 			if(IsValidEntity(npc.m_iWearable2))
@@ -320,19 +316,26 @@ public Action AnfuhrerEisenhard_OnTakeDamage(int victim, int &attacker, int &inf
 	}
 	else if (npc.m_flHeadshotCooldown < GetGameTime(npc.index))
 	{
+		if(npc.Anger)
+		{
+			if(IsValidEntity(npc.m_iWearable2))
+				RemoveEntity(npc.m_iWearable2);
+			if(IsValidEntity(npc.m_iWearable3))
+				RemoveEntity(npc.m_iWearable3);
+			if(IsValidEntity(npc.m_iWearable4))
+				RemoveEntity(npc.m_iWearable4);
+		}
 		npc.m_flHeadshotCooldown = GetGameTime(npc.index) + DEFAULT_HURTDELAY;
 		npc.m_blPlayHurtAnimation = true;
 	}		
 
-	if((GetEntProp(npc.index, Prop_Data, "m_iMaxHealth") / 2 )>= GetEntProp(npc.index, Prop_Data, "m_iHealth") && !npc.Anger) //npc.Anger after half hp/400 hp
+	if((ReturnEntityMaxHealth(npc.index) / 2 )>= GetEntProp(npc.index, Prop_Data, "m_iHealth") && !npc.Anger) //npc.Anger after half hp/400 hp
 	{
 		npc.Anger = true; //	>:(
 		npc.PlayAngerSound();
 		
 		npc.DispatchParticleEffect(npc.index, "hightower_explosion", NULL_VECTOR, NULL_VECTOR, NULL_VECTOR, npc.FindAttachment("eyes"), PATTACH_POINT_FOLLOW, true);
-		int flMaxHealth = GetEntProp(npc.index, Prop_Data, "m_iMaxHealth");
-		npc.m_flArmorCount = float(flMaxHealth) * 0.5;
-		npc.m_flArmorCountMax = float(flMaxHealth) * 0.5;
+		GrantEntityArmor(npc.index, true, 0.5, 0.1, 0);
 	}
 	return Plugin_Changed;
 }
@@ -344,7 +347,6 @@ public void AnfuhrerEisenhard_NPCDeath(int entity)
 	{
 		npc.PlayDeathSound();	
 	}
-	SDKUnhook(npc.index, SDKHook_Think, AnfuhrerEisenhard_ClotThink);
 		
 	
 	if(IsValidEntity(npc.m_iWearable5))
@@ -369,7 +371,8 @@ void AnfuhrerEisenhardSelfDefense(AnfuhrerEisenhard npc, float gameTime, int tar
 			npc.m_flAttackHappens = 0.0;
 			
 			Handle swingTrace;
-			npc.FaceTowards(WorldSpaceCenter(npc.m_iTarget), 15000.0);
+			float VecEnemy[3]; WorldSpaceCenter(npc.m_iTarget, VecEnemy);
+			npc.FaceTowards(VecEnemy, 15000.0);
 			if(npc.DoSwingTrace(swingTrace, npc.m_iTarget)) //Big range, but dont ignore buildings if somehow this doesnt count as a raid to be sure.
 			{
 							
@@ -390,18 +393,20 @@ void AnfuhrerEisenhardSelfDefense(AnfuhrerEisenhard npc, float gameTime, int tar
 
 
 					SDKHooks_TakeDamage(target, npc.index, npc.index, damageDealt, DMG_CLUB, -1, _, vecHit);
+					IncreaseEntityDamageTakenBy(target, 0.15, 5.0, true);
+					//give 15% dmg vul with each hit for 5 secs
 
 					// Hit sound
 					npc.PlayMeleeHitSound();
 				} 
-				delete swingTrace;
 			}
+			delete swingTrace;
 		}
 	}
 
 	if(gameTime > npc.m_flNextMeleeAttack)
 	{
-		if(distance < (NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED * 1.25))
+		if(distance < (NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED))
 		{
 			int Enemy_I_See;
 								

@@ -3,7 +3,7 @@
 
 
 static Handle Revert_Weapon_Back_Timer[MAXPLAYERS+1];
-static int attacks_made[MAXPLAYERS+1]={12, ...};
+static int attacks_made[MAXPLAYERS+1]={8, ...};
 static int weapon_id[MAXPLAYERS+1]={0, ...};
 static bool Handle_on[MAXPLAYERS+1]={false, ...};
 
@@ -24,7 +24,7 @@ public void Weapon_Chlorophite_Heavy(int client, int weapon, bool crit)
 		Attributes_Set(weapon, 396, RampagerAttackSpeed(attacks_made[client]));
 		if(Handle_on[client])
 		{
-			KillTimer(Revert_Weapon_Back_Timer[client]);
+			delete Revert_Weapon_Back_Timer[client];
 		}
 		Revert_Weapon_Back_Timer[client] = CreateTimer(3.0, Reset_weapon_rampager_Heavy, client, TIMER_FLAG_NO_MAPCHANGE);
 		Handle_on[client] = true;
@@ -100,7 +100,7 @@ public void Gun_ChlorophiteTouch(int entity, int target)
 		float vecForward[3];
 		GetAngleVectors(angles, vecForward, NULL_VECTOR, NULL_VECTOR);
 		static float Entity_Position[3];
-		Entity_Position = WorldSpaceCenter(target);
+		WorldSpaceCenter(target, Entity_Position);
 
 		int owner = EntRefToEntIndex(i_WandOwner[entity]);
 		int weapon = EntRefToEntIndex(i_WandWeapon[entity]);
@@ -109,8 +109,8 @@ public void Gun_ChlorophiteTouch(int entity, int target)
 		{
 			RemoveEntity(particle);
 		}
-
-		SDKHooks_TakeDamage(target, owner, owner, f_WandDamage[entity], DMG_BULLET, weapon, CalculateDamageForce(vecForward, 10000.0), Entity_Position);	// 2048 is DMG_NOGIB?
+		float Dmg_Force[3]; CalculateDamageForce(vecForward, 10000.0, Dmg_Force);
+		SDKHooks_TakeDamage(target, owner, owner, f_WandDamage[entity], DMG_BULLET, weapon, Dmg_Force, Entity_Position);	// 2048 is DMG_NOGIB?
 		switch(GetRandomInt(1,5)) 
 		{
 			case 1:EmitSoundToAll(SOUND_AUTOAIM_IMPACT_FLESH_1, entity, SNDCHAN_STATIC, 80, _, 0.9);

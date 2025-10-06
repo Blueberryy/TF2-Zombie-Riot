@@ -16,6 +16,31 @@ enum
 	Villager_Command_StandNearTower = 2,
 }
 
+static int NPCId;
+
+void BarrackVillagerOnMapStart()
+{
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Barracks Assistant Villager");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_barrack_villager");
+	strcopy(data.Icon, sizeof(data.Icon), "");
+	data.IconCustom = false;
+	data.Flags = 0;
+	data.Category = Type_Ally;
+	data.Func = ClotSummon;
+	NPCId = NPC_Add(data);
+}
+
+int BarrackVillager_ID()
+{
+	return NPCId;
+}
+
+static any ClotSummon(int client, float vecPos[3], float vecAng[3])
+{
+	return BarrackVillager(client, vecPos, vecAng);
+}
+
 methodmap BarrackVillager < BarrackBody
 {
 	property float f_VillagerBuildCooldown
@@ -69,15 +94,17 @@ methodmap BarrackVillager < BarrackBody
 			}
 		}
 	}
-	public BarrackVillager(int client, float vecPos[3], float vecAng[3], bool ally)
+	public BarrackVillager(int client, float vecPos[3], float vecAng[3])
 	{
 		BarrackVillager npc = view_as<BarrackVillager>(BarrackBody(client, vecPos, vecAng, "1000",_,_,_,_,"models/pickups/pickup_powerup_king.mdl"));
 		
-		i_NpcInternalId[npc.index] = BARRACKS_VILLAGER;
 		i_NpcWeight[npc.index] = 1;
 		
-		SDKHook(npc.index, SDKHook_Think, BarrackVillager_ClotThink);
 
+		func_NPCOnTakeDamage[npc.index] = BarrackBody_OnTakeDamage;
+		func_NPCDeath[npc.index] = BarrackVillager_NPCDeath;
+		func_NPCThink[npc.index] = BarrackVillager_ClotThink;
+		
 		npc.m_flSpeed = 150.0;
 		npc.i_VillagerSpecialCommand = Villager_Command_Default;
 		npc.m_iTowerLinked = -1;
@@ -152,7 +179,7 @@ public void BarrackVillager_ClotThink(int iNPC)
 					npc.m_bisWalking = true;
 					npc.SetActivity("ACT_VILLAGER_RUN");
 				}	
-				NPC_SetGoalVector(npc.index, VillagerDesiredBuildLocation[npc.index]);
+				npc.SetGoalVector(VillagerDesiredBuildLocation[npc.index]);
 				float MePos[3];
 				GetEntPropVector(npc.index, Prop_Data, "m_vecAbsOrigin", MePos);
 
@@ -162,18 +189,22 @@ public void BarrackVillager_ClotThink(int iNPC)
 				if(flDistanceToTarget < (50.0*50.0))
 				{
 					//We are close enough to build, lets build.
-					int spawn_index = Npc_Create(BARRACKS_BUILDING, client, VillagerDesiredBuildLocation[npc.index], {0.0,0.0,0.0}, GetEntProp(npc.index, Prop_Send, "m_iTeamNum") == 2);
+					int spawn_index = NPC_CreateByName("npc_barrack_building", client, VillagerDesiredBuildLocation[npc.index], {0.0,0.0,0.0}, GetTeam(npc.index));
 					if(spawn_index > MaxClients)
 					{
 						VillagerDesiredBuildLocation[npc.index][0] = 0.0;
 						VillagerDesiredBuildLocation[npc.index][1] = 0.0;
 						VillagerDesiredBuildLocation[npc.index][2] = 0.0;
+						
 						npc.f_VillagerBuildCooldown = GameTime + 120.0;
+						if(Rogue_Mode())
+							npc.f_VillagerBuildCooldown = GameTime + 60.0;
+
 						npc.m_iTowerLinked = spawn_index;
 						player.m_iTowerLinked = spawn_index;
-						if(!b_IsAlliedNpc[iNPC])
+						if(GetTeam(iNPC) != TFTeam_Red)
 						{
-							Zombies_Currently_Still_Ongoing += 1;
+							NpcAddedToZombiesLeftCurrently(iNPC, true);
 						}
 						i_AttacksTillMegahit[spawn_index] = 10;
 						SetEntProp(spawn_index, Prop_Data, "m_iHealth", 1); //only 1 health, the villager needs to first needs to build it up over time.
@@ -224,20 +255,28 @@ public void BarrackVillager_ClotThink(int iNPC)
 				float flDistanceToTarget = GetVectorDistance(BuildingPos, MePos, true);
 				if(flDistanceToTarget < (50.0*50.0)) //we are close enough, lets build.
 				{
-					i_AttacksTillMegahit[BuildingAlive] += 1;
-					if(GetEntProp(BuildingAlive, Prop_Data, "m_iHealth") < GetEntProp(BuildingAlive, Prop_Data, "m_iMaxHealth"))
+					if(Rogue_Mode())
 					{
-						SetEntProp(BuildingAlive, Prop_Data, "m_iHealth", GetEntProp(BuildingAlive, Prop_Data, "m_iHealth") + (GetEntProp(BuildingAlive, Prop_Data, "m_iMaxHealth") / 222));
-						if(GetEntProp(BuildingAlive, Prop_Data, "m_iHealth") >= GetEntProp(BuildingAlive, Prop_Data, "m_iMaxHealth"))
+						i_AttacksTillMegahit[BuildingAlive] += 1;
+						if(GetEntProp(BuildingAlive, Prop_Data, "m_iHealth") < GetEntProp(BuildingAlive, Prop_Data, "m_iMaxHealth"))
 						{
-							SetEntProp(BuildingAlive, Prop_Data, "m_iHealth", GetEntProp(BuildingAlive, Prop_Data, "m_iMaxHealth"));
+							SetEntProp(BuildingAlive, Prop_Data, "m_iHealth", GetEntProp(BuildingAlive, Prop_Data, "m_iHealth") + (GetEntProp(BuildingAlive, Prop_Data, "m_iMaxHealth") / 222));
+							if(GetEntProp(BuildingAlive, Prop_Data, "m_iHealth") >= GetEntProp(BuildingAlive, Prop_Data, "m_iMaxHealth"))
+							{
+								SetEntProp(BuildingAlive, Prop_Data, "m_iHealth", GetEntProp(BuildingAlive, Prop_Data, "m_iMaxHealth"));
+							}
 						}
+					}
+					else
+					{
+						i_AttacksTillMegahit[BuildingAlive] += 255;
+						SetEntProp(BuildingAlive, Prop_Data, "m_iHealth", GetEntProp(BuildingAlive, Prop_Data, "m_iMaxHealth"));
 					}
 					npc.FaceTowards(BuildingPos, 10000.0); //build.
 					if(npc.m_iChanged_WalkCycle != 6)
 					{
 						npc.m_iChanged_WalkCycle = 6;
-						NPC_StopPathing(npc.index);
+						npc.StopPathing();
 						npc.m_bisWalking = false;
 						npc.SetActivity("ACT_VILLAGER_BUILD_LOOP");
 					}	
@@ -251,7 +290,7 @@ public void BarrackVillager_ClotThink(int iNPC)
 						npc.m_bisWalking = true;
 						npc.SetActivity("ACT_VILLAGER_RUN");
 					}	
-					NPC_SetGoalVector(npc.index, BuildingPos);
+					npc.SetGoalVector(BuildingPos);
 				}
 			}
 			else if(i_AttacksTillMegahit[BuildingAlive] != 300) //300 indicates its finished building.
@@ -280,11 +319,11 @@ public void BarrackVillager_ClotThink(int iNPC)
 					float flDistanceToTarget = GetVectorDistance(VillagerRepairFocusLoc[npc.index], MePos, true);
 					if(flDistanceToTarget < (25.0*25.0))
 					{
-						SummonerRenerateResources(client, 0.25, true);
+						SummonerRenerateResources(client, 0.4, 1.05);
 						if(npc.m_iChanged_WalkCycle != 7)
 						{
 							npc.m_iChanged_WalkCycle = 7;
-							NPC_StopPathing(npc.index);
+							npc.StopPathing();
 							npc.m_bisWalking = false;
 							npc.SetActivity("ACT_VILLAGER_MINING"); //mining animation?
 						}	
@@ -298,7 +337,7 @@ public void BarrackVillager_ClotThink(int iNPC)
 							npc.m_bisWalking = true;
 							npc.SetActivity("ACT_VILLAGER_RUN");
 						}	
-						NPC_SetGoalVector(npc.index, VillagerRepairFocusLoc[npc.index]);
+						npc.SetGoalVector(VillagerRepairFocusLoc[npc.index]);
 					}
 				}
 				case Villager_Command_StandNearTower:
@@ -332,7 +371,7 @@ public void BarrackVillager_ClotThink(int iNPC)
 									if(npc.m_iChanged_WalkCycle != 4)
 									{
 										npc.m_iChanged_WalkCycle = 4;
-										NPC_StopPathing(npc.index);
+										npc.StopPathing();
 										npc.m_bisWalking = false;
 										npc.SetActivity("ACT_VILLAGER_IDLE");
 									}	
@@ -346,7 +385,7 @@ public void BarrackVillager_ClotThink(int iNPC)
 										npc.m_bisWalking = true;
 										npc.SetActivity("ACT_VILLAGER_RUN");
 									}	
-									NPC_SetGoalVector(npc.index, BuildingPos);
+									npc.SetGoalVector(BuildingPos);
 								}
 							}
 						}
@@ -396,7 +435,7 @@ public void BarrackVillager_ClotThink(int iNPC)
 								if(npc.m_iChanged_WalkCycle != 4)
 								{
 									npc.m_iChanged_WalkCycle = 4;
-									NPC_StopPathing(npc.index);
+									npc.StopPathing();
 									npc.m_bisWalking = false;
 									npc.SetActivity("ACT_VILLAGER_IDLE");
 								}	
@@ -410,7 +449,7 @@ public void BarrackVillager_ClotThink(int iNPC)
 									npc.m_bisWalking = true;
 									npc.SetActivity("ACT_VILLAGER_RUN");
 								}	
-								NPC_SetGoalVector(npc.index, VillagerRepairFocusLoc[npc.index]);
+								npc.SetGoalVector(VillagerRepairFocusLoc[npc.index]);
 							}
 						}
 						else
@@ -432,7 +471,6 @@ void BarrackVillager_NPCDeath(int entity)
 {
 	BarrackVillager npc = view_as<BarrackVillager>(entity);
 	BarrackBody_NPCDeath(npc.index);
-	SDKUnhook(npc.index, SDKHook_Think, BarrackVillager_ClotThink);
 }
 
 bool BarracksVillager_RepairSelfTower(int entity, int tower)
@@ -463,7 +501,7 @@ bool BarracksVillager_RepairSelfTower(int entity, int tower)
 		if(npc.m_iChanged_WalkCycle != 6)
 		{
 			npc.m_iChanged_WalkCycle = 6;
-			NPC_StopPathing(npc.index);
+			npc.StopPathing();
 			npc.m_bisWalking = false;
 			npc.SetActivity("ACT_VILLAGER_BUILD_LOOP");
 		}	
@@ -477,7 +515,7 @@ bool BarracksVillager_RepairSelfTower(int entity, int tower)
 			npc.m_bisWalking = true;
 			npc.SetActivity("ACT_VILLAGER_RUN");
 		}	
-		NPC_SetGoalVector(npc.index, BuildingPos);
+		npc.SetGoalVector(BuildingPos);
 	}
 	if(BuldingCanBeRepaired)
 	{
@@ -511,7 +549,7 @@ void BarracksVillager_RepairBuilding(int entity, int building)
 		if(npc.m_iChanged_WalkCycle != 6)
 		{
 			npc.m_iChanged_WalkCycle = 6;
-			NPC_StopPathing(npc.index);
+			npc.StopPathing();
 			npc.m_bisWalking = false;
 			npc.SetActivity("ACT_VILLAGER_BUILD_LOOP");
 		}	
@@ -525,7 +563,7 @@ void BarracksVillager_RepairBuilding(int entity, int building)
 			npc.m_bisWalking = true;
 			npc.SetActivity("ACT_VILLAGER_RUN");
 		}	
-		NPC_SetGoalVector(npc.index, BuildingPos);
+		npc.SetGoalVector(BuildingPos);
 	}
 	if(BuldingCanBeRepaired)
 	{
@@ -533,13 +571,12 @@ void BarracksVillager_RepairBuilding(int entity, int building)
 		{
 			if(i_IsABuilding[building])
 			{
-				int HealthToRepair = Building_Max_Health[building] / 750;
+				int HealthToRepair = GetEntProp(building, Prop_Data, "m_iMaxHealth") / 750;
 				if(HealthToRepair < 1)
 				{
 					HealthToRepair = 1;
 				}
-				SetVariantInt(HealthToRepair);
-				AcceptEntityInput(building, "AddHealth");
+				HealEntityGlobal(entity, building, float(HealthToRepair), _, _, _, _);
 			}
 		}
 	}
@@ -547,10 +584,11 @@ void BarracksVillager_RepairBuilding(int entity, int building)
 
 void BarracksVillager_MenuSpecial(int client, int entity)
 {
+	SetGlobalTransTarget(client);
 	BarrackVillager npc = view_as<BarrackVillager>(entity);
 
 	Menu menu = new Menu(BarrackVillager_MenuH);
-	menu.SetTitle("%t\n \n%t\n ", "TF2: Zombie Riot", NPC_Names[i_NpcInternalId[entity]]);
+	menu.SetTitle("%t\n \n%s\n ", "TF2: Zombie Riot", NpcStats_ReturnNpcName(entity));
 	BarrackVillager player = view_as<BarrackVillager>(client);
 	char num[16];
 	IntToString(EntIndexToEntRef(entity), num, sizeof(num));
@@ -711,7 +749,7 @@ stock int GetClosestBuildingVillager(int entity, float EntityLocation[3], float 
 	int ClosestTarget = 0; 
 	for(int entitycount; entitycount<i_MaxcountBuilding; entitycount++) //BUILDINGS!
 	{
-		int building = EntRefToEntIndex(i_ObjectsBuilding[entitycount]);
+		int building = EntRefToEntIndexFast(i_ObjectsBuilding[entitycount]);
 		if(IsValidEntity(building) && GetEntProp(building, Prop_Data, "m_iHealth") < GetEntProp(building, Prop_Data, "m_iMaxHealth"))
 		{
 			if(Can_I_See_Enemy_Only(entity, building))

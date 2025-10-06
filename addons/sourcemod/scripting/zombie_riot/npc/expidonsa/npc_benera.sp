@@ -37,6 +37,20 @@ void Benera_OnMapStart_NPC()
 	for (int i = 0; i < (sizeof(g_IdleAlertedSounds)); i++) { PrecacheSound(g_IdleAlertedSounds[i]); }
 	for (int i = 0; i < (sizeof(g_MeleeAttackSounds)); i++) { PrecacheSound(g_MeleeAttackSounds[i]); }
 	PrecacheModel("models/player/engineer.mdl");
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Benera");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_benera");
+	strcopy(data.Icon, sizeof(data.Icon), "heavy_shotgun"); 	//leaderboard_class_(insert the name)
+	data.IconCustom = false;								//download needed?
+	data.Flags = 0;											//example: MVM_CLASS_FLAG_MINIBOSS|MVM_CLASS_FLAG_ALWAYSCRIT;, forces these flags.	
+	data.Category = Type_Expidonsa;
+	data.Func = ClotSummon;
+	NPC_Add(data);
+}
+
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team)
+{
+	return Benera(vecPos, vecAng, team);
 }
 
 methodmap Benera < CClotBody
@@ -73,11 +87,10 @@ methodmap Benera < CClotBody
 	}
 	
 	
-	public Benera(int client, float vecPos[3], float vecAng[3], bool ally)
+	public Benera(float vecPos[3], float vecAng[3], int ally)
 	{
 		Benera npc = view_as<Benera>(CClotBody(vecPos, vecAng, "models/player/engineer.mdl", "1.0", "350", ally));
-		
-		i_NpcInternalId[npc.index] = EXPIDONSA_BENERA;
+
 		i_NpcWeight[npc.index] = 1;
 		FormatEx(c_HeadPlaceAttachmentGibName[npc.index], sizeof(c_HeadPlaceAttachmentGibName[]), "head");
 		
@@ -94,12 +107,14 @@ methodmap Benera < CClotBody
 		npc.m_iBleedType = BLEEDTYPE_NORMAL;
 		npc.m_iStepNoiseType = STEPSOUND_NORMAL;	
 		npc.m_iNpcStepVariation = STEPTYPE_NORMAL;
+		SetEntPropFloat(npc.index, Prop_Data, "m_flElementRes", 1.0, Element_Chaos);
 		
-		SDKHook(npc.index, SDKHook_Think, Benera_ClotThink);
+		func_NPCDeath[npc.index] = view_as<Function>(Internal_NPCDeath);
+		func_NPCOnTakeDamage[npc.index] = view_as<Function>(Internal_OnTakeDamage);
+		func_NPCThink[npc.index] = view_as<Function>(Internal_ClotThink);
+
 		
-		//IDLE
-		npc.m_iState = 0;
-		npc.m_flGetClosestTargetTime = 0.0;
+		
 		npc.StartPathing();
 		npc.m_flSpeed = 200.0;
 		
@@ -123,7 +138,7 @@ methodmap Benera < CClotBody
 	}
 }
 
-public void Benera_ClotThink(int iNPC)
+static void Internal_ClotThink(int iNPC)
 {
 	Benera npc = view_as<Benera>(iNPC);
 	
@@ -155,18 +170,19 @@ public void Benera_ClotThink(int iNPC)
 	
 	if(IsValidEnemy(npc.index, npc.m_iTarget))
 	{
-		float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
+		float vecTarget[3]; WorldSpaceCenter(npc.m_iTarget, vecTarget );
 	
-		float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+		float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+		float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 		if(flDistanceToTarget < npc.GetLeadRadius()) 
 		{
 			float vPredictedPos[3];
-			vPredictedPos = PredictSubjectPosition(npc, npc.m_iTarget);
-			NPC_SetGoalVector(npc.index, vPredictedPos);
+			PredictSubjectPosition(npc, npc.m_iTarget,_,_, vPredictedPos);
+			npc.SetGoalVector(vPredictedPos);
 		}
 		else 
 		{
-			NPC_SetGoalEntity(npc.index, npc.m_iTarget);
+			npc.SetGoalEntity(npc.m_iTarget);
 		}
 		BeneraSelfDefense(npc,GetGameTime(npc.index), npc.m_iTarget, flDistanceToTarget); 
 	}
@@ -178,7 +194,7 @@ public void Benera_ClotThink(int iNPC)
 	npc.PlayIdleAlertSound();
 }
 
-public Action Benera_OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3], int damagecustom)
+static Action Internal_OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3], int damagecustom)
 {
 	Benera npc = view_as<Benera>(victim);
 		
@@ -194,14 +210,13 @@ public Action Benera_OnTakeDamage(int victim, int &attacker, int &inflictor, flo
 	return Plugin_Changed;
 }
 
-public void Benera_NPCDeath(int entity)
+static void Internal_NPCDeath(int entity)
 {
 	Benera npc = view_as<Benera>(entity);
 	if(!npc.m_bGib)
 	{
 		npc.PlayDeathSound();	
 	}
-	SDKUnhook(npc.index, SDKHook_Think, Benera_ClotThink);
 		
 	
 	if(IsValidEntity(npc.m_iWearable3))
@@ -225,7 +240,7 @@ void BeneraSelfDefense(Benera npc, float gameTime, int target, float distance)
 				npc.AddGesture("ACT_MP_ATTACK_STAND_PRIMARY", false);
 				npc.m_iTarget = Enemy_I_See;
 				npc.PlayMeleeSound();
-				float vecTarget[3]; vecTarget = WorldSpaceCenter(target);
+				float vecTarget[3]; WorldSpaceCenter(target, vecTarget);
 				npc.FaceTowards(vecTarget, 20000.0);
 				Handle swingTrace;
 				if(npc.DoSwingTrace(swingTrace, target, { 9999.0, 9999.0, 9999.0 }))
@@ -241,7 +256,7 @@ void BeneraSelfDefense(Benera npc, float gameTime, int target, float distance)
 
 					if(IsValidEnemy(npc.index, target))
 					{
-						float damageDealt = 7.5;
+						float damageDealt = 14.5;
 						if(ShouldNpcDealBonusDamage(target))
 							damageDealt *= 3.0;
 

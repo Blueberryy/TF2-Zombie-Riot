@@ -19,7 +19,7 @@ static const char g_IdleSounds[][] = {
 	"npc/combine_soldier/vo/alert1.wav",
 	"npc/combine_soldier/vo/bouncerbouncer.wav",
 	"npc/combine_soldier/vo/boomer.wav",
-	"npc/combine_soldier/vo/contactconfirm.wav",
+	"npc/combine_soldier/vo/contactconfim.wav",
 };
 
 static const char g_IdleAlertedSounds[][] = {
@@ -57,9 +57,6 @@ static const char g_MeleeAttackSounds[][] = {
 	"weapons/bow_shoot.wav",
 };
 
-static const char g_MeleeMissSounds[][] = {
-	"weapons/cbar_miss1.wav",
-};
 
 void MedivalRiddenArcher_OnMapStart_NPC()
 {
@@ -69,10 +66,23 @@ void MedivalRiddenArcher_OnMapStart_NPC()
 	for (int i = 0; i < (sizeof(g_IdleAlertedSounds)); i++) { PrecacheSound(g_IdleAlertedSounds[i]); }
 	for (int i = 0; i < (sizeof(g_MeleeHitSounds));	i++) { PrecacheSound(g_MeleeHitSounds[i]);	}
 	for (int i = 0; i < (sizeof(g_MeleeAttackSounds));	i++) { PrecacheSound(g_MeleeAttackSounds[i]);	}
-	for (int i = 0; i < (sizeof(g_MeleeMissSounds));   i++) { PrecacheSound(g_MeleeMissSounds[i]);   }
+	for (int i = 0; i < (sizeof(g_DefaultMeleeMissSounds));   i++) { PrecacheSound(g_DefaultMeleeMissSounds[i]);   }
 	PrecacheModel(COMBINE_CUSTOM_MODEL);
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Mounted Archer");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_medival_riddenarcher");
+	strcopy(data.Icon, sizeof(data.Icon), "scout");
+	data.IconCustom = false;
+	data.Flags = 0;
+	data.Category = Type_Medieval;
+	data.Func = ClotSummon;
+	NPC_Add(data);
 }
 
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team)
+{
+	return MedivalRiddenArcher(vecPos, vecAng, team);
+}
 methodmap MedivalRiddenArcher < CClotBody
 {
 	public void PlayIdleSound() {
@@ -81,9 +91,7 @@ methodmap MedivalRiddenArcher < CClotBody
 		EmitSoundToAll(g_IdleSounds[GetRandomInt(0, sizeof(g_IdleSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 100);
 		this.m_flNextIdleSound = GetGameTime(this.index) + GetRandomFloat(24.0, 48.0);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayIdleSound()");
-		#endif
+
 	}
 	
 	public void PlayIdleAlertSound() {
@@ -93,9 +101,7 @@ methodmap MedivalRiddenArcher < CClotBody
 		EmitSoundToAll(g_IdleAlertedSounds[GetRandomInt(0, sizeof(g_IdleAlertedSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 100);
 		this.m_flNextIdleSound = GetGameTime(this.index) + GetRandomFloat(12.0, 24.0);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayIdleAlertSound()");
-		#endif
+		
 	}
 	
 	public void PlayHurtSound() {
@@ -107,50 +113,39 @@ methodmap MedivalRiddenArcher < CClotBody
 		EmitSoundToAll(g_HurtSounds[GetRandomInt(0, sizeof(g_HurtSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 100);
 		
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayHurtSound()");
-		#endif
+		
 	}
 	
 	public void PlayDeathSound() {
 	
 		EmitSoundToAll(g_DeathSounds[GetRandomInt(0, sizeof(g_DeathSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 100);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayDeathSound()");
-		#endif
+		
 	}
 	
 	public void PlayMeleeSound() {
 		EmitSoundToAll(g_MeleeAttackSounds[GetRandomInt(0, sizeof(g_MeleeAttackSounds) - 1)], this.index, _, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 100);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayMeleeHitSound()");
-		#endif
+
 	}
 	
 	public void PlayMeleeHitSound() {
 		EmitSoundToAll(g_MeleeHitSounds[GetRandomInt(0, sizeof(g_MeleeHitSounds) - 1)], this.index, _, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 100);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayMeleeHitSound()");
-		#endif
+
 	}
 
 	public void PlayMeleeMissSound() {
-		EmitSoundToAll(g_MeleeMissSounds[GetRandomInt(0, sizeof(g_MeleeMissSounds) - 1)], this.index, _, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 100);
+		EmitSoundToAll(g_DefaultMeleeMissSounds[GetRandomInt(0, sizeof(g_DefaultMeleeMissSounds) - 1)], this.index, _, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 100);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CGoreFast::PlayMeleeMissSound()");
-		#endif
+		
 	}
 	
-	public MedivalRiddenArcher(int client, float vecPos[3], float vecAng[3], bool ally)
+	public MedivalRiddenArcher(float vecPos[3], float vecAng[3], int ally)
 	{
 		MedivalRiddenArcher npc = view_as<MedivalRiddenArcher>(CClotBody(vecPos, vecAng, COMBINE_CUSTOM_MODEL, "1.15", "6500", ally));
 		SetVariantInt(1);
-		AcceptEntityInput(npc.index, "SetBodyGroup");				
-		i_NpcInternalId[npc.index] = MEDIVAL_RIDDENARCHER;
+		AcceptEntityInput(npc.index, "SetBodyGroup");			
 		i_NpcWeight[npc.index] = 2;
 		
 		FormatEx(c_HeadPlaceAttachmentGibName[npc.index], sizeof(c_HeadPlaceAttachmentGibName[]), "head");
@@ -160,6 +155,7 @@ methodmap MedivalRiddenArcher < CClotBody
 		
 		
 		npc.m_flNextMeleeAttack = 0.0;
+		npc.m_bisWalking = false; //Animation it uses has no groundspeed, this is needed.
 		
 		npc.m_iBleedType = BLEEDTYPE_NORMAL;
 		npc.m_iStepNoiseType = STEPSOUND_NORMAL;	
@@ -182,10 +178,11 @@ methodmap MedivalRiddenArcher < CClotBody
 		}
 
 		
-		SDKHook(npc.index, SDKHook_Think, MedivalRiddenArcher_ClotThink);
+		func_NPCDeath[npc.index] = MedivalRiddenArcher_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = MedivalRiddenArcher_OnTakeDamage;
+		func_NPCThink[npc.index] = MedivalRiddenArcher_ClotThink;
+		func_NPCAnimEvent[npc.index] = HandleAnimEventMedival_RiddenArcher;
 	
-//		SetEntityRenderMode(npc.index, RENDER_TRANSCOLOR);
-//		SetEntityRenderColor(npc.index, 200, 255, 200, 255);
 
 		npc.m_iState = 0;
 		npc.m_flSpeed = 300.0;
@@ -212,8 +209,7 @@ methodmap MedivalRiddenArcher < CClotBody
 	
 }
 
-//TODO 
-//Rewrite
+
 public void MedivalRiddenArcher_ClotThink(int iNPC)
 {
 	MedivalRiddenArcher npc = view_as<MedivalRiddenArcher>(iNPC);
@@ -257,14 +253,15 @@ public void MedivalRiddenArcher_ClotThink(int iNPC)
 			{
 				npc.m_flSpeed = 300.0;
 			}
-			float vecTarget[3]; vecTarget = WorldSpaceCenter(PrimaryThreatIndex);
+			float vecTarget[3]; WorldSpaceCenter(PrimaryThreatIndex, vecTarget);
 		
-			float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+			float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+			float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 			
 			//Predict their pos.
 			if(flDistanceToTarget < npc.GetLeadRadius()) {
 				
-				float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, PrimaryThreatIndex);
+				float vPredictedPos[3]; PredictSubjectPosition(npc, PrimaryThreatIndex,_,_, vPredictedPos);
 				/*
 				int color[4];
 				color[0] = 255;
@@ -280,9 +277,9 @@ public void MedivalRiddenArcher_ClotThink(int iNPC)
 				
 				
 				
-				NPC_SetGoalVector(npc.index, vPredictedPos);
+				npc.SetGoalVector(vPredictedPos);
 			} else {
-				NPC_SetGoalEntity(npc.index, PrimaryThreatIndex);
+				npc.SetGoalEntity(PrimaryThreatIndex);
 			}
 			
 			if(flDistanceToTarget < 160000)
@@ -307,8 +304,8 @@ public void MedivalRiddenArcher_ClotThink(int iNPC)
 						npc.m_flNextMeleeAttack = GetGameTime(npc.index) + 2.0;
 						npc.m_flJumpStartTime = GetGameTime(npc.index) + 1.0;
 					}
-					NPC_StopPathing(npc.index);
-					npc.m_bPathing = false;
+					npc.StopPathing();
+					
 				}
 				else
 				{
@@ -324,8 +321,8 @@ public void MedivalRiddenArcher_ClotThink(int iNPC)
 	}
 	else
 	{
-		NPC_StopPathing(npc.index);
-		npc.m_bPathing = false;
+		npc.StopPathing();
+		
 		npc.m_flGetClosestTargetTime = 0.0;
 		npc.m_iTarget = GetClosestTarget(npc.index);
 	}
@@ -343,7 +340,7 @@ public void HandleAnimEventMedival_RiddenArcher(int entity, int event)
 		if(IsValidEnemy(npc.index, PrimaryThreatIndex))
 		{
 			
-			float vecTarget[3]; vecTarget = WorldSpaceCenter(PrimaryThreatIndex);
+			float vecTarget[3]; WorldSpaceCenter(PrimaryThreatIndex, vecTarget);
 				
 			npc.FaceTowards(vecTarget, 30000.0);
 						
@@ -380,9 +377,6 @@ public void MedivalRiddenArcher_NPCDeath(int entity)
 	{
 		npc.PlayDeathSound();	
 	}
-	
-	
-	SDKUnhook(npc.index, SDKHook_Think, MedivalRiddenArcher_ClotThink);
 		
 	if(IsValidEntity(npc.m_iWearable1))
 		RemoveEntity(npc.m_iWearable1);

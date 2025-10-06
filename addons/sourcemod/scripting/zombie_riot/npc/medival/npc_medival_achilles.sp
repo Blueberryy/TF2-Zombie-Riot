@@ -75,10 +75,6 @@ static const char g_MeleeAttackSounds[][] = {
 	"weapons/shovel_swing.wav",
 };
 
-static const char g_MeleeMissSounds[][] = {
-	"weapons/cbar_miss1.wav",
-};
-
 #define ACHILLES_CHARGE_TIME 3.1
 #define ACHILLES_CHARGE_SPAN 1.0
 #define ACHILLES_LIGHTNING_RANGE 150.0
@@ -91,9 +87,23 @@ void MedivalAchilles_OnMapStart_NPC()
 	for (int i = 0; i < (sizeof(g_IdleAlertedSounds)); i++) { PrecacheSound(g_IdleAlertedSounds[i]); }
 	for (int i = 0; i < (sizeof(g_MeleeHitSounds));	i++) { PrecacheSound(g_MeleeHitSounds[i]);	}
 	for (int i = 0; i < (sizeof(g_MeleeAttackSounds));	i++) { PrecacheSound(g_MeleeAttackSounds[i]);	}
-	for (int i = 0; i < (sizeof(g_MeleeMissSounds));   i++) { PrecacheSound(g_MeleeMissSounds[i]);   }
+	for (int i = 0; i < (sizeof(g_DefaultMeleeMissSounds));   i++) { PrecacheSound(g_DefaultMeleeMissSounds[i]);   }
 	PrecacheModel(COMBINE_CUSTOM_MODEL);
 	PrecacheModel("models/props_junk/harpoon002a.mdl");
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Achilles");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_medival_achilles");
+	strcopy(data.Icon, sizeof(data.Icon), "achilles");
+	data.IconCustom = true;
+	data.Flags = 0;
+	data.Category = Type_Medieval;
+	data.Func = ClotSummon;
+	NPC_Add(data);
+}
+
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team)
+{
+	return MedivalAchilles(vecPos, vecAng, team);
 }
 
 methodmap MedivalAchilles < CClotBody
@@ -104,9 +114,7 @@ methodmap MedivalAchilles < CClotBody
 		EmitSoundToAll(g_IdleSounds[GetRandomInt(0, sizeof(g_IdleSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 100);
 		this.m_flNextIdleSound = GetGameTime(this.index) + GetRandomFloat(24.0, 48.0);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayIdleSound()");
-		#endif
+
 	}
 	
 	public void PlayIdleAlertSound() {
@@ -116,9 +124,7 @@ methodmap MedivalAchilles < CClotBody
 		EmitSoundToAll(g_IdleAlertedSounds[GetRandomInt(0, sizeof(g_IdleAlertedSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 100);
 		this.m_flNextIdleSound = GetGameTime(this.index) + GetRandomFloat(12.0, 24.0);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayIdleAlertSound()");
-		#endif
+		
 	}
 	
 	public void PlayHurtSound() {
@@ -130,50 +136,39 @@ methodmap MedivalAchilles < CClotBody
 		EmitSoundToAll(g_HurtSounds[GetRandomInt(0, sizeof(g_HurtSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 100);
 		
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayHurtSound()");
-		#endif
+		
 	}
 	
 	public void PlayDeathSound() {
 	
 		EmitSoundToAll(g_DeathSounds[GetRandomInt(0, sizeof(g_DeathSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 100);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayDeathSound()");
-		#endif
+		
 	}
 	
 	public void PlayMeleeSound() {
 		EmitSoundToAll(g_MeleeAttackSounds[GetRandomInt(0, sizeof(g_MeleeAttackSounds) - 1)], this.index, _, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 100);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayMeleeHitSound()");
-		#endif
+
 	}
 	
 	public void PlayMeleeHitSound() {
 		EmitSoundToAll(g_MeleeHitSounds[GetRandomInt(0, sizeof(g_MeleeHitSounds) - 1)], this.index, _, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 100);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayMeleeHitSound()");
-		#endif
+
 	}
 
 	public void PlayMeleeMissSound() {
-		EmitSoundToAll(g_MeleeMissSounds[GetRandomInt(0, sizeof(g_MeleeMissSounds) - 1)], this.index, _, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 100);
+		EmitSoundToAll(g_DefaultMeleeMissSounds[GetRandomInt(0, sizeof(g_DefaultMeleeMissSounds) - 1)], this.index, _, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 100);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CGoreFast::PlayMeleeMissSound()");
-		#endif
+		
 	}
 	
-	public MedivalAchilles(int client, float vecPos[3], float vecAng[3], bool ally)
+	public MedivalAchilles(float vecPos[3], float vecAng[3], int ally)
 	{
 		MedivalAchilles npc = view_as<MedivalAchilles>(CClotBody(vecPos, vecAng, COMBINE_CUSTOM_MODEL, "1.15", "100000", ally));
 		SetVariantInt(1);
 		AcceptEntityInput(npc.index, "SetBodyGroup");				
-		i_NpcInternalId[npc.index] = MEDIVAL_ACHILLES;
 		i_NpcWeight[npc.index] = 3;
 		
 		FormatEx(c_HeadPlaceAttachmentGibName[npc.index], sizeof(c_HeadPlaceAttachmentGibName[]), "head");
@@ -189,7 +184,10 @@ methodmap MedivalAchilles < CClotBody
 		npc.m_iNpcStepVariation = STEPTYPE_COMBINE_METRO;
 		
 		
-		SDKHook(npc.index, SDKHook_Think, MedivalAchilles_ClotThink);
+		func_NPCDeath[npc.index] = MedivalAchilles_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = MedivalAchilles_OnTakeDamage;
+		func_NPCThink[npc.index] = MedivalAchilles_ClotThink;
+		func_NPCAnimEvent[npc.index] = HandleAnimEvent_MedivalAchilles;
 
 		npc.m_iState = 0;
 		npc.m_flSpeed = 330.0;
@@ -229,8 +227,7 @@ methodmap MedivalAchilles < CClotBody
 	}
 }
 
-//TODO 
-//Rewrite
+
 public void MedivalAchilles_ClotThink(int iNPC)
 {
 	MedivalAchilles npc = view_as<MedivalAchilles>(iNPC);
@@ -275,18 +272,19 @@ public void MedivalAchilles_ClotThink(int iNPC)
 			if(IsValidEnemy(npc.index, npc.m_iTarget))
 			{
 				Handle swingTrace;
-				npc.FaceTowards(WorldSpaceCenter(npc.m_iTarget), 15000.0); //Snap to the enemy. make backstabbing hard to do.
+				float TargetVecPos[3]; WorldSpaceCenter(npc.m_iTarget, TargetVecPos);
+				npc.FaceTowards(TargetVecPos, 15000.0); 
 				if(npc.DoSwingTrace(swingTrace, npc.m_iTarget, { 80.0, 80.0, 80.0 }, { -80.0, -80.0, -80.0 })) //Big range, but dont ignore buildings if somehow this doesnt count as a raid to be sure.
 				{
 					int target = TR_GetEntityIndex(swingTrace);	
 					
 					float vecHit[3];
 					TR_GetEndPosition(vecHit, swingTrace);
-					float damage = 75.0;
+					float damage = 125.0;
 
-					if(Medival_Difficulty_Level > 2.0)
+					if(Medival_Difficulty_Level_NotMath >= 3)
 					{
-						damage = 100.0;
+						damage = 150.0;
 					}
 
 					if(ShouldNpcDealBonusDamage(target))
@@ -319,9 +317,9 @@ public void MedivalAchilles_ClotThink(int iNPC)
 				float distance = GetVectorDistance( EntityLocation, TargetLocation, true );  
 					
 				float vecTarget[3];
-				vecTarget = WorldSpaceCenter(npc.m_iTarget);
+				WorldSpaceCenter(npc.m_iTarget, vecTarget);
 
-				if(distance <= (NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED * 8.0)) //Sanity check! we want to change targets but if they are too far away then we just dont cast it.
+				if(distance <= (NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED * 16.0)) //Sanity check! we want to change targets but if they are too far away then we just dont cast it.
 				{
 					PluginBot_Jump(npc.index, vecTarget);
 				}
@@ -332,19 +330,20 @@ public void MedivalAchilles_ClotThink(int iNPC)
 	
 	if(IsValidEnemy(npc.index, npc.m_iTarget))
 	{
-		float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
-		float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+		float vecTarget[3]; WorldSpaceCenter(npc.m_iTarget, vecTarget );
+		float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+		float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 			
 		//Predict their pos.
 		if(flDistanceToTarget < npc.GetLeadRadius()) 
 		{
-			float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, npc.m_iTarget);
+			float vPredictedPos[3]; PredictSubjectPosition(npc, npc.m_iTarget,_,_, vPredictedPos);
 			
-			NPC_SetGoalVector(npc.index, vPredictedPos);
+			npc.SetGoalVector(vPredictedPos);
 		}
 		else
 		{
-			NPC_SetGoalEntity(npc.index, npc.m_iTarget);
+			npc.SetGoalEntity(npc.m_iTarget);
 		}
 		//Get position for just travel here.
 
@@ -410,11 +409,9 @@ public void MedivalAchilles_ClotThink(int iNPC)
 			}
 			case 1:
 			{			
-				int Enemy_I_See;
-							
-				Enemy_I_See = Can_I_See_Enemy(npc.index, npc.m_iTarget);
+				int Enemy_I_See = Can_I_See_Enemy(npc.index, npc.m_iTarget);
 				//Can i see This enemy, is something in the way of us?
-				//Dont even check if its the same enemy, just engage in rape, and also set our new target to this just in case.
+				//Dont even check if its the same enemy, just engage in killing, and also set our new target to this just in case.
 				if(IsValidEntity(Enemy_I_See) && IsValidEnemy(npc.index, Enemy_I_See))
 				{
 					//Hide spear
@@ -429,15 +426,13 @@ public void MedivalAchilles_ClotThink(int iNPC)
 					npc.m_flAttackHappens = gameTime + 0.25;
 
 					npc.m_flDoingAnimation = gameTime + 0.25;
-					npc.m_flNextMeleeAttack = gameTime + 0.7;
+					npc.m_flNextMeleeAttack = gameTime + 0.55;
 					npc.m_bisWalking = true;
 				}
 			}
 			case 2:
 			{			
-				int Enemy_I_See;
-							
-				Enemy_I_See = Can_I_See_Enemy(npc.index, npc.m_iTarget);
+				int Enemy_I_See = Can_I_See_Enemy(npc.index, npc.m_iTarget);
 
 				//jump at them.
 				if(IsValidEntity(Enemy_I_See) && IsValidEnemy(npc.index, Enemy_I_See))
@@ -449,8 +444,8 @@ public void MedivalAchilles_ClotThink(int iNPC)
 
 					if(npc.m_iChanged_WalkCycle != 7) 	
 					{
-						NPC_StopPathing(npc.index);
-						npc.m_bPathing = false;
+						npc.StopPathing();
+						
 						npc.m_flSpeed = 0.0;
 						npc.m_bisWalking = false;
 						npc.m_iChanged_WalkCycle = 7;
@@ -468,9 +463,7 @@ public void MedivalAchilles_ClotThink(int iNPC)
 			}
 			case 3:
 			{
-				int Enemy_I_See;
-							
-				Enemy_I_See = Can_I_See_Enemy(npc.index, npc.m_iTarget);
+				int Enemy_I_See = Can_I_See_Enemy(npc.index, npc.m_iTarget);
 
 				//jump at them.
 				if(IsValidEntity(Enemy_I_See) && IsValidEnemy(npc.index, Enemy_I_See))
@@ -482,7 +475,7 @@ public void MedivalAchilles_ClotThink(int iNPC)
 						AcceptEntityInput(npc.m_iWearable4, "Enable");
 						float vEnd[3];
 						
-						vEnd = GetAbsOrigin(npc.m_iTarget);
+						GetAbsOrigin(npc.m_iTarget, vEnd);
 						Handle pack;
 						CreateDataTimer(ACHILLES_CHARGE_SPAN, Smite_Timer_achilles, pack, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
 						WritePackCell(pack, EntIndexToEntRef(npc.index));
@@ -498,8 +491,8 @@ public void MedivalAchilles_ClotThink(int iNPC)
 						npc.m_flDoingAnimation = gameTime + 2.0;
 						if(npc.m_iChanged_WalkCycle != 7) 	
 						{
-							NPC_StopPathing(npc.index);
-							npc.m_bPathing = false;
+							npc.StopPathing();
+							
 							npc.m_flSpeed = 0.0;
 							npc.m_bisWalking = false;
 							//Hide sword
@@ -515,8 +508,8 @@ public void MedivalAchilles_ClotThink(int iNPC)
 	}
 	else
 	{
-		NPC_StopPathing(npc.index);
-		npc.m_bPathing = false;
+		npc.StopPathing();
+		
 		npc.m_flGetClosestTargetTime = 0.0;
 		npc.m_iTarget = GetClosestTarget(npc.index);
 	}
@@ -550,9 +543,6 @@ public void MedivalAchilles_NPCDeath(int entity)
 		npc.PlayDeathSound();	
 	}
 	
-	
-	SDKUnhook(npc.index, SDKHook_Think, MedivalAchilles_ClotThink);
-		
 	if(IsValidEntity(npc.m_iWearable1))
 		RemoveEntity(npc.m_iWearable1);
 	if(IsValidEntity(npc.m_iWearable2))
@@ -641,7 +631,7 @@ public Action Smite_Timer_achilles(Handle Smite_Logic, DataPack pack)
 		RequestFrame(MakeExplosionFrameLater, pack_boom);
 		
 		CreateEarthquake(spawnLoc, 1.0, ACHILLES_LIGHTNING_RANGE * 2.5, 16.0, 255.0);
-		Explode_Logic_Custom(damage, entity, entity, -1, spawnLoc, ACHILLES_LIGHTNING_RANGE * 1.4,_,0.8, true, 100, false, 25.0);  //Explosion range increace
+		Explode_Logic_Custom(damage, entity, entity, -1, spawnLoc, ACHILLES_LIGHTNING_RANGE * 1.4,_,0.8, true, 100, false, 25.0);  //Explosion range increase
 	
 		return Plugin_Stop;
 	}

@@ -56,6 +56,16 @@ public void MadRoost_OnMapStart_NPC()
 	for (int i = 0; i < (sizeof(g_HurtSound));	i++) { PrecacheSound(g_HurtSound[i]);	}
 	for (int i = 0; i < (sizeof(g_KilledEnemySound));	i++) { PrecacheSound(g_KilledEnemySound[i]);	}
 	PrecacheModel("models/player/scout.mdl");
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Mad Roost");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_roost_mad");
+	data.Func = ClotSummon;
+	NPC_Add(data);
+}
+
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team)
+{
+	return MadRoost(vecPos, vecAng, team);
 }
 
 methodmap MadRoost < CClotBody
@@ -95,14 +105,13 @@ methodmap MadRoost < CClotBody
 	}
 	
 	
-	public MadRoost(int client, float vecPos[3], float vecAng[3], bool ally)
+	public MadRoost(float vecPos[3], float vecAng[3], int ally)
 	{
-		MadRoost npc = view_as<MadRoost>(CClotBody(vecPos, vecAng, "models/player/scout.mdl", "0.65", "300", ally, false,_,_,_,{10.0,10.0,40.0}));
-		
-		i_NpcInternalId[npc.index] = MAD_ROOST;
+		MadRoost npc = view_as<MadRoost>(CClotBody(vecPos, vecAng, "models/player/scout.mdl", "0.8", "300", ally, false));
 		
 		FormatEx(c_HeadPlaceAttachmentGibName[npc.index], sizeof(c_HeadPlaceAttachmentGibName[]), "head");
-		
+		KillFeed_SetKillIcon(npc.index, "holymackerel");
+
 		int iActivity = npc.LookupActivity("ACT_MP_STAND_MELEE");
 		if(iActivity > 0) npc.StartActivity(iActivity);
 
@@ -149,16 +158,19 @@ methodmap MadRoost < CClotBody
 
 	//	SetEntProp(npc.m_iWearable4, Prop_Send, "m_nSkin", skin);
 		
-		NPC_StopPathing(npc.index);
-		npc.m_bPathing = false;	
+		npc.StopPathing();
+			
+
+		
+		SetVariantInt(7);
+		AcceptEntityInput(npc.index, "SetBodyGroup");
 		
 		return npc;
 	}
 	
 }
 
-//TODO 
-//Rewrite
+
 public void MadRoost_ClotThink(int iNPC)
 {
 	MadRoost npc = view_as<MadRoost>(iNPC);
@@ -190,7 +202,7 @@ public void MadRoost_ClotThink(int iNPC)
 	
 	npc.m_flNextThinkTime = gameTime + 0.1;
 
-	// npc.m_iTarget comes from here.
+	// npc.m_iTarget comes from here, This only handles out of battle instancnes, for inbattle, code it yourself. It also makes NPCS jump if youre too high up.
 	Npc_Base_Thinking(iNPC, 200.0, "ACT_MP_RUN_MELEE", "ACT_MP_STAND_MELEE", 175.0, gameTime);
 	
 	if(npc.m_flAttackHappens)
@@ -202,18 +214,21 @@ public void MadRoost_ClotThink(int iNPC)
 			if(IsValidEnemy(npc.index, npc.m_iTarget))
 			{
 				Handle swingTrace;
-				npc.FaceTowards(WorldSpaceCenter(npc.m_iTarget), 15000.0); //Snap to the enemy. make backstabbing hard to do.
+				float WorldSpaceCenterVec[3]; 
+				WorldSpaceCenter(npc.m_iTarget, WorldSpaceCenterVec);
+				npc.FaceTowards(WorldSpaceCenterVec, 15000.0); //Snap to the enemy. make backstabbing hard to do.
 				if(npc.DoSwingTrace(swingTrace, npc.m_iTarget, _, _, _, _)) //Big range, but dont ignore buildings if somehow this doesnt count as a raid to be sure.
 				{
 					int target = TR_GetEntityIndex(swingTrace);	
 					
 					float vecHit[3];
 					TR_GetEndPosition(vecHit, swingTrace);
-					float damage = 2.0;
+					float damage = 65.0;
 
-					npc.PlayMeleeHitSound();
+					
 					if(target > 0) 
 					{
+						npc.PlayMeleeHitSound();
 						SDKHooks_TakeDamage(target, npc.index, npc.index, damage, DMG_CLUB);
 
 						int Health = GetEntProp(target, Prop_Data, "m_iHealth");
@@ -238,19 +253,23 @@ public void MadRoost_ClotThink(int iNPC)
 	
 	if(IsValidEnemy(npc.index, npc.m_iTarget))
 	{
-		float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
-		float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
-			
+		float vecTarget[3];
+		WorldSpaceCenter(npc.m_iTarget, vecTarget);
+		float vecSelf[3];
+		WorldSpaceCenter(npc.index, vecSelf);
+
+		float flDistanceToTarget = GetVectorDistance(vecTarget, vecSelf, true);
 		//Predict their pos.
 		if(flDistanceToTarget < npc.GetLeadRadius()) 
 		{
-			float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, npc.m_iTarget);
+			float vPredictedPos[3]; 
+			PredictSubjectPosition(npc, npc.m_iTarget,_,_,vPredictedPos);
 			
-			NPC_SetGoalVector(npc.index, vPredictedPos);
+			npc.SetGoalVector(vPredictedPos);
 		}
 		else
 		{
-			NPC_SetGoalEntity(npc.index, npc.m_iTarget);
+			npc.SetGoalEntity(npc.m_iTarget);
 		}
 		//Get position for just travel here.
 
@@ -258,7 +277,7 @@ public void MadRoost_ClotThink(int iNPC)
 		{
 			npc.m_iState = -1;
 		}
-		else if(flDistanceToTarget < (80.0 * 80.0) && npc.m_flNextMeleeAttack < gameTime)
+		else if(flDistanceToTarget < (NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED) && npc.m_flNextMeleeAttack < gameTime)
 		{
 			npc.m_iState = 1; //Engage in Close Range Destruction.
 		}
@@ -288,11 +307,9 @@ public void MadRoost_ClotThink(int iNPC)
 			}
 			case 1:
 			{			
-				int Enemy_I_See;
-							
-				Enemy_I_See = Can_I_See_Enemy(npc.index, npc.m_iTarget);
+				int Enemy_I_See = Can_I_See_Enemy(npc.index, npc.m_iTarget);
 				//Can i see This enemy, is something in the way of us?
-				//Dont even check if its the same enemy, just engage in rape, and also set our new target to this just in case.
+				//Dont even check if its the same enemy, just engage in killing, and also set our new target to this just in case.
 				if(IsValidEntity(Enemy_I_See) && IsValidEnemy(npc.index, Enemy_I_See))
 				{
 					npc.m_iTarget = Enemy_I_See;

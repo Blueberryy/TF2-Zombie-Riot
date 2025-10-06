@@ -1,6 +1,7 @@
 #pragma semicolon 1
 #pragma newdecls required
 
+#define H_SLICER_AMOUNT 6
 
 /*
 	Shards:
@@ -27,15 +28,15 @@
 	Wings
 */
 
-static Handle h_TimerFantasyManagement[MAXPLAYERS+1] = {INVALID_HANDLE, ...};
+static Handle h_TimerFantasyManagement[MAXPLAYERS+1] = {null, ...};
 
 
-static float fl_Shard_Ammount[MAXTF2PLAYERS+1];
-static float fl_blade_swing_reload_time[MAXTF2PLAYERS+1];
-static float fl_teleport_recharge_time[MAXTF2PLAYERS+1];
-static float fl_hud_timer[MAXTF2PLAYERS+1];
+static float fl_Shard_Ammount[MAXPLAYERS+1];
+static float fl_blade_swing_reload_time[MAXPLAYERS+1];
+static float fl_teleport_recharge_time[MAXPLAYERS+1];
+static float fl_hud_timer[MAXPLAYERS+1];
 
-static int i_Current_Pap[MAXTF2PLAYERS+1];
+static int i_Current_Pap[MAXPLAYERS+1];
 
 #define FANTASY_BLADE_SHOOT_1 	"weapons/physcannon/energy_sing_flyby1.wav"
 #define FANTASY_BLADE_SHOOT_2 	"weapons/physcannon/energy_sing_flyby2.wav"
@@ -48,14 +49,12 @@ static float BEAM_Targets_Hit[MAXENTITIES];
 static bool Fantasy_Blade_BEAM_HitDetected[MAXENTITIES];
 static int Fantasy_Blade_BEAM_BuildingHit[MAXENTITIES];
 
-static float fl_trace_target_timeout[MAXTF2PLAYERS+1][MAXENTITIES];
-
 
 #define WAND_TELEPORT_SOUND "weapons/bison_main_shot.wav"
 
 #define FANTASY_BLADE_MAX_SHARDS 9.0
 #define FANTASY_BLADE_MAX_PENETRATION 15	//how many targets the blade will penetrate before killing itself
-#define FANTASY_BLADE_PENETRATION_FALLOFF 1.2	//by how much the damage is lowered per penetration, decided to use a seperate one from the one used in all laser weps
+#define FANTASY_BLADE_PENETRATION_FALLOFF 0.8	//by how much the damage is lowered per penetration, decided to use a seperate one from the one used in all laser weps
 
 #define FANTASY_BLADE_SHARDS_GAIN_PER_HIT 0.3
 
@@ -68,7 +67,6 @@ public void Fantasy_Blade_MapStart()
 	Zero(fl_blade_swing_reload_time);
 	Zero(fl_teleport_recharge_time);
 	Zero(fl_hud_timer);
-	Zero2(fl_trace_target_timeout);
 	Zero(h_TimerFantasyManagement);
 	Zero(fl_Shard_Ammount);
 	ShortTeleportLaserIndex = PrecacheModel("materials/sprites/laser.vmt", false);
@@ -90,20 +88,19 @@ public void Npc_OnTakeDamage_Fantasy_Blade(int client, int damagetype)
 
 public void Activate_Fantasy_Blade(int client, int weapon)
 {	
-	if (h_TimerFantasyManagement[client] != INVALID_HANDLE)
+	if (h_TimerFantasyManagement[client] != null)
 	{
 		//This timer already exists.
 		if(i_CustomWeaponEquipLogic[weapon] == WEAPON_FANTASY_BLADE)
 		{
 			//Is the weapon it again?
 			//Yes?
-			KillTimer(h_TimerFantasyManagement[client]);
-			h_TimerFantasyManagement[client] = INVALID_HANDLE;
+			delete h_TimerFantasyManagement[client];
+			h_TimerFantasyManagement[client] = null;
 			i_Current_Pap[client] = Fantasy_Blade_Get_Pap(weapon);
 			
-			Create_Halo_And_Wings(client, true);
 			DataPack pack;
-			h_TimerFantasyManagement[client] = CreateDataTimer(0.1, Timer_Management_Fantasy, pack, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
+			h_TimerFantasyManagement[client] = CreateDataTimer(0.1, Timer_Management_Fantasy, pack, TIMER_REPEAT);
 			pack.WriteCell(client);
 			pack.WriteCell(EntIndexToEntRef(weapon));
 		}
@@ -114,9 +111,8 @@ public void Activate_Fantasy_Blade(int client, int weapon)
 	{
 		i_Current_Pap[client] = Fantasy_Blade_Get_Pap(weapon);
 		
-		Create_Halo_And_Wings(client, true);
 		DataPack pack;
-		h_TimerFantasyManagement[client] = CreateDataTimer(0.1, Timer_Management_Fantasy, pack, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
+		h_TimerFantasyManagement[client] = CreateDataTimer(0.1, Timer_Management_Fantasy, pack, TIMER_REPEAT);
 		pack.WriteCell(client);
 		pack.WriteCell(EntIndexToEntRef(weapon));
 	}
@@ -125,30 +121,21 @@ public Action Timer_Management_Fantasy(Handle timer, DataPack pack)
 {
 	pack.Reset();
 	int client = pack.ReadCell();
-	if(IsValidClient(client))
+	int weapon = EntRefToEntIndex(pack.ReadCell());
+	if(!IsValidClient(client) || !IsClientInGame(client) || !IsPlayerAlive(client) || !IsValidEntity(weapon))
 	{
-		if (IsClientInGame(client))
-		{
-			if (IsPlayerAlive(client))
-			{
-				Fantasy_Blade_Loop_Logic(client, EntRefToEntIndex(pack.ReadCell()));
-			}
-			else
-				Kill_Fantasy_Loop(client);
-		}
-		else
-			Kill_Fantasy_Loop(client);
-	}
-	else
-		Kill_Fantasy_Loop(client);
-		
+		Destroy_Halo_And_Wings(client);
+		h_TimerFantasyManagement[client] = null;
+		return Plugin_Stop;
+	}	
+	Fantasy_Blade_Loop_Logic(client, weapon);
 	return Plugin_Continue;
 }
 
 static int Fantasy_Blade_Get_Pap(int weapon)
 {
 	int pap=0;
-	pap = RoundFloat(Attributes_Get(weapon, 122, 0.0));
+	pap = RoundFloat(Attributes_Get(weapon, Attrib_PapNumber, 0.0));
 	return pap;
 }
 
@@ -168,7 +155,7 @@ public void Fantasy_Blade_m2(int client, int weapon, bool crit, int slot)
 				{
 					if(fl_Shard_Ammount[client]>=3)
 					{
-						float damage = 500.0;
+						float damage = 200.0;
 						damage *= Attributes_Get(weapon, 2, 1.0);
 							
 						float time = Fantasy_Blade_Tele(client, weapon, damage, 1000.0);
@@ -197,7 +184,7 @@ public void Fantasy_Blade_m2(int client, int weapon, bool crit, int slot)
 				float time = 3.5;
 				time *= Attributes_Get(weapon, 6, 1.0);
 
-				float damage = 100.0;
+				float damage = 110.0;
 				damage *= Attributes_Get(weapon, 2, 1.0);
 
 				fl_blade_swing_reload_time[client] = GameTime + time + 0.5;
@@ -221,71 +208,52 @@ public void Fantasy_Blade_m2(int client, int weapon, bool crit, int slot)
 static void Fantasy_Blade_Loop_Logic(int client, int weapon)
 {
 	int weapon_holding = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
-	
-
-	if(IsValidEntity(weapon))
+	if(weapon_holding==weapon)	//And this will only work if they have the weapon in there hands and bought
 	{
-
-		if(i_CustomWeaponEquipLogic[weapon] == WEAPON_FANTASY_BLADE)	//this loop will work if the holder doesn't have it in there hands, but they have it bought
+		Create_Halo_And_Wings(client);
+		int pap = i_Current_Pap[client];
+		float GameTime = GetGameTime();
+		int buttons = GetClientButtons(client);
+		bool reload = (buttons & IN_RELOAD) != 0;
+		bool crouch = (buttons & IN_DUCK) != 0;
+		bool attack2 = (buttons & IN_ATTACK2) != 0;
+		if(!reload && !crouch && fl_blade_swing_reload_time[client] <= GameTime && attack2)
 		{
-
-			if(weapon_holding==weapon)	//And this will only work if they have the weapon in there hands and bought
+			if(fl_Shard_Ammount[client]>=1)
 			{
-				Create_Halo_And_Wings(client);
-				int pap = i_Current_Pap[client];
-				float GameTime = GetGameTime();
-				int buttons = GetClientButtons(client);
-				bool reload = (buttons & IN_RELOAD) != 0;
-				bool crouch = (buttons & IN_DUCK) != 0;
-				bool attack2 = (buttons & IN_ATTACK2) != 0;
-				if(!reload && !crouch && fl_blade_swing_reload_time[client] <= GameTime && attack2)
-				{
-					if(fl_Shard_Ammount[client]>=1)
-					{
-						float time = 1.75;
-						time *= Attributes_Get(weapon, 6, 1.0);
-							
-						float damage = 75.0;
-						damage *= Attributes_Get(weapon, 2, 1.0);
-						fl_blade_swing_reload_time[client] = GameTime + time + 0.5;
-						float look_vec[3];
-						float range = 250.0;
-						Get_Fake_Forward_Vec(client, range, look_vec);
-						Horizontal_Slicer(client, look_vec, range/2.0, time, damage);
-						fl_Shard_Ammount[client]-=1.0;
-					}
-					else
-					{
-						if(fl_hud_timer[client]<GameTime)
-						{
-							SetDefaultHudPosition(client);
-							SetGlobalTransTarget(client);
-							ShowSyncHudText(client,  SyncHud_Notifaction, "Not Enough Shards");
-						}
-					}
+				float time = 1.75;
+				time *= Attributes_Get(weapon, 6, 1.0);
 					
-				}
-				if(fl_hud_timer[client]<GameTime)
-				{
-					fl_hud_timer[client] = GameTime + 0.5;
-					Fantasy_Show_Hud(client, GameTime, pap);
-				}
-				
+				float damage = 85.0;
+				damage *= Attributes_Get(weapon, 2, 1.0);
+				fl_blade_swing_reload_time[client] = GameTime + time + 0.5;
+				float look_vec[3];
+				float range = 250.0;
+				Get_Fake_Forward_Vec(client, range, look_vec);
+				Horizontal_Slicer(client, look_vec, range/2.0, time, damage);
+				fl_Shard_Ammount[client]-=1.0;
 			}
 			else
 			{
-				Destroy_Halo_And_Wings(client, 3);
+				if(fl_hud_timer[client]<GameTime)
+				{
+					SetDefaultHudPosition(client);
+					SetGlobalTransTarget(client);
+					ShowSyncHudText(client,  SyncHud_Notifaction, "Not Enough Shards");
+				}
 			}
+			
 		}
-		else
+		if(fl_hud_timer[client]<GameTime)
 		{
-			Kill_Fantasy_Loop(client);
+			fl_hud_timer[client] = GameTime + 0.5;
+			Fantasy_Show_Hud(client, GameTime, pap);
 		}
+		
 	}
 	else
 	{
-		Kill_Fantasy_Loop(client);
-		
+		Destroy_Halo_And_Wings(client);
 	}
 }
 static void Fantasy_Show_Hud(int client, float GameTime, int pap)
@@ -332,7 +300,7 @@ static void Fantasy_Show_Hud(int client, float GameTime, int pap)
 		
 	}
 	
-	StopSound(client, SNDCHAN_STATIC, "UI/hint.wav");
+	
 }
 
 static void Get_Fake_Forward_Vec(int client, float Range, float Vec_Target[3])
@@ -346,15 +314,6 @@ static void Get_Fake_Forward_Vec(int client, float Range, float Vec_Target[3])
 	AddVectors(Pos, Direction, Vec_Target);
 }
 
-public void Kill_Fantasy_Loop(int client)
-{
-	if (h_TimerFantasyManagement[client] != INVALID_HANDLE)
-	{
-		KillTimer(h_TimerFantasyManagement[client]);
-		h_TimerFantasyManagement[client] = INVALID_HANDLE;
-		Destroy_Halo_And_Wings(client, 3);
-	}
-}
 
 static float Fantasy_Blade_Tele(int client, int weapon, float damage, float range)
 {
@@ -438,9 +397,11 @@ static float Fantasy_Blade_Tele(int client, int weapon, float damage, float rang
 			
 			if(times_hurt>10)
 				break;
-			VictimPos = WorldSpaceCenter(HitEntitiesTeleportTrace[entity_traced]);
+			WorldSpaceCenter(HitEntitiesTeleportTrace[entity_traced], VictimPos);
 
-			SDKHooks_TakeDamage(HitEntitiesTeleportTrace[entity_traced], client, client, damage_1 / damage_reduction, DMG_CLUB, weapon, CalculateExplosiveDamageForce(abspos, VictimPos, 5000.0), VictimPos, false);	
+			float ExplodePos[3]; CalculateExplosiveDamageForce(abspos, VictimPos, 5000.0, ExplodePos);
+
+			SDKHooks_TakeDamage(HitEntitiesTeleportTrace[entity_traced], client, client, damage_1 * damage_reduction, DMG_CLUB, weapon, ExplodePos, VictimPos, false);	
 			damage_reduction *= ExplosionDmgMultihitFalloff;
 			Teleport_CD--;
 			times_hurt++;
@@ -458,7 +419,7 @@ static float Fantasy_Blade_Tele(int client, int weapon, float damage, float rang
 	return 0.0;
 }
 
-static bool b_I_hit_something[MAXTF2PLAYERS+1];
+static bool b_I_hit_something[MAXPLAYERS+1];
 
 static bool Check_if_targets_exist(int client, float range)
 {
@@ -494,76 +455,63 @@ static bool Check_if_targets_exist(int client, float range)
 			 /// Jibril's Wings and Halo
 			///
 			
-static int i_wing_lasers[MAXTF2PLAYERS+1][6];
-static int i_wing_particles[MAXTF2PLAYERS+1][6];
+static int i_wing_lasers[MAXPLAYERS+1][6];
+static int i_wing_particles[MAXPLAYERS+1][6];
 
-static int i_halo_particles[MAXTF2PLAYERS+1];
+static int i_halo_particles[MAXPLAYERS+1];
 			
-static void Create_Halo_And_Wings(int client, bool first=false)
+static void Create_Halo_And_Wings(int client)
 {
+	//block
 	//Ty artvin <3
 	
 	int viewmodelModel;
 	viewmodelModel = EntRefToEntIndex(i_Viewmodel_PlayerModel[client]);
 
 	if(!IsValidEntity(viewmodelModel))
-		return;
-		
-	
-	if(first)
 	{
-		if(i_Current_Pap[client]>=1)
-		{
-			bool do_new = false;
-			int halo_particle = EntRefToEntIndex(i_halo_particles[client]);
-			
-			if(!IsValidEntity(halo_particle))
-				do_new = true;
-			if(do_new)
-				Create_Halo(client);
-		}
-		if(i_Current_Pap[client]>=2)
-		{
-			bool do_new = false;
-			for(int i=0 ; i < 6 ; i++)
-			{
-				int wing_laser = EntRefToEntIndex(i_wing_lasers[client][i]);
-				if(!IsValidEntity(wing_laser))
-				{
-					do_new = true;
-				}
-			}	
-			for(int i=0 ; i < 6 ; i++)
-			{
-				int wing_particle = EntRefToEntIndex(i_wing_particles[client][i]);
-				if(!IsValidEntity(wing_particle))
-				{
-					do_new = true;
-				}
-			}
-			if(do_new)
-				Create_Wings(client,viewmodelModel);
-		}
-		
+		Destroy_Halo_And_Wings(client);
 		return;
 	}
-	if(i_Current_Pap[client]>=1)
+		
+	if(AtEdictLimit(EDICT_PLAYER))
+	{
+		Destroy_Halo_And_Wings(client);
+		return;
+	}
+
+	int pap = i_Current_Pap[client];
+
+	bool HasWings = MagiaWingsDo(client);
+	if(HasWings)
+	{
+		if(pap>=2)
+		{
+			pap=1;
+		}
+	}
+	
+//	if(pap == 1)
 	{
 		bool do_new = false;
 		int halo_particle = EntRefToEntIndex(i_halo_particles[client]);
 		
 		if(!IsValidEntity(halo_particle))
 			do_new = true;
-		if(do_new)
-		{
-			Destroy_Halo_And_Wings(client, 2);
-			Create_Halo(client);
-		}
 		
+		if(do_new)
+			Create_Halo(client);
 	}
-	if(i_Current_Pap[client]>=2)
+	/*
+	Block this, too many effects are bad.
+	if(pap == 2)
 	{
 		bool do_new = false;
+		int halo_particle = EntRefToEntIndex(i_halo_particles[client]);
+		
+		if(!IsValidEntity(halo_particle))
+			do_new = true;
+	
 		for(int i=0 ; i < 6 ; i++)
 		{
 			int wing_laser = EntRefToEntIndex(i_wing_lasers[client][i]);
@@ -582,27 +530,38 @@ static void Create_Halo_And_Wings(int client, bool first=false)
 		}
 		if(do_new)
 		{
-			Destroy_Halo_And_Wings(client, 1);
+			Destroy_Halo_And_Wings(client);
+			Create_Halo(client);
 			Create_Wings(client,viewmodelModel);
 		}
-		
 	}
-	
-	
-		
-	
+	*/
 }
 
 static void Create_Halo(int client)
 {
 	float flPos[3];
 	float flAng[3];
-	GetAttachment(client, "head", flPos, flAng);
+	int viewmodelModel;
+	viewmodelModel = EntRefToEntIndex(i_Viewmodel_PlayerModel[client]);
+
+	if(!IsValidEntity(viewmodelModel))
+		return;
+
+	if(AtEdictLimit(EDICT_PLAYER))
+	{
+		Destroy_Halo_And_Wings(client);
+		return;
+	}
+
+	GetAttachment(viewmodelModel, "head", flPos, flAng);
 	flPos[2] += 10.0;
 	int particle = ParticleEffectAt(flPos, "unusual_symbols_parent_ice", 0.0);
-	SetParent(client, particle, "head");
-	i_halo_particles[client] = EntRefToEntIndex(particle);
+	AddEntityToThirdPersonTransitMode(client, particle);
+	SetParent(viewmodelModel, particle, "head");
+	i_halo_particles[client] = EntIndexToEntRef(particle);
 }
+/*
 static void Create_Wings(int client, int viewmodelModel)
 {
 	float flPos[3];
@@ -619,10 +578,10 @@ static void Create_Wings(int client, int viewmodelModel)
 	f_end = 1.0;
 	amp = 1.0;
 	
-	int particle_0 = ParticleEffectAt({0.0,0.0,0.0}, "", 0.0);	//Root, from where all the stuff goes from
+	int particle_0 = InfoTargetParentAt({0.0,0.0,0.0}, "", 0.0);	//Root, from where all the stuff goes from
 	
 	
-	int particle_1 = ParticleEffectAt({0.0,15.0,-12.5}, "", 0.0);
+	int particle_1 = InfoTargetParentAt({0.0,15.0,-12.5}, "", 0.0);
 	
 	SetParent(particle_0, particle_1);
 	
@@ -634,15 +593,15 @@ static void Create_Wings(int client, int viewmodelModel)
 	//ALL OF THESE ARE RELATIVE TO THE BACKPACK POINT THINGY, or well the viewmodel, but its easier to visualise if using the back
 	//Left?
 	
-	int particle_2 = ParticleEffectAt({20.0, 10.5, 2.5}, "", 0.0);	//x,y,z	//Z axis IS NOT UP/DOWN, its forward and backwards. somehow
-	int particle_2_1 = ParticleEffectAt({45.0, 35.0, -5.0}, "", 0.0);
+	int particle_2 = InfoTargetParentAt({20.0, 10.5, 2.5}, "", 0.0);	//x,y,z	//Z axis IS NOT UP/DOWN, its forward and backwards. somehow
+	int particle_2_1 = InfoTargetParentAt({45.0, 35.0, -5.0}, "", 0.0);
 	SetParent(particle_1, particle_2, "",_, true);
 	SetParent(particle_2, particle_2_1, "",_, true);
 
 
 	//Right? probably right?
-	int particle_3 = ParticleEffectAt({-20.0, 10.5, 2.5}, "", 0.0);
-	int particle_3_1 = ParticleEffectAt({-45.0, 35.0, -5.0}, "", 0.0);
+	int particle_3 = InfoTargetParentAt({-20.0, 10.5, 2.5}, "", 0.0);
+	int particle_3_1 = InfoTargetParentAt({-45.0, 35.0, -5.0}, "", 0.0);
 	SetParent(particle_1, particle_3, "",_, true);
 	SetParent(particle_3, particle_3_1, "",_, true);
 
@@ -650,12 +609,12 @@ static void Create_Wings(int client, int viewmodelModel)
 	SetEntPropVector(particle_0, Prop_Data, "m_angRotation", flAng); 
 	SetParent(viewmodelModel, particle_0, "flag",_);
 
-	i_wing_lasers[client][0] = EntIndexToEntRef(ConnectWithBeamClient(particle_2, particle_1, r, g, b, f_start, f_end, amp, LASERBEAM));
-	i_wing_lasers[client][1] = EntIndexToEntRef(ConnectWithBeamClient(particle_3, particle_1, r, g, b, f_start, f_end, amp, LASERBEAM));
-	i_wing_lasers[client][2] = EntIndexToEntRef(ConnectWithBeamClient(particle_3_1, particle_3, r, g, b, f_start, f_end, amp, LASERBEAM));
-	i_wing_lasers[client][3] = EntIndexToEntRef(ConnectWithBeamClient(particle_2_1, particle_2, r, g, b, f_start, f_end, amp, LASERBEAM));
-	i_wing_lasers[client][4] = EntIndexToEntRef(ConnectWithBeamClient(particle_1, particle_3_1, r, g, b, f_start, f_end, amp, LASERBEAM));
-	i_wing_lasers[client][5] = EntIndexToEntRef(ConnectWithBeamClient(particle_1, particle_2_1, r, g, b, f_start, f_end, amp, LASERBEAM));
+	i_wing_lasers[client][0] = EntIndexToEntRef(ConnectWithBeamClient(particle_2, particle_1, r, g, b, f_start, f_end, amp, LASERBEAM, client));
+	i_wing_lasers[client][1] = EntIndexToEntRef(ConnectWithBeamClient(particle_3, particle_1, r, g, b, f_start, f_end, amp, LASERBEAM, client));
+	i_wing_lasers[client][2] = EntIndexToEntRef(ConnectWithBeamClient(particle_3_1, particle_3, r, g, b, f_start, f_end, amp, LASERBEAM, client));
+	i_wing_lasers[client][3] = EntIndexToEntRef(ConnectWithBeamClient(particle_2_1, particle_2, r, g, b, f_start, f_end, amp, LASERBEAM, client));
+	i_wing_lasers[client][4] = EntIndexToEntRef(ConnectWithBeamClient(particle_1, particle_3_1, r, g, b, f_start, f_end, amp, LASERBEAM, client));
+	i_wing_lasers[client][5] = EntIndexToEntRef(ConnectWithBeamClient(particle_1, particle_2_1, r, g, b, f_start, f_end, amp, LASERBEAM, client));
 	
 	i_wing_particles[client][0] = EntIndexToEntRef(particle_1);
 	
@@ -668,36 +627,30 @@ static void Create_Wings(int client, int viewmodelModel)
 	i_wing_particles[client][5] = EntIndexToEntRef(particle_0);
 	
 }
-static void Destroy_Halo_And_Wings(int client, int type)
+*/
+static void Destroy_Halo_And_Wings(int client)
 {
-	if(type==1 || type == 3)
+	for(int i=0 ; i < 6 ; i++)
 	{
-		
-		
-		for(int i=0 ; i < 6 ; i++)
+		int wing_laser = EntRefToEntIndex(i_wing_lasers[client][i]);
+		if(IsValidEntity(wing_laser))
 		{
-			int wing_laser = EntRefToEntIndex(i_wing_lasers[client][i]);
-			if(IsValidEntity(wing_laser))
-			{
-				RemoveEntity(wing_laser);
-			}
-		}	
-		for(int i=0 ; i < 6 ; i++)
+			RemoveEntity(wing_laser);
+		}
+	}	
+	for(int i=0 ; i < 6 ; i++)
+	{
+		int wing_particle = EntRefToEntIndex(i_wing_particles[client][i]);
+		if(IsValidEntity(wing_particle))
 		{
-			int wing_particle = EntRefToEntIndex(i_wing_particles[client][i]);
-			if(IsValidEntity(wing_particle))
-			{
-				RemoveEntity(wing_particle);
-			}
+			RemoveEntity(wing_particle);
 		}
 	}
-	if(type==2 || type == 3)
-	{
-		int halo_particle = EntRefToEntIndex(i_halo_particles[client]);
-		if(IsValidEntity(halo_particle))
-			RemoveEntity(halo_particle);
-	}
+	int halo_particle = EntRefToEntIndex(i_halo_particles[client]);
+	if(IsValidEntity(halo_particle))
+		RemoveEntity(halo_particle);
 }
+
 			
 		  ////////////////////
 		 /// Slicer Logic ///
@@ -713,13 +666,13 @@ static float H_fl_target_vec[MAXENTITIES][H_SLICER_AMOUNT+2][3];
 static float H_fl_starting_vec[MAXENTITIES][3];
 static float H_fl_current_vec[MAXENTITIES][H_SLICER_AMOUNT+2][3];
 
-static float H_fl_damage[MAXTF2PLAYERS + 1];
+static float H_fl_damage[MAXPLAYERS + 1];
 
 static void Horizontal_Slicer(int client, float vecTarget[3], float Range, float time, float damage)
 {
 	vecTarget[2] -= 10.0;
 	float Vec_offset[3]; Vec_offset = vecTarget;
-	float Npc_Vec[3]; Npc_Vec = WorldSpaceCenter(client);
+	float Npc_Vec[3]; WorldSpaceCenter(client, Npc_Vec);
 	
 	switch(GetRandomInt(1, 2))
 	{
@@ -803,7 +756,7 @@ static void Horizontal_Slicer(int client, float vecTarget[3], float Range, float
 	H_i_Slicer_Throttle[client] = 0;
 
 	H_Tick_Count[client] = 0;
-	H_Tick_Count_Max[client] = RoundToFloor(66.0*time);
+	H_Tick_Count_Max[client] = RoundToFloor(float(TickrateModifyInt)*time);
 	
 	SDKHook(client, SDKHook_PreThink, Horizontal_Slicer_Tick);
 }
@@ -857,10 +810,10 @@ static Action Horizontal_Slicer_Tick(int client)
 		H_i_Slicer_Throttle[client] = 0;
 		for(int i=1 ; i<=H_SLICER_AMOUNT ; i++)
 		{
-				Fantasy_Blade_Damage_Trace(client, H_fl_current_vec[client][i], H_fl_current_vec[client][i+1], 2.0, H_fl_damage[client]);
-				
-				TE_SetupBeamPoints(H_fl_current_vec[client][i], H_fl_current_vec[client][i+1], gLaser2, 0, 0, 0, 0.051, 5.0, 5.0, 0, 0.1, colour, 1);
-				TE_SendToAll(0.0);
+			Fantasy_Blade_Damage_Trace(client, H_fl_current_vec[client][i], H_fl_current_vec[client][i+1], 20.0, H_fl_damage[client]);
+			
+			TE_SetupBeamPoints(H_fl_current_vec[client][i], H_fl_current_vec[client][i+1], gLaser2, 0, 0, 0, 0.051, 5.0, 5.0, 0, 0.1, colour, 1);
+			TE_SendToAll(0.0);
 			
 		}
 	}
@@ -872,7 +825,7 @@ static Action Horizontal_Slicer_Tick(int client)
 
 //	Verical Slier
 
-static float fl_damage[MAXTF2PLAYERS + 1];
+static float fl_damage[MAXPLAYERS + 1];
 static int Tick_Count[MAXENTITIES];
 static int Tick_Count_Max[MAXENTITIES];
 
@@ -916,7 +869,7 @@ static void Vertical_Slicer(int client, float vecTarget[3], float time, float da
 	
 	i_Slicer_Throttle[client] = 0;
 	Tick_Count[client] = 0;
-	Tick_Count_Max[client] = RoundToFloor(66.0*time);
+	Tick_Count_Max[client] = RoundToFloor(float(TickrateModifyInt)*time);
 	
 	SDKHook(client, SDKHook_PreThink, Vertical_Slicer_Tick);
 }
@@ -961,7 +914,7 @@ static Action Vertical_Slicer_Tick(int client)
 		i_Slicer_Throttle[client] = 0;
 		skyloc = Cur_Vec;
 		skyloc[2] += 150.0;
-		Fantasy_Blade_Damage_Trace(client, Cur_Vec, skyloc, 4.0, fl_damage[client]);
+		Fantasy_Blade_Damage_Trace(client, Cur_Vec, skyloc, 40.0, fl_damage[client]);
 		Cur_Vec[2] -= 150.0;
 		TE_SetupBeamPoints(Cur_Vec, skyloc, gLaser2, 0, 0, 0, 0.051, 5.0, 5.0, 0, 0.1, colour, 1);
 		TE_SendToAll(0.0);
@@ -972,45 +925,48 @@ static Action Vertical_Slicer_Tick(int client)
 
 static void Fantasy_Blade_Damage_Trace(int client, float Vec_1[3], float Vec_2[3], float radius, float dmg)
 {
+	static float hullMin[3];
+	static float hullMax[3];
+
+	for (int i = 1; i < MAXENTITIES; i++)
+	{
+		Fantasy_Blade_BEAM_HitDetected[i] = false;
+	}
+	
+	hullMin[0] = -radius;
+	hullMin[1] = hullMin[0];
+	hullMin[2] = hullMin[0];
+	hullMax[0] = -hullMin[0];
+	hullMax[1] = -hullMin[1];
+	hullMax[2] = -hullMin[2];
+	Handle trace = TR_TraceHullFilterEx(Vec_1, Vec_2, hullMin, hullMax, MASK_ALL, Fantasy_BEAM_TraceUsers, client);	// 1073741824 is CONTENTS_LADDER?
+	delete trace;
 	
 	
-			static float hullMin[3];
-			static float hullMax[3];
-
-			for (int i = 1; i < MAXENTITIES; i++)
-			{
-				Fantasy_Blade_BEAM_HitDetected[i] = false;
-			}
-			
-			hullMin[0] = -radius;
-			hullMin[1] = hullMin[0];
-			hullMin[2] = hullMin[0];
-			hullMax[0] = -hullMin[0];
-			hullMax[1] = -hullMin[1];
-			hullMax[2] = -hullMin[2];
-			Handle trace = TR_TraceHullFilterEx(Vec_1, Vec_2, hullMin, hullMax, 1073741824, Fantasy_BEAM_TraceUsers, client);	// 1073741824 is CONTENTS_LADDER?
-			delete trace;
-			
-			
-			for (int victim = 1; victim < MAXENTITIES; victim++)
-			{
-				if (Fantasy_Blade_BEAM_HitDetected[victim] && GetEntProp(client, Prop_Send, "m_iTeamNum") != GetEntProp(victim, Prop_Send, "m_iTeamNum"))
-				{
-					SDKHooks_TakeDamage(victim, client, client, dmg/BEAM_Targets_Hit[client], DMG_CLUB, -1, NULL_VECTOR, Vec_1);	// 2048 is DMG_NOGIB?
-					BEAM_Targets_Hit[client] *= FANTASY_BLADE_PENETRATION_FALLOFF;
-				}
-			}
-
+	for (int victim = 1; victim < MAXENTITIES; victim++)
+	{
+		if (Fantasy_Blade_BEAM_HitDetected[victim] && GetTeam(client) != GetTeam(victim))
+		{
+			float damage_xd = dmg;
+			if(b_thisNpcIsARaid[victim])
+				damage_xd*= 1.25;
+				
+			SDKHooks_TakeDamage(victim, client, client, damage_xd*BEAM_Targets_Hit[client], DMG_CLUB, -1, NULL_VECTOR, Vec_1);	// 2048 is DMG_NOGIB?
+			BEAM_Targets_Hit[client] *= FANTASY_BLADE_PENETRATION_FALLOFF;
+		}
+	}
 }
 static bool Fantasy_BEAM_TraceUsers(int entity, int contentsMask, int client)
 {
 	if (IsEntityAlive(entity) && Fantasy_Blade_BEAM_BuildingHit[client]<=FANTASY_BLADE_MAX_PENETRATION)
 	{
-		if(fl_trace_target_timeout[client][entity]<=GetGameTime())
+		//always increment by Maxentities.
+		//Client instead of target, so it gets removed if the target dies
+		if(!IsIn_HitDetectionCooldown(client + (MAXENTITIES * 3),entity))
 		{
-			fl_trace_target_timeout[client][entity] = GetGameTime() + 0.25;
 			Fantasy_Blade_BEAM_BuildingHit[client]++;
 			Fantasy_Blade_BEAM_HitDetected[entity] = true;
+			Set_HitDetectionCooldown(client + (MAXENTITIES * 3),entity, GetGameTime() + 0.25);
 		}
 	}
 	return false;
@@ -1019,8 +975,7 @@ static bool BEAM_TraceUsers(int entity, int contentsMask, int client)
 {
 	if (IsValidEntity(entity))
 	{
-		entity = Target_Hit_Wand_Detection(client, entity);
-		if(0 < entity)
+		if(IsValidEnemy(client, entity, true, true))
 		{
 			b_I_hit_something[client] = true;
 		}

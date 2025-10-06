@@ -31,6 +31,24 @@ static const char g_MeleeHitSounds[][] =
 	"npc/headcrab/headbite.wav"
 };
 
+void TidelinkedArchon_Precache()
+{
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Tidelinked Archon");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_tidelinkedarchon");
+	strcopy(data.Icon, sizeof(data.Icon), "sea_archon");
+	data.IconCustom = true;
+	data.Flags = MVM_CLASS_FLAG_NORMAL|MVM_CLASS_FLAG_MINIBOSS;
+	data.Category = Type_Seaborn;
+	data.Func = ClotSummon;
+	NPC_Add(data);
+}
+
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team)
+{
+	return TidelinkedArchon(vecPos, vecAng, team);
+}
+
 methodmap TidelinkedArchon < CClotBody
 {
 	public void PlayIdleSound()
@@ -58,12 +76,11 @@ methodmap TidelinkedArchon < CClotBody
 		EmitSoundToAll(g_MeleeHitSounds[GetRandomInt(0, sizeof(g_MeleeHitSounds) - 1)], this.index, SNDCHAN_AUTO, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME,_);	
 	}
 	
-	public TidelinkedArchon(int client, float vecPos[3], float vecAng[3], bool ally)
+	public TidelinkedArchon(float vecPos[3], float vecAng[3], int ally)
 	{
 		TidelinkedArchon npc = view_as<TidelinkedArchon>(CClotBody(vecPos, vecAng, "models/headcrabblack.mdl", "2.3", "20000", ally, false, true));
 		// 20000 x 1.0
 
-		i_NpcInternalId[npc.index] = TIDELINKED_ARCHON;
 		i_NpcWeight[npc.index] = 1;
 		npc.SetActivity("ACT_RUN");
 		KillFeed_SetKillIcon(npc.index, "bread_bite");
@@ -72,7 +89,9 @@ methodmap TidelinkedArchon < CClotBody
 		npc.m_iStepNoiseType = STEPSOUND_GIANT;
 		npc.m_iNpcStepVariation = STEPTYPE_SEABORN;
 		
-		SDKHook(npc.index, SDKHook_Think, TidelinkedArchon_ClotThink);
+		func_NPCDeath[npc.index] = TidelinkedArchon_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = TidelinkedArchon_OnTakeDamage;
+		func_NPCThink[npc.index] = TidelinkedArchon_ClotThink;
 		
 		npc.m_flSpeed = 300.0;//150.0;	// 0.6 x 250
 		npc.m_flMeleeArmor = 0.5;
@@ -80,9 +99,8 @@ methodmap TidelinkedArchon < CClotBody
 		npc.m_flGetClosestTargetTime = 0.0;
 		npc.m_flNextMeleeAttack = 0.0;
 		npc.m_flAttackHappens = 0.0;
-		npc.m_iTargetAlly = -1;
+		i_TargetAlly[npc.index] = -1;
 		
-		SetEntityRenderMode(npc.index, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(npc.index, 100, 100, 255, 255);
 		return npc;
 	}
@@ -110,20 +128,20 @@ public void TidelinkedArchon_ClotThink(int iNPC)
 	
 	npc.m_flNextThinkTime = gameTime + 0.1;
 
-	if(npc.m_iTargetAlly == -1)
+	if(i_TargetAlly[npc.index] == -1)
 	{
 		float pos[3]; GetEntPropVector(npc.index, Prop_Data, "m_vecAbsOrigin", pos);
 		float ang[3]; GetEntPropVector(npc.index, Prop_Data, "m_angRotation", ang);
-		int maxhealth = GetEntProp(npc.index, Prop_Data, "m_iMaxHealth") * 5;
+		int maxhealth = ReturnEntityMaxHealth(npc.index) * 5;
 		
-		int entity = Npc_Create(TIDELINKED_BISHOP, -1, pos, ang, GetEntProp(npc.index, Prop_Send, "m_iTeamNum") == 2);
+		int entity = NPC_CreateByName("npc_tidelinkedbishop", -1, pos, ang, GetTeam(npc.index));
 		if(entity > MaxClients)
 		{
-			npc.m_iTargetAlly = EntIndexToEntRef(entity);
-			view_as<CClotBody>(entity).m_iTargetAlly = EntIndexToEntRef(npc.index);
+			i_TargetAlly[npc.index] = EntIndexToEntRef(entity);
+			i_TargetAlly[entity] = EntIndexToEntRef(npc.index);
 			view_as<CClotBody>(entity).m_bThisNpcIsABoss = npc.m_bThisNpcIsABoss;
 
-			Zombies_Currently_Still_Ongoing++;
+			Zombies_Currently_Still_Ongoing++;	// FIXME
 			SetEntProp(entity, Prop_Data, "m_iHealth", maxhealth);
 			SetEntProp(entity, Prop_Data, "m_iMaxHealth", maxhealth);
 			
@@ -138,21 +156,21 @@ public void TidelinkedArchon_ClotThink(int iNPC)
 			}
 		}
 	}
-
+	
 	if(b_NpcIsInvulnerable[npc.index])
 	{
-		int entity = EntRefToEntIndex(npc.m_iTargetAlly);
-		if(entity == INVALID_ENT_REFERENCE || b_NpcIsInvulnerable[entity])
+		int entity = EntRefToEntIndex(i_TargetAlly[npc.index]);
+		if(entity == INVALID_ENT_REFERENCE || !IsValidEntity(entity) || b_NpcIsInvulnerable[entity])
 		{
-			SDKHooks_TakeDamage(npc.index, 0, 0, 9999999.9, DMG_SLASH);
+			SmiteNpcToDeath(npc.index);
 			return;
 		}
 
 		int health = GetEntProp(npc.index, Prop_Data, "m_iHealth");
-		int maxhealth = GetEntProp(npc.index, Prop_Data, "m_iMaxHealth");
+		int maxhealth = ReturnEntityMaxHealth(npc.index);
 
-		health += maxhealth / 200;	// 20 seconds
-		if(health > maxhealth)
+		health += maxhealth / 100;	// 20 seconds
+		if(health >= maxhealth)
 		{
 			SetEntProp(npc.index, Prop_Data, "m_iHealth", maxhealth);
 
@@ -178,17 +196,18 @@ public void TidelinkedArchon_ClotThink(int iNPC)
 	
 	if(npc.m_iTarget > 0)
 	{
-		float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
-		float distance = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);		
+		float vecTarget[3]; WorldSpaceCenter(npc.m_iTarget, vecTarget );
+		float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+		float distance = GetVectorDistance(vecTarget, VecSelfNpc, true);	
 		
 		if(distance < npc.GetLeadRadius())
 		{
-			float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, npc.m_iTarget);
-			NPC_SetGoalVector(npc.index, vPredictedPos);
+			float vPredictedPos[3]; PredictSubjectPosition(npc, npc.m_iTarget,_,_, vPredictedPos);
+			npc.SetGoalVector(vPredictedPos);
 		}
 		else 
 		{
-			NPC_SetGoalEntity(npc.index, npc.m_iTarget);
+			npc.SetGoalEntity(npc.m_iTarget);
 		}
 
 		npc.StartPathing();
@@ -214,7 +233,7 @@ public void TidelinkedArchon_ClotThink(int iNPC)
 						SDKHooks_TakeDamage(target, npc.index, npc.index, ShouldNpcDealBonusDamage(target) ? 6000.0 : 300.0, DMG_CLUB);
 						// 600 x 0.5
 
-						SeaSlider_AddNeuralDamage(target, npc.index, 150);
+						Elemental_AddNervousDamage(target, npc.index, 150);
 						// 600 x 0.5 x 0.5
 					}
 				}
@@ -272,11 +291,7 @@ void TidelinkedArchon_OnTakeDamage(int victim, int attacker, float damage)
 			SDKHook(victim, SDKHook_Think, TidelinkedArchon_DownedThink);
 		}
 		
-		if(b_NpcIsInvulnerable[npc.index])
-		{
-			damage = 0.0;
-		}
-		else if(npc.m_flHeadshotCooldown < GetGameTime(npc.index))
+		if(!b_NpcIsInvulnerable[npc.index] && npc.m_flHeadshotCooldown < GetGameTime(npc.index))
 		{
 			npc.m_flHeadshotCooldown = GetGameTime(npc.index) + DEFAULT_HURTDELAY;
 			npc.m_blPlayHurtAnimation = true;
@@ -289,6 +304,4 @@ void TidelinkedArchon_NPCDeath(int entity)
 	TidelinkedArchon npc = view_as<TidelinkedArchon>(entity);
 	if(!npc.m_bGib)
 		npc.PlayDeathSound();
-	
-	SDKUnhook(npc.index, SDKHook_Think, TidelinkedArchon_ClotThink);
 }

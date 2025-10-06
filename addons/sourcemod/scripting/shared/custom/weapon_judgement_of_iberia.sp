@@ -20,20 +20,25 @@
 
 #define IRENE_KICKUP_1 "mvm/giant_soldier/giant_soldier_rocket_shoot.wav"
 
-Handle h_TimerIreneManagement[MAXPLAYERS+1] = {INVALID_HANDLE, ...};
-static float f_Irenehuddelay[MAXTF2PLAYERS];
-static int i_IreneHitsDone[MAXTF2PLAYERS];
-static bool b_WeaponAttackSpeedModified[MAXENTITIES];
+Handle h_TimerIreneManagement[MAXPLAYERS+1] = {null, ...};
+static float f_Irenehuddelay[MAXPLAYERS];
+static int i_IreneHitsDone[MAXPLAYERS];
 static bool b_WeaponAttackSpeedModifiedSeaborn[MAXENTITIES];
-static int i_IreneTargetsAirborn[MAXTF2PLAYERS][IRENE_MAX_HITUP];
+static int i_IreneTargetsAirborn[MAXPLAYERS][IRENE_MAX_HITUP];
 static float f_TargetAirtime[MAXENTITIES];
 static float f_TargetAirtimeDelayHit[MAXENTITIES];
 static float f_TimeSinceLastStunHit[MAXENTITIES];
 static bool b_IreneNpcWasShotUp[MAXENTITIES];
-static int i_RefWeaponDelete[MAXTF2PLAYERS];
-static float f_WeaponDamageCalculated[MAXTF2PLAYERS];
+static int i_RefWeaponDelete[MAXPLAYERS];
+static float f_WeaponDamageCalculated[MAXPLAYERS];
+static bool b_SeabornDetected;
 
 static int LaserSprite;
+
+int IreneReturnLaserSprite()
+{
+	return LaserSprite;	
+}
 
 void Npc_OnTakeDamage_Iberia(int attacker, int damagetype)
 {
@@ -47,6 +52,10 @@ void Npc_OnTakeDamage_Iberia(int attacker, int damagetype)
 	}
 }
 
+void SetAirtimeNpc(int entity, float Duration)
+{
+	f_TargetAirtime[entity] = GetGameTime() + Duration;
+}
 bool Npc_Is_Targeted_In_Air(int entity) //Anything that needs to be precaced like sounds or something.
 {
 	if(f_TargetAirtime[entity] > GetGameTime())
@@ -76,11 +85,11 @@ void Reset_stats_Irene_Global()
 
 void Reset_stats_Irene_Singular(int client) //This is on disconnect/connect
 {
-	if (h_TimerIreneManagement[client] != INVALID_HANDLE)
+	if (h_TimerIreneManagement[client] != null)
 	{
-		KillTimer(h_TimerIreneManagement[client]);
+		delete h_TimerIreneManagement[client];
 	}	
-	h_TimerIreneManagement[client] = INVALID_HANDLE;
+	h_TimerIreneManagement[client] = null;
 	i_IreneHitsDone[client] = 0;
 }
 
@@ -88,36 +97,12 @@ void Reset_stats_Irene_Singular_Weapon(int weapon) //This is on weapon remake. c
 {
 	b_WeaponAttackSpeedModified[weapon] = false;
 	b_WeaponAttackSpeedModifiedSeaborn[weapon] = false;
+	i_NextAttackDoubleHit[weapon] = 0;
 }
 
 public void Weapon_Irene_DoubleStrike(int client, int weapon, bool crit, int slot)
 {
-	//Show the timer, this is purely for looks and doesnt do anything.
-//	float cooldown = 0.65 * Attributes_FindOnWeapon(client, weapon, 6, true, 1.0);
-
-	//We wish to do a double attack.
-	//Delay it abit extra!
-
-	
-	/*
-	LAZY WAY:
-	DataPack pack;
-	CreateDataTimer(0.25, Timer_Do_Melee_Attack, pack, TIMER_FLAG_NO_MAPCHANGE);
-	pack.WriteCell(GetClientUserId(client));
-	pack.WriteCell(EntIndexToEntRef(weapon));
-	pack.WriteString("tf_weapon_knife"); //We will hardcode this to tf_weapon_knife because i am lazy as fuck. 
-	*/
-	/* 
-		PRO WAY:
-		So that animations display properly, we wish to accelerate the attackspeed massively by 1
-		Issue: players can just delay the double attack
-		Fix for this would be just just reset back to the original attack speed if they dont attack.
-		This is annoying but this is really cool instead of the above LAZY method!
-
-	*/
-	//We save this onto the weapon if the modified attackspeed is not modified.
-
-	float attackspeed = Attributes_FindOnWeapon(client, weapon, 6, true, 1.0);
+	float attackspeed = Attributes_Get(weapon, 6, 1.0);
 	if(!b_WeaponAttackSpeedModified[weapon]) //The attackspeed is right now not modified, lets save it for later and then apply our faster attackspeed.
 	{
 		b_WeaponAttackSpeedModified[weapon] = true;
@@ -133,15 +118,45 @@ public void Weapon_Irene_DoubleStrike(int client, int weapon, bool crit, int slo
 
 	//todo: If needed, add a delay so it doesnt happen on every swing
 	bool ThereWasSeaborn = false;
-	for(int entitycount; entitycount<i_MaxcountNpc; entitycount++)
+	if(!StrContains(WhatDifficultySetting_Internal, "Stella & Karlas") || !StrContains(WhatDifficultySetting, "You."))
 	{
-		int entity = EntRefToEntIndex(i_ObjectsNpcs[entitycount]);
-		if(IsValidEntity(entity) && i_BleedType[entity] == BLEEDTYPE_SEABORN)
+		ThereWasSeaborn = true;
+	}
+	if(!ThereWasSeaborn)
+	{
+		for(int entitycount; entitycount<i_MaxcountNpcTotal; entitycount++)
 		{
-			ThereWasSeaborn = true;
-			break;
+			int entity = EntRefToEntIndexFast(i_ObjectsNpcsTotal[entitycount]);
+			if(IsValidEntity(entity) && i_BleedType[entity] == BLEEDTYPE_SEABORN)
+			{
+				ThereWasSeaborn = true;
+				break;
+			}
 		}
 	}
+	if(!ThereWasSeaborn)
+	{
+		for(int clientloop=1; clientloop<=MaxClients; clientloop++)
+		{
+			if(!b_IsPlayerABot[clientloop] && IsClientInGame(clientloop) && IsPlayerAlive(clientloop))
+			{
+				int Active_weapon = GetEntPropEnt(clientloop, Prop_Send, "m_hActiveWeapon");
+				if(Active_weapon > 1)
+				{
+					switch(i_CustomWeaponEquipLogic[Active_weapon])
+					{
+						case WEAPON_SEABORNMELEE, WEAPON_SEABORN_MISC, WEAPON_OCEAN, WEAPON_OCEAN_PAP, WEAPON_SPECTER, WEAPON_GLADIIA, WEAPON_ULPIANUS, WEAPON_SKADI:
+						{
+							ThereWasSeaborn = true;
+							break;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	b_SeabornDetected = ThereWasSeaborn;
 
 	if(b_WeaponAttackSpeedModifiedSeaborn[weapon] && !ThereWasSeaborn)
 	{
@@ -166,10 +181,10 @@ public void Enable_Irene(int client, int weapon) // Enable management, handle we
 		{
 			//Is the weapon it again?
 			//Yes?
-			KillTimer(h_TimerIreneManagement[client]);
-			h_TimerIreneManagement[client] = INVALID_HANDLE;
+			delete h_TimerIreneManagement[client];
+			h_TimerIreneManagement[client] = null;
 			DataPack pack;
-			h_TimerIreneManagement[client] = CreateDataTimer(0.1, Timer_Management_Irene, pack, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
+			h_TimerIreneManagement[client] = CreateDataTimer(0.1, Timer_Management_Irene, pack, TIMER_REPEAT);
 			pack.WriteCell(client);
 			pack.WriteCell(EntIndexToEntRef(weapon));
 		}
@@ -179,7 +194,7 @@ public void Enable_Irene(int client, int weapon) // Enable management, handle we
 	if(i_CustomWeaponEquipLogic[weapon] == 6) //6 is for irene.
 	{
 		DataPack pack;
-		h_TimerIreneManagement[client] = CreateDataTimer(0.1, Timer_Management_Irene, pack, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
+		h_TimerIreneManagement[client] = CreateDataTimer(0.1, Timer_Management_Irene, pack, TIMER_REPEAT);
 		pack.WriteCell(client);
 		pack.WriteCell(EntIndexToEntRef(weapon));
 	}
@@ -191,22 +206,13 @@ public Action Timer_Management_Irene(Handle timer, DataPack pack)
 {
 	pack.Reset();
 	int client = pack.ReadCell();
-	if(IsValidClient(client))
+	int weapon = EntRefToEntIndex(pack.ReadCell());
+	if(!IsValidClient(client) || !IsClientInGame(client) || !IsPlayerAlive(client) || !IsValidEntity(weapon))
 	{
-		if (IsClientInGame(client))
-		{
-			if (IsPlayerAlive(client))
-			{
-				Irene_Cooldown_Logic(client, EntRefToEntIndex(pack.ReadCell()));
-			}
-			else
-				Kill_Timer_Irene(client);
-		}
-		else
-			Kill_Timer_Irene(client);
-	}
-	else
-		Kill_Timer_Irene(client);
+		h_TimerIreneManagement[client] = null;
+		return Plugin_Stop;
+	}	
+	Irene_Cooldown_Logic(client, weapon);
 		
 	return Plugin_Continue;
 }
@@ -214,49 +220,37 @@ public Action Timer_Management_Irene(Handle timer, DataPack pack)
 
 public void Irene_Cooldown_Logic(int client, int weapon)
 {
-	if (!IsValidMulti(client))
-		return;
-		
-	if(IsValidEntity(weapon))
+	if(f_Irenehuddelay[client] < GetGameTime())
 	{
-		if(i_CustomWeaponEquipLogic[weapon] == 6) //Double check to see if its good or bad :(
-		{	
-			if(f_Irenehuddelay[client] < GetGameTime())
+		int weapon_holding = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+		if(weapon_holding == weapon) //Only show if the weapon is actually in your hand right now.
+		{
+			if(b_SeabornDetected)
 			{
-				int weapon_holding = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
-				if(weapon_holding == weapon) //Only show if the weapon is actually in your hand right now.
+				if(i_IreneHitsDone[client] < IRENE_JUDGEMENT_MAX_HITS_NEEDED)
 				{
-					if(i_IreneHitsDone[client] < IRENE_JUDGEMENT_MAX_HITS_NEEDED)
-					{
-						PrintHintText(client,"Judgemet Of Iberia [%i%/%i]", i_IreneHitsDone[client], IRENE_JUDGEMENT_MAX_HITS_NEEDED);
-					}
-					else
-					{
-						PrintHintText(client,"Judgemet Of Iberia [READY!]");
-					}
-					
-					StopSound(client, SNDCHAN_STATIC, "UI/hint.wav");
-					f_Irenehuddelay[client] = GetGameTime() + 0.5;
+					PrintHintText(client,"Seaborn Detected.\nJudgement Of Iberia [%i%/%i]", i_IreneHitsDone[client], IRENE_JUDGEMENT_MAX_HITS_NEEDED);
+				}
+				else
+				{
+					PrintHintText(client,"Seaborn Detected.\nJudgement Of Iberia [READY!]");
 				}
 			}
+			else
+			{	
+				if(i_IreneHitsDone[client] < IRENE_JUDGEMENT_MAX_HITS_NEEDED)
+				{
+					PrintHintText(client,"Judgement Of Iberia [%i%/%i]", i_IreneHitsDone[client], IRENE_JUDGEMENT_MAX_HITS_NEEDED);
+				}
+				else
+				{
+					PrintHintText(client,"Judgement Of Iberia [READY!]");
+				}
+			}
+			
+			
+			f_Irenehuddelay[client] = GetGameTime() + 0.5;
 		}
-		else
-		{
-			Kill_Timer_Irene(client);
-		}
-	}
-	else
-	{
-		Kill_Timer_Irene(client);
-	}
-}
-
-public void Kill_Timer_Irene(int client)
-{
-	if (h_TimerIreneManagement[client] != INVALID_HANDLE)
-	{
-		KillTimer(h_TimerIreneManagement[client]);
-		h_TimerIreneManagement[client] = INVALID_HANDLE;
 	}
 }
 
@@ -265,7 +259,7 @@ public void Weapon_Irene_Judgement(int client, int weapon, bool crit, int slot)
 	//This ability has no cooldown in itself, it just relies on hits you do.
 	if(i_IreneHitsDone[client] >= IRENE_JUDGEMENT_MAX_HITS_NEEDED || CvarInfiniteCash.BoolValue)
 	{
-		Rogue_OnAbilityUse(weapon);
+		Rogue_OnAbilityUse(client, weapon);
 		i_IreneHitsDone[client] = 0;
 		//Sucess! You have enough charges.
 		//Heavy logic incomming.
@@ -281,7 +275,7 @@ public void Weapon_Irene_Judgement(int client, int weapon, bool crit, int slot)
 		f_WeaponDamageCalculated[client] = damage;
 
 		bool raidboss_active = false;
-		if(IsValidEntity(EntRefToEntIndex(RaidBossActive)))
+		if(RaidbossIgnoreBuildingsLogic(1))
 		{
 			raidboss_active = true;
 		}
@@ -292,26 +286,41 @@ public void Weapon_Irene_Judgement(int client, int weapon, bool crit, int slot)
 		}
 
 		int weapon_new = Store_GiveSpecificItem(client, "Irene's Handcannon");
-		i_RefWeaponDelete[client] = EntIndexToEntRef(weapon_new);
-		SetEntPropEnt(client, Prop_Send, "m_hActiveWeapon", weapon_new);
+		if(IsValidEntity(weapon_new))
+		{
+			float f_AttributeSet = Attributes_Get(weapon, 180, 0.0);
+			if(f_AttributeSet > 0.0)
+			{
+				Attributes_Set(weapon_new, 180, f_AttributeSet);
+			}
 
-		ViewChange_Switch(client, weapon_new, "tf_weapon_revolver");
+			f_AttributeSet = Attributes_Get(weapon, 206, 1.0);
+			if(f_AttributeSet < 1.0)
+			{
+				Attributes_SetMulti(weapon_new, 206, f_AttributeSet);
+			}
+
+			i_RefWeaponDelete[client] = EntIndexToEntRef(weapon_new);
+			SetEntPropEnt(client, Prop_Send, "m_hActiveWeapon", weapon_new);
+
+			ViewChange_Switch(client, weapon_new, "tf_weapon_revolver");
+		}
 
 		//We want to lag compensate this.
 		b_LagCompNPC_No_Layers = true;
 		StartLagCompensation_Base_Boss(client);
 
-		for(int entitycount; entitycount<i_MaxcountNpc; entitycount++)
+		for(int entitycount; entitycount<i_MaxcountNpcTotal; entitycount++)
 		{
-			int target = EntRefToEntIndex(i_ObjectsNpcs[entitycount]);
-			if(IsValidEntity(target) && !b_NpcHasDied[target])
+			int target = EntRefToEntIndexFast(i_ObjectsNpcsTotal[entitycount]);
+			if(IsValidEnemy(client, target, true, false))
 			{
-				VicLoc = WorldSpaceCenter(target);
+				WorldSpaceCenter(target, VicLoc);
 				
 				if (GetVectorDistance(UserLoc, VicLoc,true) <= IRENE_JUDGEMENT_MAXRANGE_SQUARED)
 				{
 					bool Hitlimit = true;
-					for(int i=1; i <= (MAX_TARGETS_HIT -1 ); i++)
+					for(int i=0; i < (MAX_TARGETS_HIT ); i++)
 					{
 						if(!i_IreneTargetsAirborn[client][i])
 						{
@@ -331,19 +340,19 @@ public void Weapon_Irene_Judgement(int client, int weapon, bool crit, int slot)
 
 					if (b_thisNpcIsABoss[target] || raidboss_active)
 					{
-						f_TankGrabbedStandStill[target] = GetGameTime(target) + IRENE_BOSS_AIRTIME;
+						f_TankGrabbedStandStill[target] = GetGameTime() + IRENE_BOSS_AIRTIME;
 						f_TargetAirtime[target] = GetGameTime() + IRENE_BOSS_AIRTIME; //Kick up for way less time.
 						FreezeNpcInTime(target,IRENE_BOSS_AIRTIME);
 					}
 					else
 					{
-						f_TankGrabbedStandStill[target] = GetGameTime(target) + IRENE_AIRTIME;
+						f_TankGrabbedStandStill[target] = GetGameTime() + IRENE_AIRTIME;
 						f_TargetAirtime[target] = GetGameTime() + IRENE_AIRTIME; //Kick up for the full skill duration.
 						FreezeNpcInTime(target,IRENE_AIRTIME);
 					}
 					spawnRing_Vectors(VicLoc, 0.0, 0.0, 0.0, 0.0, "materials/sprites/laserbeam.vmt", 255, 255, 255, 200, 1, 0.25, 6.0, 2.1, 1, IRENE_JUDGEMENT_EXPLOSION_RANGE * 0.5);	
 					SDKUnhook(target, SDKHook_Think, Npc_Irene_Launch);
-					if(!b_CannotBeKnockedUp[target])
+					if(!HasSpecificBuff(target, "Solid Stance"))
 						SDKHook(target, SDKHook_Think, Npc_Irene_Launch);
 					//For now, there is no limit.
 				}
@@ -401,7 +410,7 @@ public void Npc_Irene_Launch_client(int client)
 		//Gather all allive airborn-ed entities.
 		int count;
 		int targets[MAX_TARGETS_HIT];
-		for(int i=1; i <= (MAX_TARGETS_HIT -1 ); i++)
+		for(int i=0; i < (MAX_TARGETS_HIT ); i++)
 		{
 			// Check if it's a valid target
 			if(i_IreneTargetsAirborn[client][i] && IsValidEntity(i_IreneTargetsAirborn[client][i]) && !b_NpcHasDied[i_IreneTargetsAirborn[client][i]])
@@ -420,12 +429,12 @@ public void Npc_Irene_Launch_client(int client)
 			b_LagCompNPC_No_Layers = true;
 			StartLagCompensation_Base_Boss(client);	
 
-			for(int entitycount; entitycount<i_MaxcountNpc; entitycount++)
+			for(int entitycount; entitycount<i_MaxcountNpcTotal; entitycount++)
 			{
-				int enemy = EntRefToEntIndex(i_ObjectsNpcs[entitycount]);
-				if(IsValidEntity(enemy) && !b_NpcHasDied[enemy])
+				int enemy = EntRefToEntIndexFast(i_ObjectsNpcsTotal[entitycount]);
+				if(IsValidEnemy(client, enemy, true, false))
 				{
-					VicLoc = WorldSpaceCenter(enemy);
+					WorldSpaceCenter(enemy, VicLoc);
 					
 					if (GetVectorDistance(UserLoc, VicLoc,true) <= IRENE_JUDGEMENT_MAXRANGE_SQUARED) //respect max range.
 					{
@@ -451,7 +460,7 @@ public void Npc_Irene_Launch_client(int client)
 			float VicLoc[3];
 
 			//poisition of the enemy we random decide to shoot.
-			VicLoc = WorldSpaceCenter(target);
+			WorldSpaceCenter(target, VicLoc);
 
 			LookAtTarget(client, target);
 
@@ -516,7 +525,7 @@ public void Npc_Irene_Launch(int iNPC)
 	if(b_IreneNpcWasShotUp[iNPC])
 	{
 		float VicLoc[3];
-		VicLoc = WorldSpaceCenter(iNPC);
+		WorldSpaceCenter(iNPC, VicLoc);
 		VicLoc[2] += 250.0; //Jump up.
 		PluginBot_Jump(iNPC, VicLoc);
 	}
@@ -524,7 +533,7 @@ public void Npc_Irene_Launch(int iNPC)
 	
 	bool raidboss_active = false;
 	float time_stay_In_sky;
-	if(IsValidEntity(EntRefToEntIndex(RaidBossActive)))
+	if(RaidbossIgnoreBuildingsLogic(1))
 	{
 		raidboss_active = true;
 	}

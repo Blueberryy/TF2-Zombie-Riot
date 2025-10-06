@@ -31,8 +31,22 @@ void MinigunAssisa_OnMapStart_NPC()
 	PrecacheModel("models/player/heavy.mdl");
 	PrecacheSound("weapons/minigun_spin.wav");
 	PrecacheSound("weapons/minigun_shoot.wav");
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Minigun Assisa");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_minigun_assisa");
+	strcopy(data.Icon, sizeof(data.Icon), "heavy");
+	data.IconCustom = false;
+	data.Flags = 0;
+	data.Category = Type_Expidonsa;
+	data.Func = ClotSummon;
+	NPC_Add(data);
+
 }
 
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team)
+{
+	return MinigunAssisa(vecPos, vecAng, team);
+}
 
 methodmap MinigunAssisa < CClotBody
 {
@@ -89,11 +103,10 @@ methodmap MinigunAssisa < CClotBody
 		}
 	}
 
-	public MinigunAssisa(int client, float vecPos[3], float vecAng[3], bool ally)
+	public MinigunAssisa(float vecPos[3], float vecAng[3], int ally)
 	{
 		MinigunAssisa npc = view_as<MinigunAssisa>(CClotBody(vecPos, vecAng, "models/player/heavy.mdl", "1.0", "10000", ally));
 		
-		i_NpcInternalId[npc.index] = EXPIDONSA_MINIGUNASSISA;
 		i_NpcWeight[npc.index] = 1;
 		FormatEx(c_HeadPlaceAttachmentGibName[npc.index], sizeof(c_HeadPlaceAttachmentGibName[]), "head");
 		
@@ -102,17 +115,18 @@ methodmap MinigunAssisa < CClotBody
 		
 		
 		
+		func_NPCDeath[npc.index] = MinigunAssisa_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = MinigunAssisa_OnTakeDamage;
+		func_NPCThink[npc.index] = MinigunAssisa_ClotThink;
 		npc.m_flNextMeleeAttack = 0.0;
 		
 		npc.m_iBleedType = BLEEDTYPE_NORMAL;
 		npc.m_iStepNoiseType = STEPSOUND_NORMAL;	
 		npc.m_iNpcStepVariation = STEPTYPE_NORMAL;
+		SetEntPropFloat(npc.index, Prop_Data, "m_flElementRes", 1.0, Element_Chaos);
+
 		
-		SDKHook(npc.index, SDKHook_Think, MinigunAssisa_ClotThink);
 		
-		//IDLE
-		npc.m_iState = 0;
-		npc.m_flGetClosestTargetTime = 0.0;
 		npc.StartPathing();
 		npc.m_flSpeed = 150.0;
 		
@@ -175,18 +189,19 @@ public void MinigunAssisa_ClotThink(int iNPC)
 	
 	if(IsValidEnemy(npc.index, npc.m_iTarget))
 	{
-		float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
+		float vecTarget[3]; WorldSpaceCenter(npc.m_iTarget, vecTarget );
 	
-		float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+		float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+		float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 		if(flDistanceToTarget < npc.GetLeadRadius()) 
 		{
 			float vPredictedPos[3];
-			vPredictedPos = PredictSubjectPosition(npc, npc.m_iTarget);
-			NPC_SetGoalVector(npc.index, vPredictedPos);
+			PredictSubjectPosition(npc, npc.m_iTarget,_,_, vPredictedPos);
+			npc.SetGoalVector(vPredictedPos);
 		}
 		else 
 		{
-			NPC_SetGoalEntity(npc.index, npc.m_iTarget);
+			npc.SetGoalEntity(npc.m_iTarget);
 		}
 		MinigunAssisaSelfDefense(npc); 
 	}
@@ -222,7 +237,6 @@ public void MinigunAssisa_NPCDeath(int entity)
 	{
 		npc.PlayDeathSound();	
 	}
-	SDKUnhook(npc.index, SDKHook_Think, MinigunAssisa_ClotThink);
 		
 	StopSound(npc.index, SNDCHAN_STATIC, "weapons/minigun_spin.wav");
 	StopSound(npc.index, SNDCHAN_STATIC, "weapons/minigun_shoot.wav");
@@ -246,9 +260,10 @@ void MinigunAssisaSelfDefense(MinigunAssisa npc)
 	target = npc.m_iTarget;
 	//some Ranged units will behave differently.
 	//not this one.
-	float vecTarget[3]; vecTarget = WorldSpaceCenter(target);
+	float vecTarget[3]; WorldSpaceCenter(target, vecTarget);
 	bool SpinSound = true;
-	float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+	float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+	float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 	if(flDistanceToTarget < (NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED * 5.0))
 	{
 			npc.PlayMinigunSound(true);

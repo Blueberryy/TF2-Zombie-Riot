@@ -42,6 +42,24 @@ static const char g_MeleeAttackSounds[][] =
 	"weapons/demo_sword_swing3.wav",
 };
 
+void SeabornGuard_Precache()
+{
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Seaborn Guard");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_seaborn_guard");
+	strcopy(data.Icon, sizeof(data.Icon), "sea_guard");
+	data.IconCustom = true;
+	data.Flags = 0;
+	data.Category = Type_Seaborn;
+	data.Func = ClotSummon;
+	NPC_Add(data);
+}
+
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team, const char[] data)
+{
+	return SeabornGuard(vecPos, vecAng, team, data);
+}
+
 methodmap SeabornGuard < CClotBody
 {
 	public void PlayIdleSound()
@@ -69,14 +87,13 @@ methodmap SeabornGuard < CClotBody
 		EmitSoundToAll(g_MeleeAttackSounds[GetRandomInt(0, sizeof(g_MeleeAttackSounds) - 1)], this.index, SNDCHAN_AUTO, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME);	
 	}
 	
-	public SeabornGuard(int client, float vecPos[3], float vecAng[3], bool ally)
+	public SeabornGuard(float vecPos[3], float vecAng[3], int ally, const char[] data)
 	{
-		SeabornGuard npc = view_as<SeabornGuard>(CClotBody(vecPos, vecAng, COMBINE_CUSTOM_MODEL, "1.15", "30000", ally, false));
+		SeabornGuard npc = view_as<SeabornGuard>(CClotBody(vecPos, vecAng, COMBINE_CUSTOM_MODEL, "1.15", "40000", ally, false));
 
 		SetVariantInt(4);
 		AcceptEntityInput(npc.index, "SetBodyGroup");
 		
-		i_NpcInternalId[npc.index] = SEABORN_GUARD;
 		i_NpcWeight[npc.index] = 2;
 		npc.SetActivity("ACT_CUSTOM_WALK_SWORD");
 		KillFeed_SetKillIcon(npc.index, "claidheamohmor");
@@ -85,7 +102,9 @@ methodmap SeabornGuard < CClotBody
 		npc.m_iStepNoiseType = STEPSOUND_NORMAL;
 		npc.m_iNpcStepVariation = STEPTYPE_SEABORN;
 		
-		SDKHook(npc.index, SDKHook_Think, SeabornGuard_ClotThink);
+		func_NPCDeath[npc.index] = SeabornGuard_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = Generic_OnTakeDamage;
+		func_NPCThink[npc.index] = SeabornGuard_ClotThink;
 		
 		npc.m_flSpeed = 250.0;
 		npc.m_flGetClosestTargetTime = 0.0;
@@ -93,28 +112,33 @@ methodmap SeabornGuard < CClotBody
 		npc.m_flAttackHappens = 0.0;
 		npc.m_iOverlordComboAttack = 0;
 		
-		SetEntityRenderMode(npc.index, RENDER_TRANSCOLOR);
-		SetEntityRenderColor(npc.index, 155, 155, 255, 255);
 
 		npc.m_iWearable1 = npc.EquipItem("weapon_bone", "models/workshop/weapons/c_models/c_claidheamohmor/c_claidheamohmor.mdl");
 		SetVariantString("1.0");
 		AcceptEntityInput(npc.m_iWearable1, "SetModelScale");
 		
-		SetEntityRenderMode(npc.m_iWearable1, RENDER_TRANSCOLOR);
 		
 		npc.m_iWearable2 = npc.EquipItem("weapon_bone", "models/workshop/player/items/soldier/sum20_breach_and_bomb/sum20_breach_and_bomb.mdl");
 		SetVariantString("1.15");
 		AcceptEntityInput(npc.m_iWearable2, "SetModelScale");
 		
-		SetEntityRenderMode(npc.m_iWearable2, RENDER_TRANSCOLOR);
-		SetEntityRenderColor(npc.m_iWearable2, 155, 155, 255, 255);
 		
 		npc.m_iWearable3 = npc.EquipItem("weapon_bone", "models/workshop/player/items/medic/hw2013_spacemans_suit/hw2013_spacemans_suit.mdl");
 		SetVariantString("0.9");
 		AcceptEntityInput(npc.m_iWearable3, "SetModelScale");
 		
-		SetEntityRenderMode(npc.m_iWearable3, RENDER_TRANSCOLOR);
-		SetEntityRenderColor(npc.m_iWearable3, 155, 155, 255, 255);
+		if(!StrContains(data, "normal"))
+		{
+			npc.m_iBleedType = BLEEDTYPE_NORMAL;
+			npc.m_iNpcStepVariation = STEPTYPE_NORMAL;
+			FormatEx(c_NpcName[npc.index], sizeof(c_NpcName[]), "Guard");
+		}
+		else
+		{
+			SetEntityRenderColor(npc.index, 155, 155, 255, 255);
+			SetEntityRenderColor(npc.m_iWearable2, 155, 155, 255, 255);
+			SetEntityRenderColor(npc.m_iWearable3, 155, 155, 255, 255);
+		}
 
 		return npc;
 	}
@@ -154,17 +178,18 @@ public void SeabornGuard_ClotThink(int iNPC)
 	
 	if(npc.m_iTarget > 0)
 	{
-		float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
-		float distance = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);		
+		float vecTarget[3]; WorldSpaceCenter(npc.m_iTarget, vecTarget );
+		float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+		float distance = GetVectorDistance(vecTarget, VecSelfNpc, true);	
 		
 		if(distance < npc.GetLeadRadius())
 		{
-			float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, npc.m_iTarget);
-			NPC_SetGoalVector(npc.index, vPredictedPos);
+			float vPredictedPos[3]; PredictSubjectPosition(npc, npc.m_iTarget,_,_, vPredictedPos);
+			npc.SetGoalVector(vPredictedPos);
 		}
 		else 
 		{
-			NPC_SetGoalEntity(npc.index, npc.m_iTarget);
+			npc.SetGoalEntity(npc.m_iTarget);
 		}
 
 		npc.StartPathing();
@@ -186,10 +211,10 @@ public void SeabornGuard_ClotThink(int iNPC)
 
 					if(target > 0) 
 					{
-						float attack = 130.0;
+						float attack = 200.0;
 
 						if(npc.m_iOverlordComboAttack == 2 || ShouldNpcDealBonusDamage(target))
-							attack *= 3.0;
+							attack *= 4.0;
 						
 						npc.PlayMeleeHitSound();
 						SDKHooks_TakeDamage(target, npc.index, npc.index, attack, DMG_CLUB);
@@ -200,20 +225,20 @@ public void SeabornGuard_ClotThink(int iNPC)
 							{
 								SetEntityRenderColor(npc.m_iWearable1, 255, 55, 55, 255);
 
-								SeaSlider_AddNeuralDamage(target, npc.index, RoundToCeil(attack * 0.25));
+								Elemental_AddNervousDamage(target, npc.index, RoundToCeil(attack * 0.25));
 							}
 							case 3:
 							{
 								SetEntityRenderColor(npc.m_iWearable1, 255, 255, 255, 255);
 
 								npc.m_iOverlordComboAttack = 0;
-								SeaSlider_AddNeuralDamage(target, npc.index, RoundToCeil(attack));
+								Elemental_AddNervousDamage(target, npc.index, RoundToCeil(attack));
 							}
 							default:
 							{
 								SetEntityRenderColor(npc.m_iWearable1, 255, 200, 200, 255);
 
-								SeaSlider_AddNeuralDamage(target, npc.index, RoundToCeil(attack * 0.25));
+								Elemental_AddNervousDamage(target, npc.index, RoundToCeil(attack * 0.25));
 							}
 						}
 					}
@@ -223,13 +248,13 @@ public void SeabornGuard_ClotThink(int iNPC)
 			}
 		}
 
-		if(distance < 10000.0 && npc.m_flNextMeleeAttack < gameTime)
+		if(distance < NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED && npc.m_flNextMeleeAttack < gameTime)
 		{
 			int target = Can_I_See_Enemy(npc.index, npc.m_iTarget);
 			if(IsValidEnemy(npc.index, target))
 			{
 				npc.m_iTarget = target;
-				npc.m_flNextMeleeAttack = gameTime + 1.05;
+				npc.m_flNextMeleeAttack = gameTime + 0.6;
 
 				npc.PlayMeleeSound();
 				npc.AddGesture("ACT_CUSTOM_ATTACK_SWORD");
@@ -259,8 +284,6 @@ void SeabornGuard_NPCDeath(int entity)
 	if(!npc.m_bGib)
 		npc.PlayDeathSound();
 	
-	SDKUnhook(npc.index, SDKHook_Think, SeabornGuard_ClotThink);
-
 	if(IsValidEntity(npc.m_iWearable1))
 		RemoveEntity(npc.m_iWearable1);
 

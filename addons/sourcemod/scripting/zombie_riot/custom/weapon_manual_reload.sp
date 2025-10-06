@@ -3,11 +3,11 @@
 
 float f_Actualm_flNextPrimaryAttack[MAXENTITIES];
 
-int i_EmptyBulletboop[MAXTF2PLAYERS];
+int i_EmptyBulletboop[MAXPLAYERS];
 
 public void SemiAutoWeapon(int client, int buttons)
 {
-	static int holding_semiauto[MAXTF2PLAYERS];
+	static int holding_semiauto[MAXPLAYERS];
 	if(buttons & IN_ATTACK)
 	{
 		if(!holding_semiauto[client])
@@ -25,10 +25,6 @@ public void SemiAutoWeapon(int client, int buttons)
 							
 							Fire_rate *= Attributes_Get(entity, 6, 1.0);
 		
-							if(LastMann)
-							{
-								Fire_rate *= 0.5;
-							}
 							
 							SetEntPropFloat(client, Prop_Send, "m_flNextAttack", GetGameTime() + Fire_rate);
 							SetEntPropFloat(entity, Prop_Send, "m_flNextPrimaryAttack", GetGameTime() + Fire_rate);
@@ -92,7 +88,7 @@ public void SemiAutoWeapon(int client, int buttons)
 			}
 		}
 	}
-	static int holding_semiauto_reload[MAXTF2PLAYERS];
+	static int holding_semiauto_reload[MAXPLAYERS];
 	if(buttons & IN_RELOAD)
 	{
 		if(!holding_semiauto_reload[client])
@@ -120,10 +116,6 @@ void Reload_Me(int client)
 				{
 					i_SemiAutoWeapon_AmmoCount[entity] = i_SemiAutoStats_MaxAmmo[entity];
 					
-					if(LastMann) //It also gives 2x the ammo.
-					{
-						i_SemiAutoWeapon_AmmoCount[entity] = i_SemiAutoStats_MaxAmmo[entity] * 2;
-					}
 					
 					DoReloadAnimation(client, entity);
 						
@@ -131,10 +123,6 @@ void Reload_Me(int client)
 						
 					Reload_Rate *= Attributes_Get(entity, 97, 1.0);
 	
-					if(LastMann)
-					{
-						Reload_Rate *= 0.25; //4x as fast (i know, stupid)
-					}
 						
 					SetEntPropFloat(client, Prop_Send, "m_flNextAttack", GetGameTime() + Reload_Rate);
 					SetEntPropFloat(entity, Prop_Send, "m_flNextPrimaryAttack", GetGameTime() + Reload_Rate);
@@ -157,7 +145,7 @@ void ShowClientManualAmmoCount(int client, int weapon)
 	}
 
 	PrintHintText(client, buffer);
-	StopSound(client, SNDCHAN_STATIC, "UI/hint.wav");
+	
 }
 /*
 DataPack pack = new DataPack();

@@ -35,6 +35,24 @@ static const char g_MeleeAttackSounds[][] =
 	"weapons/demo_sword_swing3.wav"
 };
 
+void SaintCarmen_Precache()
+{
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Saint Carmen");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_saintcarmen");
+	strcopy(data.Icon, sizeof(data.Icon), "sea_saintcarmen");
+	data.IconCustom = true;
+	data.Flags = MVM_CLASS_FLAG_NORMAL|MVM_CLASS_FLAG_MINIBOSS;
+	data.Category = Type_Seaborn;
+	data.Func = ClotSummon;
+	NPC_Add(data);
+}
+
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team, const char[] data)
+{
+	return SaintCarmen(vecPos, vecAng, team, data);
+}
+
 methodmap SaintCarmen < CClotBody
 {
 	public void PlayIdleSound()
@@ -62,7 +80,7 @@ methodmap SaintCarmen < CClotBody
 		EmitSoundToAll(g_MeleeAttackSounds[GetRandomInt(0, sizeof(g_MeleeAttackSounds) - 1)], this.index, _, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME);
 	}
 	
-	public SaintCarmen(int client, float vecPos[3], float vecAng[3], bool ally)
+	public SaintCarmen(float vecPos[3], float vecAng[3], int ally, const char[] data)
 	{
 		SaintCarmen npc = view_as<SaintCarmen>(CClotBody(vecPos, vecAng, COMBINE_CUSTOM_MODEL, "1.15", "50000", ally, false));
 		// 50000 x 1.0
@@ -70,17 +88,19 @@ methodmap SaintCarmen < CClotBody
 		SetVariantInt(9);
 		AcceptEntityInput(npc.index, "SetBodyGroup");
 		
-		i_NpcInternalId[npc.index] = SAINTCARMEN;
 		i_NpcWeight[npc.index] = 4;
 		npc.SetActivity("ACT_DARIO_WALK");
 		
 		npc.m_iBleedType = BLEEDTYPE_NORMAL;
 		npc.m_iStepNoiseType = STEPSOUND_NORMAL;
 		npc.m_iNpcStepVariation = STEPTYPE_COMBINE;
+		b_NpcIsTeamkiller[npc.index] = ally != TFTeam_Red;
 		
-		SDKHook(npc.index, SDKHook_Think, SaintCarmen_ClotThink);
+		func_NPCDeath[npc.index] = SaintCarmen_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = Generic_OnTakeDamage;
+		func_NPCThink[npc.index] = SaintCarmen_ClotThink;
 		
-		npc.m_flSpeed = 125.0;	// 0.5 x 250
+		npc.m_flSpeed = 250.0;	// 0.5 x 250
 		npc.m_flMeleeArmor = 0.5;
 		npc.m_flRangedArmor = 1.25;
 		npc.m_flGetClosestTargetTime = 0.0;
@@ -98,6 +118,12 @@ methodmap SaintCarmen < CClotBody
 		npc.m_iWearable3 = npc.EquipItem("partyhat", "models/workshop/player/items/spy/short2014_deadhead/short2014_deadhead.mdl");
 		SetVariantString("1.15");
 		AcceptEntityInput(npc.m_iWearable3, "SetModelScale");
+		bool final = StrContains(data, "noteamkill") != -1;
+		
+		if(final)
+		{
+			b_NpcIsTeamkiller[npc.index] = false;
+		}
 		
 		return npc;
 	}
@@ -133,7 +159,7 @@ public void SaintCarmen_ClotThink(int iNPC)
 		npc.m_iTarget = GetClosestTarget(npc.index, _, 500.0, true);
 		npc.m_flGetClosestTargetTime = gameTime + 1.0;
 
-		if(npc.m_iTarget < 1)
+		if(npc.m_iTarget < 1 && GetTeam(npc.index) != TFTeam_Red)
 		{
 			// No nearby targets, kill the ocean
 			npc.m_iTarget = GetClosestAlly(npc.index, 10000.0);
@@ -145,8 +171,9 @@ public void SaintCarmen_ClotThink(int iNPC)
 	
 	if(npc.m_iTarget > 0)
 	{
-		float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
-		float distance = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);		
+		float vecTarget[3]; WorldSpaceCenter(npc.m_iTarget, vecTarget );
+		float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+		float distance = GetVectorDistance(vecTarget, VecSelfNpc, true);	
 		
 		if(npc.m_flAttackHappens)
 		{
@@ -156,13 +183,8 @@ public void SaintCarmen_ClotThink(int iNPC)
 			{
 				npc.m_flAttackHappens = 0.0;
 				
-				int team = GetEntProp(npc.index, Prop_Send, "m_iTeamNum");
-				SetEntProp(npc.index, Prop_Send, "m_iTeamNum", 0);
-
 				Handle swingTrace;
 				bool result = npc.DoSwingTrace(swingTrace, npc.m_iTarget, _, _, _, _);
-
-				SetEntProp(npc.index, Prop_Send, "m_iTeamNum", team);
 
 				if(result)
 				{
@@ -179,7 +201,6 @@ public void SaintCarmen_ClotThink(int iNPC)
 						
 						KillFeed_SetKillIcon(npc.index, "taunt_spy");
 						SDKHooks_TakeDamage(target, npc.index, npc.index, damage, DMG_CLUB);
-						// 1200 x 0.5 x 0.5
 
 						npc.PlayMeleeHitSound();
 
@@ -187,31 +208,28 @@ public void SaintCarmen_ClotThink(int iNPC)
 						{
 							vecHit[0] = 0.0;
 							vecHit[1] = 0.0;
-							vecHit[2] = 1200.0;
-							TeleportEntity(target, _, _, vecHit);
+							vecHit[2] = 500.0;
+							TeleportEntity(target, _, _, vecHit, true);
 							EmitSoundToAll("mvm/giant_soldier/giant_soldier_rocket_shoot.wav", target, _, 75, _, 0.60);
 
-							StartHealingTimer(target, 0.4, -300.0);
-
-							npc.m_flNextMeleeAttack += 1.0;
+							DealTruedamageToEnemy(npc.index, target, 1500.0);
 							npc.m_flDoingAnimation = gameTime + 0.35;
 						}
 						else if(!b_NpcHasDied[target])
 						{
-							if(!b_CannotBeKnockedUp[target])
+							if(!HasSpecificBuff(target, "Solid Stance"))
 							{
 								FreezeNpcInTime(target, 2.0);
 								
-								vecHit = WorldSpaceCenter(target);
+								WorldSpaceCenter(target, vecHit);
 								vecHit[2] += 250.0; //Jump up.
 								PluginBot_Jump(target, vecHit);
 								EmitSoundToAll("mvm/giant_soldier/giant_soldier_rocket_shoot.wav", target, _, 75, _, 0.60);
 
-								npc.m_flNextMeleeAttack += 1.0;
-
-								StartHealingTimer(target, 0.4, team == GetEntProp(target, Prop_Send, "m_iTeamNum") ? -3000.0 : -300.0);
+								DealTruedamageToEnemy(npc.index, target, 7500.0);
 							}
 						}
+						npc.m_iTarget = 0;
 					}
 				}
 
@@ -244,12 +262,12 @@ public void SaintCarmen_ClotThink(int iNPC)
 		{
 			if(distance < npc.GetLeadRadius())
 			{
-				float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, npc.m_iTarget);
-				NPC_SetGoalVector(npc.index, vPredictedPos);
+				float vPredictedPos[3]; PredictSubjectPosition(npc, npc.m_iTarget,_,_, vPredictedPos);
+				npc.SetGoalVector(vPredictedPos);
 			}
 			else 
 			{
-				NPC_SetGoalEntity(npc.index, npc.m_iTarget);
+				npc.SetGoalEntity(npc.m_iTarget);
 			}
 
 			npc.StartPathing();
@@ -269,8 +287,6 @@ void SaintCarmen_NPCDeath(int entity)
 	if(!npc.m_bGib)
 		npc.PlayDeathSound();
 	
-	SDKUnhook(npc.index, SDKHook_Think, SaintCarmen_ClotThink);
-
 	if(IsValidEntity(npc.m_iWearable1))
 		RemoveEntity(npc.m_iWearable1);
 

@@ -54,6 +54,60 @@ static char g_MeleeMissSounds[][] = {
 	"npc/fast_zombie/claw_miss2.wav",
 };
 
+/*
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "TestName");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_test");
+	strcopy(data.Icon, sizeof(data.Icon), "");
+	data.IconCustom = false;
+	data.Flags = 0;
+	data.Category = Type_Ally;
+	data.Func = ClotSummon;
+	NPC_Add(data);
+
+	#define MVM_CLASS_FLAG_NONE				0
+	#define MVM_CLASS_FLAG_NORMAL			(1 << 0)	// Base Normal
+	#define MVM_CLASS_FLAG_SUPPORT			(1 << 1)	// Base Support
+	#define MVM_CLASS_FLAG_MISSION			(1 << 2)	// Base Support, Always Show
+	#define MVM_CLASS_FLAG_MINIBOSS			(1 << 3)	// Add Red Background
+	#define MVM_CLASS_FLAG_ALWAYSCRIT		(1 << 4)	// Add Blue Borders
+	#define MVM_CLASS_FLAG_SUPPORT_LIMITED	(1 << 5)	// Add to Support?
+
+	Type_Hidden = -1,
+	Type_Ally = 0,
+	Type_Special,
+	Type_Raid,
+	Type_Common,
+	Type_Alt,
+	Type_Xeno,
+	Type_BTD,
+	Type_Medieval,
+	Type_COF,
+	Type_Seaborn,
+	Type_Expidonsa,
+	Type_Interitus
+
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team)
+{
+	return TestNpcSpawn(vecPos, vecAng, team);
+}
+
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team, const char[] data)
+{
+	return TestNpcSpawn(vecPos, vecAng, team, data);
+}
+		If barracks
+		func_NPCOnTakeDamage[npc.index] = BarrackBody_OnTakeDamage;
+		func_NPCDeath[npc.index] = _NPCDeath;
+		func_NPCThink[npc.index] = _ClotThink;
+
+
+		func_NPCDeath[npc.index] = _NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = _OnTakeDamage;
+		func_NPCThink[npc.index] = _ClotThink;
+		func_NPCAnimEvent[npc.index] = INVALID_FUNCTION;
+	
+*/
 
 public void HeadcrabZombie_OnMapStart_NPC()
 {
@@ -69,6 +123,20 @@ public void HeadcrabZombie_OnMapStart_NPC()
 
 	PrecacheSound("player/flow.wav");
 	PrecacheModel("models/zombie/classic.mdl");
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Headcrab Zombie");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_headcrabzombie");
+	strcopy(data.Icon, sizeof(data.Icon), "norm_headcrab_zombie");
+	data.IconCustom = true;
+	data.Flags = 0;
+	data.Category = Type_Common;
+	data.Func = ClotSummon;
+	NPC_Add(data);
+}
+
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team)
+{
+	return HeadcrabZombie(vecPos, vecAng, team);
 }
 
 methodmap HeadcrabZombie < CClotBody
@@ -79,9 +147,6 @@ methodmap HeadcrabZombie < CClotBody
 		EmitSoundToAll(g_IdleSounds[GetRandomInt(0, sizeof(g_IdleSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME);
 		this.m_flNextIdleSound = GetGameTime(this.index) + GetRandomFloat(3.0, 6.0);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CHeadcrabZombie::PlayIdleSound()");
-		#endif
 	}
 	
 	public void PlayHurtSound() {
@@ -92,50 +157,34 @@ methodmap HeadcrabZombie < CClotBody
 		
 		EmitSoundToAll(g_HurtSounds[GetRandomInt(0, sizeof(g_HurtSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CHeadcrabZombie::PlayHurtSound()");
-		#endif
 	}
 	
 	public void PlayDeathSound() {
 	
 		EmitSoundToAll(g_DeathSounds[GetRandomInt(0, sizeof(g_DeathSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CHeadcrabZombie::PlayDeathSound()");
-		#endif
 	}
 	
 	public void PlayMeleeSound() {
 		EmitSoundToAll(g_MeleeAttackSounds[GetRandomInt(0, sizeof(g_MeleeAttackSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME);
-		
-		#if defined DEBUG_SOUND
-		PrintToServer("CHeadcrabZombie::PlayMeleeHitSound()");
-		#endif
 	}
 	public void PlayMeleeHitSound() {
 		EmitSoundToAll(g_MeleeHitSounds[GetRandomInt(0, sizeof(g_MeleeHitSounds) - 1)], this.index, SNDCHAN_STATIC, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CHeadcrabZombie::PlayMeleeHitSound()");
-		#endif
 	}
 
 	public void PlayMeleeMissSound() {
 		EmitSoundToAll(g_MeleeMissSounds[GetRandomInt(0, sizeof(g_MeleeMissSounds) - 1)], this.index, SNDCHAN_STATIC, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CGoreFast::PlayMeleeMissSound()");
-		#endif
+		
 	}
 	
 	
 	
-	public HeadcrabZombie(int client, float vecPos[3], float vecAng[3], bool ally)
+	public HeadcrabZombie(float vecPos[3], float vecAng[3], int ally)
 	{
 		HeadcrabZombie npc = view_as<HeadcrabZombie>(CClotBody(vecPos, vecAng, "models/zombie/classic.mdl", "1.15", "300", ally, false));
 		
-		i_NpcInternalId[npc.index] = HEADCRAB_ZOMBIE;
 		i_NpcWeight[npc.index] = 1;
 		
 		FormatEx(c_HeadPlaceAttachmentGibName[npc.index], sizeof(c_HeadPlaceAttachmentGibName[]), "head");
@@ -152,13 +201,11 @@ methodmap HeadcrabZombie < CClotBody
 		
 		//IDLE
 		npc.m_flSpeed = 120.0;
-		if(EscapeModeForNpc)
-		{
-			npc.m_flSpeed = 200.0;
-		}
+		func_NPCDeath[npc.index] = HeadcrabZombie_NPCDeath;
+		func_NPCThink[npc.index] = HeadcrabZombie_ClotThink;
+		func_NPCOnTakeDamage[npc.index] = Generic_OnTakeDamage;
 		
-		
-		SDKHook(npc.index, SDKHook_Think, HeadcrabZombie_ClotThink);
+	
 		
 		
 		npc.StartPathing();
@@ -168,8 +215,7 @@ methodmap HeadcrabZombie < CClotBody
 	
 }
 
-//TODO 
-//Rewrite
+
 public void HeadcrabZombie_ClotThink(int iNPC)
 {
 	HeadcrabZombie npc = view_as<HeadcrabZombie>(iNPC);
@@ -214,25 +260,26 @@ public void HeadcrabZombie_ClotThink(int iNPC)
 	
 	if(IsValidEnemy(npc.index, closest))
 	{
-		float vecTarget[3]; vecTarget = WorldSpaceCenter(closest);
+		float vecTarget[3]; WorldSpaceCenter(closest, vecTarget);
 			
-		float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+		float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+		float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 				
 		//Predict their pos.
 		if(flDistanceToTarget < npc.GetLeadRadius())
 		{
-			float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, closest);
+			float vPredictedPos[3]; PredictSubjectPosition(npc, closest,_,_, vPredictedPos);
 	//		PrintToChatAll("cutoff");
-			NPC_SetGoalVector(npc.index, vPredictedPos);
+			npc.SetGoalVector(vPredictedPos);
 		}
 		else
 		{
-			NPC_SetGoalEntity(npc.index, closest);
+			npc.SetGoalEntity(closest);
 		}
 		
 		//Target close enough to hit
 		
-		if(flDistanceToTarget < 10000 || npc.m_flAttackHappenswillhappen)
+		if(flDistanceToTarget < NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED || npc.m_flAttackHappenswillhappen)
 		{
 			//Look at target so we hit.
 		//	npc.FaceTowards(vecTarget, 20000.0);
@@ -260,14 +307,6 @@ public void HeadcrabZombie_ClotThink(int iNPC)
 						TR_GetEndPosition(vecHit, swingTrace);
 						if(target > 0) 
 						{
-							if(EscapeModeForNpc)
-							{
-								if(!ShouldNpcDealBonusDamage(target))
-									SDKHooks_TakeDamage(target, npc.index, npc.index, 65.0, DMG_CLUB, -1, _, vecHit);
-								else
-									SDKHooks_TakeDamage(target, npc.index, npc.index, 85.0, DMG_CLUB, -1, _, vecHit);
-							}
-							else
 							{
 								if(!ShouldNpcDealBonusDamage(target))
 									SDKHooks_TakeDamage(target, npc.index, npc.index, 50.0, DMG_CLUB, -1, _, vecHit);
@@ -300,8 +339,8 @@ public void HeadcrabZombie_ClotThink(int iNPC)
 	}
 	else
 	{
-		NPC_StopPathing(npc.index);
-		npc.m_bPathing = false;
+		npc.StopPathing();
+		
 		npc.m_flGetClosestTargetTime = 0.0;
 		npc.m_iTarget = GetClosestTarget(npc.index);
 	}
@@ -315,8 +354,6 @@ public void HeadcrabZombie_NPCDeath(int entity)
 	{
 		npc.PlayDeathSound();	
 	}
-	SDKUnhook(entity, SDKHook_Think, HeadcrabZombie_ClotThink);
-//	AcceptEntityInput(npc.index, "KillHierarchy");
 }
 
 

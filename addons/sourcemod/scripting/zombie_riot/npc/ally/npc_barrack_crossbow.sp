@@ -4,18 +4,38 @@
 // Balanced around Early Combine
 // Construction Apprentice
 
+public void BarrackCrossbowOnMapStart()
+{
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Crossbow Man");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_barrack_crossbow");
+	strcopy(data.Icon, sizeof(data.Icon), "");
+	data.IconCustom = false;
+	data.Flags = 0;
+	data.Category = Type_Ally;
+	data.Func = ClotSummon;
+	NPC_Add(data);
+}
+
+static any ClotSummon(int client, float vecPos[3], float vecAng[3])
+{
+	return BarrackCrossbow(client, vecPos, vecAng);
+}
+
 methodmap BarrackCrossbow < BarrackBody
 {
-	public BarrackCrossbow(int client, float vecPos[3], float vecAng[3], bool ally)
+	public BarrackCrossbow(int client, float vecPos[3], float vecAng[3])
 	{
 		BarrackCrossbow npc = view_as<BarrackCrossbow>(BarrackBody(client, vecPos, vecAng, "160",_,_,_,_,"models/pickups/pickup_powerup_precision.mdl"));
 		
-		i_NpcInternalId[npc.index] = BARRACK_CROSSBOW;
 		i_NpcWeight[npc.index] = 1;
 		KillFeed_SetKillIcon(npc.index, "huntsman");
 		
-		SDKHook(npc.index, SDKHook_Think, BarrackCrossbow_ClotThink);
-
+		func_NPCOnTakeDamage[npc.index] = BarrackBody_OnTakeDamage;
+		func_NPCDeath[npc.index] = BarrackCrossbow_NPCDeath;
+		func_NPCThink[npc.index] = BarrackCrossbow_ClotThink;
+		func_NPCAnimEvent[npc.index] = BarrackCrossbow_HandleAnimEvent;
+	
 		npc.m_flSpeed = 225.0;
 		
 		npc.m_iWearable1 = npc.EquipItem("weapon_bone", "models/workshop/weapons/c_models/c_crusaders_crossbow/c_crusaders_crossbow.mdl");
@@ -39,8 +59,9 @@ public void BarrackCrossbow_ClotThink(int iNPC)
 
 		if(npc.m_iTarget > 0)
 		{
-			float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
-			float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+			float vecTarget[3]; WorldSpaceCenter(npc.m_iTarget, vecTarget );
+			float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+			float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 
 			if(flDistanceToTarget < 170000.0)
 			{
@@ -58,14 +79,14 @@ public void BarrackCrossbow_ClotThink(int iNPC)
 						
 			//			npc.PlayMeleeSound();
 			//			npc.FireArrow(vecTarget, 25.0, 1200.0);
-						npc.m_flNextMeleeAttack = GameTime + (2.0 * npc.BonusFireRate);
+						npc.m_flNextMeleeAttack = GameTime + (3.0 * npc.BonusFireRate);
 						npc.m_flReloadDelay = GameTime + (0.7 * npc.BonusFireRate);
 					}
 				}
 			}
 		}
 
-		BarrackBody_ThinkMove(npc.index, 225.0, "ACT_CUSTOM_IDLE_CROSSBOW", "ACT_CUSTOM_WALK_CROSSBOW", 170000.0);
+		BarrackBody_ThinkMove(npc.index, 225.0, "ACT_CUSTOM_IDLE_CROSSBOW", "ACT_CUSTOM_WALK_CROSSBOW", 155000.0);
 	}
 }
 
@@ -77,11 +98,11 @@ void BarrackCrossbow_HandleAnimEvent(int entity, int event)
 		
 		if(IsValidEnemy(npc.index, npc.m_iTarget))
 		{
-			float vecTarget[3]; vecTarget = PredictSubjectPositionForProjectiles(npc, npc.m_iTarget, 1200.0);
+			float vecTarget[3]; PredictSubjectPositionForProjectiles(npc, npc.m_iTarget, 1200.0,_, vecTarget);
 			npc.FaceTowards(vecTarget, 30000.0);
 			
 			npc.PlayRangedSound();
-			npc.FireArrow(vecTarget, Barracks_UnitExtraDamageCalc(npc.index, GetClientOfUserId(npc.OwnerUserId),470.0, 1), 1200.0, _, _, _, GetClientOfUserId(npc.OwnerUserId));
+			npc.FireArrow(vecTarget, Barracks_UnitExtraDamageCalc(npc.index, GetClientOfUserId(npc.OwnerUserId),800.0, 1), 1200.0, _, _, _, GetClientOfUserId(npc.OwnerUserId));
 		}
 	}
 }

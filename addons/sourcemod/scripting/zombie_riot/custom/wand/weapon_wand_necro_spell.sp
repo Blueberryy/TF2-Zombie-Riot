@@ -3,7 +3,7 @@
 
 static float ability_cooldown[MAXPLAYERS+1]={0.0, ...};
 static float Necro_Damage[MAXPLAYERS+1]={0.0, ...};
-static bool Delete_Flame[MAXPLAYERS+1]={false, ...};
+bool Delete_Flame[MAXPLAYERS+1]={false, ...};
 
 
 public void Wand_Necro_Spell_ClearAll()
@@ -25,7 +25,7 @@ public void Weapon_Necro_FireBallSpell(int client, int weapon, bool &result, int
 		{
 			if (Ability_Check_Cooldown(client, slot) < 0.0)
 			{
-				Rogue_OnAbilityUse(weapon);
+				Rogue_OnAbilityUse(client, weapon);
 				Ability_Apply_Cooldown(client, slot, 14.0);
 				
 				Necro_Damage[client] = 1.0;
@@ -51,7 +51,7 @@ public void Weapon_Necro_FireBallSpell(int client, int weapon, bool &result, int
 				CreateTimer(0.5, Necro_Remove_Spell, client, TIMER_FLAG_NO_MAPCHANGE);
 				CreateTimer(0.4, Fireball_Remove_Spell_Entity, EntIndexToEntRef(spellbook), TIMER_FLAG_NO_MAPCHANGE);
 					
-				Mana_Regen_Delay[client] = GetGameTime() + 1.0;
+				SDKhooks_SetManaRegenDelayTime(client, 1.0);
 				Mana_Hud_Delay[client] = 0.0;
 				
 				Current_Mana[client] -= mana_cost;
@@ -106,10 +106,6 @@ public Action Necro_Remove_Spell(Handle Necro_Remove_SpellHandle, int client)
 	if (IsValidClient(client))
 	{
 		Spawn_Necromancy(client);
-		if(LastMann)
-		{
-			Spawn_Necromancy(client);			
-		}
 		Attributes_Set(client, 698, 0.0);
 		FakeClientCommand(client, "use tf_weapon_bonesaw");
 		Attributes_Set(client, 178, 1.0);
@@ -124,8 +120,6 @@ public void Spawn_Necromancy(int client)
 	GetClientAbsOrigin(client, flPos);
 	GetClientAbsAngles(client, flAng);
 	
-	char buffer[16];
-	FloatToString(Necro_Damage[client], buffer, sizeof(buffer));
-	Npc_Create(NECRO_COMBINE, client, flPos, flAng, true, buffer);
-	Items_GiveNPCKill(client, NECRO_COMBINE);
+	int npc = NPC_CreateByName("npc_necromancy_combine", client, flPos, flAng, TFTeam_Red);
+	fl_Extra_Damage[npc] = Necro_Damage[client];
 }

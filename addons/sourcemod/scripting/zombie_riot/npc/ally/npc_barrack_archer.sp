@@ -4,17 +4,37 @@
 // Balanced around Mid Zombie
 // Construction Novice
 
+public void BarrackArcherOnMapStart()
+{
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Archer");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_barrack_archer");
+	strcopy(data.Icon, sizeof(data.Icon), "");
+	data.IconCustom = false;
+	data.Flags = 0;
+	data.Category = Type_Ally;
+	data.Func = ClotSummon;
+	NPC_Add(data);
+}
+
+static any ClotSummon(int client, float vecPos[3], float vecAng[3])
+{
+	return BarrackArcher(client, vecPos, vecAng);
+}
+
 methodmap BarrackArcher < BarrackBody
 {
-	public BarrackArcher(int client, float vecPos[3], float vecAng[3], bool ally)
+	public BarrackArcher(int client, float vecPos[3], float vecAng[3])
 	{
 		BarrackArcher npc = view_as<BarrackArcher>(BarrackBody(client, vecPos, vecAng, "110",_,_,_,_,"models/pickups/pickup_powerup_precision.mdl"));
 		
-		i_NpcInternalId[npc.index] = BARRACK_ARCHER;
 		i_NpcWeight[npc.index] = 1;
 		KillFeed_SetKillIcon(npc.index, "huntsman");
-		
-		SDKHook(npc.index, SDKHook_Think, BarrackArcher_ClotThink);
+		func_NPCOnTakeDamage[npc.index] = BarrackBody_OnTakeDamage;
+		func_NPCDeath[npc.index] = BarrackArcher_NPCDeath;
+		func_NPCThink[npc.index] = BarrackArcher_ClotThink;
+		func_NPCAnimEvent[npc.index] = BarrackArcher_HandleAnimEvent;
+	
 
 		npc.m_flSpeed = 200.0;
 		
@@ -39,8 +59,9 @@ public void BarrackArcher_ClotThink(int iNPC)
 
 		if(npc.m_iTarget > 0)
 		{
-			float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
-			float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+			float vecTarget[3]; WorldSpaceCenter(npc.m_iTarget, vecTarget );
+			float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+			float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 
 			if(flDistanceToTarget < 160000.0)
 			{
@@ -65,7 +86,7 @@ public void BarrackArcher_ClotThink(int iNPC)
 			}
 		}
 
-		BarrackBody_ThinkMove(npc.index, 200.0, "ACT_CUSTOM_IDLE_BOW", "ACT_CUSTOM_WALK_BOW", 160000.0);
+		BarrackBody_ThinkMove(npc.index, 200.0, "ACT_CUSTOM_IDLE_BOW", "ACT_CUSTOM_WALK_BOW", 145000.0);
 	}
 }
 
@@ -77,11 +98,11 @@ void BarrackArcher_HandleAnimEvent(int entity, int event)
 		
 		if(IsValidEnemy(npc.index, npc.m_iTarget))
 		{
-			float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
+			float vecTarget[3]; WorldSpaceCenter(npc.m_iTarget, vecTarget );
 			npc.FaceTowards(vecTarget, 30000.0);
 			
 			npc.PlayRangedSound();
-			npc.FireArrow(vecTarget, Barracks_UnitExtraDamageCalc(npc.index, GetClientOfUserId(npc.OwnerUserId),200.0, 1), 1200.0, _, _, _, GetClientOfUserId(npc.OwnerUserId));
+			npc.FireArrow(vecTarget, Barracks_UnitExtraDamageCalc(npc.index, GetClientOfUserId(npc.OwnerUserId),500.0, 1), 1200.0, _, _, _, GetClientOfUserId(npc.OwnerUserId));
 		}
 	}
 	

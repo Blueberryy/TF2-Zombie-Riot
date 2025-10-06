@@ -7,6 +7,7 @@
 #define SOUND_BET	"ui/duel_score_behind.wav"
 #define SOUND_MATCH	"mvm/mvm_money_pickup.wav"
 #define SOUND_EVENT	"ui/quest_alert.wav"
+#define ITEM_CHIP	"Casino Chips"
 
 enum
 {
@@ -80,11 +81,11 @@ public const char RankNames[][] =
 	"Straight Flush"
 };
 
-#include "rpg_fortress/games/poker.sp"
-#include "rpg_fortress/games/blackjack.sp"
-#include "rpg_fortress/games/texas.sp"
-#include "rpg_fortress/games/roulette.sp"
-#include "rpg_fortress/games/crimson.sp"
+#include "games/poker.sp"
+#include "games/blackjack.sp"
+#include "games/texas.sp"
+#include "games/roulette.sp"
+#include "games/crimson.sp"
 
 static StringMap GameList;
 
@@ -101,23 +102,12 @@ public Action Games_Command(int client, int args)
 	return Plugin_Handled;
 }
 
-void Games_ConfigSetup(KeyValues map)
+void Games_ConfigSetup()
 {
-	KeyValues kv = map;
-	if(kv)
-	{
-		kv.Rewind();
-		if(!kv.JumpToKey("Games"))
-			kv = null;
-	}
-	
 	char buffer[PLATFORM_MAX_PATH];
-	if(!kv)
-	{
-		BuildPath(Path_SM, buffer, sizeof(buffer), CONFIG_CFG, "games");
-		kv = new KeyValues("Games");
-		kv.ImportFromFile(buffer);
-	}
+	RPG_BuildPath(buffer, sizeof(buffer), "games");
+	KeyValues kv = new KeyValues("Games");
+	kv.ImportFromFile(buffer);
 	
 	delete GameList;
 	GameList = new StringMap();
@@ -132,8 +122,7 @@ void Games_ConfigSetup(KeyValues map)
 	}
 	while(kv.GotoNextKey(false));
 
-	if(kv != map)
-		delete kv;
+	delete kv;
 }
 
 void Games_ClientEnter(int client, const char[] name)
@@ -145,6 +134,9 @@ void Games_ClientEnter(int client, const char[] name)
 
 static void StartGame(int client, const char[] game)
 {
+	if(Editor_MenuFunc(client) != INVALID_FUNCTION)
+		return;
+	
 	int index = StringToInt(game);
 	switch(index)
 	{

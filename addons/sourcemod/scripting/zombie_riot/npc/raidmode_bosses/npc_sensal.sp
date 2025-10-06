@@ -7,11 +7,13 @@
 
 static bool BlockLoseSay;
 
-static bool b_angered_twice[MAXENTITIES];
-static int i_SaidLineAlready[MAXENTITIES];
+
+
 static float f_TimeSinceHasBeenHurt[MAXENTITIES];
-static float fl_AlreadyStrippedMusic[MAXTF2PLAYERS];
+
 static int i_LaserEntityIndex[MAXENTITIES]={-1, ...};
+
+
 
 static const char g_DeathSounds[][] = {
 	"weapons/rescue_ranger_teleport_receive_01.wav",
@@ -100,7 +102,26 @@ static int Silvester_TE_Used;
 static bool b_RageAnimated[MAXENTITIES];
 static bool b_RageProjectile[MAXENTITIES];
 
+int SensalID;
+int SensalNPCID()
+{
+	return SensalID;
+}
 void Sensal_OnMapStart_NPC()
+{
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Sensal");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_sensal");
+	strcopy(data.Icon, sizeof(data.Icon), "sensal_raid");
+	data.IconCustom = true;
+	data.Flags = MVM_CLASS_FLAG_MINIBOSS|MVM_CLASS_FLAG_ALWAYSCRIT;
+	data.Category = Type_Raid;
+	data.Func = ClotSummon;
+	data.Precache = ClotPrecache;
+	SensalID = NPC_Add(data);
+}
+
+static void ClotPrecache()
 {
 	for (int i = 0; i < (sizeof(g_DeathSounds));	   i++) { PrecacheSound(g_DeathSounds[i]);	   }
 	for (int i = 0; i < (sizeof(g_HurtSounds));		i++) { PrecacheSound(g_HurtSounds[i]);		}
@@ -119,6 +140,10 @@ void Sensal_OnMapStart_NPC()
 	PrecacheSoundCustom("#zombiesurvival/expidonsa_waves/raid_sensal_2.mp3");
 }
 
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team, const char[] data)
+{
+	return Sensal(vecPos, vecAng, team, data);
+}
 
 methodmap Sensal < CClotBody
 {
@@ -192,7 +217,9 @@ methodmap Sensal < CClotBody
 	{
 		this.m_flNextHurtSound = GetGameTime(this.index) + 0.4;
 		
-		EmitSoundToAll(g_MissAbilitySound[GetRandomInt(0, sizeof(g_MissAbilitySound) - 1)], this.index, SNDCHAN_VOICE, RAIDBOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME);
+		EmitSoundToAll(g_MissAbilitySound[GetRandomInt(0, sizeof(g_MissAbilitySound) - 1)], this.index, SNDCHAN_STATIC, RAIDBOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME);
+		EmitSoundToAll(g_MissAbilitySound[GetRandomInt(0, sizeof(g_MissAbilitySound) - 1)], this.index, SNDCHAN_STATIC, RAIDBOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME);
+		EmitSoundToAll(g_MissAbilitySound[GetRandomInt(0, sizeof(g_MissAbilitySound) - 1)], this.index, SNDCHAN_STATIC, RAIDBOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME);
 		
 	}
 	
@@ -226,11 +253,9 @@ methodmap Sensal < CClotBody
 	}
 	
 	
-	public Sensal(int client, float vecPos[3], float vecAng[3], bool ally)
+	public Sensal(float vecPos[3], float vecAng[3], int ally, const char[] data)
 	{
 		Sensal npc = view_as<Sensal>(CClotBody(vecPos, vecAng, "models/player/soldier.mdl", "1.35", "40000", ally, false, true, true,true)); //giant!
-		
-		i_NpcInternalId[npc.index] = RAIDMODE_EXPIDONSA_SENSAL;
 		i_NpcWeight[npc.index] = 4;
 
 		FormatEx(c_HeadPlaceAttachmentGibName[npc.index], sizeof(c_HeadPlaceAttachmentGibName[]), "head");
@@ -246,15 +271,16 @@ methodmap Sensal < CClotBody
 		npc.m_iBleedType = BLEEDTYPE_NORMAL;
 		npc.m_iStepNoiseType = STEPSOUND_GIANT;	
 		npc.m_iNpcStepVariation = STEPTYPE_NORMAL;
+		SetEntPropFloat(npc.index, Prop_Data, "m_flElementRes", 1.0, Element_Chaos);
 		npc.m_bDissapearOnDeath = true;
 		npc.m_flMeleeArmor = 1.25;	
 		
-		SDKHook(npc.index, SDKHook_Think, Sensal_ClotThink);
-		
+		func_NPCDeath[npc.index] = view_as<Function>(Internal_NPCDeath);
+		func_NPCOnTakeDamage[npc.index] = view_as<Function>(Internal_OnTakeDamage);
+		func_NPCThink[npc.index] = view_as<Function>(Internal_ClotThink);
+
 		SDKHook(npc.index, SDKHook_OnTakeDamagePost, RaidbossSensal_OnTakeDamagePost);
-		//IDLE
-		npc.m_iState = 0;
-		npc.m_flGetClosestTargetTime = 0.0;
+		
 		npc.StartPathing();
 		npc.m_flSpeed = 300.0;
 		npc.i_GunMode = 0;
@@ -262,6 +288,8 @@ methodmap Sensal < CClotBody
 		npc.m_flNextRangedSpecialAttackHappens = GetGameTime() + 5.0;
 		npc.m_flAngerDelay = GetGameTime() + 15.0;
 		BlockLoseSay = false;
+		Zero(b_said_player_weaponline);
+		fl_said_player_weaponline_time[npc.index] = GetGameTime() + GetRandomFloat(0.0, 5.0);
 		
 		EmitSoundToAll("npc/zombie_poison/pz_alert1.wav", _, _, _, _, 1.0);	
 		EmitSoundToAll("npc/zombie_poison/pz_alert1.wav", _, _, _, _, 1.0);	
@@ -272,7 +300,49 @@ methodmap Sensal < CClotBody
 			fl_AlreadyStrippedMusic[client_clear] = 0.0; //reset to 0
 		}
 		
+
+		bool final = StrContains(data, "final_item") != -1;
 		
+		i_RaidGrantExtra[npc.index] = 1;
+		if(StrContains(data, "wave_10") != -1)
+		{
+			i_RaidGrantExtra[npc.index] = 2;
+		}
+		else if(StrContains(data, "wave_20") != -1)
+		{
+			i_RaidGrantExtra[npc.index] = 3;
+		}
+		else if(StrContains(data, "wave_30") != -1)
+		{
+			i_RaidGrantExtra[npc.index] = 4;
+		}
+		else if(StrContains(data, "wave_40") != -1)
+		{
+			i_RaidGrantExtra[npc.index] = 5;
+		}
+		
+		if(final)
+		{
+			i_RaidGrantExtra[npc.index] = 6;
+			b_NpcUnableToDie[npc.index] = true;
+		}
+		bool cutscene = StrContains(data, "duo_cutscene") != -1;
+		if(cutscene)
+		{
+			i_RaidGrantExtra[npc.index] = 50;
+		}
+		bool cutscene2 = StrContains(data, "victoria_cutscene") != -1;
+		if(cutscene2)
+		{
+			i_RaidGrantExtra[npc.index] = 51;
+		}
+		bool tripple = StrContains(data, "triple_enemies") != -1;
+		if(tripple)
+		{
+			RemoveAllDamageAddition();
+			CPrintToChatAll("{blue}Sensal{default}: This is your final challange, beat all 3 of us at once, Fear the might of {gold}Expidonsa{default}!");
+			GiveOneRevive(true);
+		}
 		for(int client_check=1; client_check<=MaxClients; client_check++)
 		{
 			if(IsClientInGame(client_check) && !IsFakeClient(client_check))
@@ -285,19 +355,63 @@ methodmap Sensal < CClotBody
 
 		RaidModeTime = GetGameTime(npc.index) + 200.0;
 		RaidBossActive = EntIndexToEntRef(npc.index);
-		
-		RaidModeScaling = float(ZR_GetWaveCount()+1);
-		b_RageAnimated[npc.index] = false;
-		if(RaidModeScaling < 55)
+		RaidAllowsBuildings = false;
+
+		char buffers[3][64];
+		ExplodeString(data, ";", buffers, sizeof(buffers), sizeof(buffers[]));
+		//the very first and 2nd char are SC for scaling
+		if(buffers[0][0] == 's' && buffers[0][1] == 'c')
 		{
-			RaidModeScaling *= 0.19; //abit low, inreacing
+			//remove SC
+			ReplaceString(buffers[0], 64, "sc", "");
+			float value = StringToFloat(buffers[0]);
+			RaidModeScaling = value;
+
+			if(RaidModeScaling < 35)
+			{
+				RaidModeScaling *= 0.25; //abit low, inreacing
+			}
+			else
+			{
+				RaidModeScaling *= 0.5;
+			}
+
+			if(value > 40.0 && value < 55.0)
+			{
+				RaidModeScaling *= 0.85;
+			}
+			else if(value > 55.0)
+			{
+				RaidModeTime = GetGameTime(npc.index) + 220.0;
+				RaidModeScaling *= 0.65;
+			}
 		}
 		else
-		{
-			RaidModeScaling *= 0.38;
+		{	
+			RaidModeScaling = float(Waves_GetRoundScale()+1);
+			if(RaidModeScaling < 35)
+			{
+				RaidModeScaling *= 0.25; //abit low, inreacing
+			}
+			else
+			{
+				RaidModeScaling *= 0.5;
+			}
+				
+			if(Waves_GetRoundScale()+1 > 25 && Waves_GetRoundScale()+1 < 35)
+			{
+				RaidModeScaling *= 0.85;
+			}
+			else if(Waves_GetRoundScale()+1 > 35)
+			{
+				RaidModeTime = GetGameTime(npc.index) + 220.0;
+				RaidModeScaling *= 0.65;
+			}
 		}
+
+		b_RageAnimated[npc.index] = false;
 		
-		float amount_of_people = float(CountPlayersOnRed());
+		float amount_of_people = ZRStocks_PlayerScalingDynamic();
 		if(amount_of_people > 12.0)
 		{
 			amount_of_people = 12.0;
@@ -308,22 +422,25 @@ methodmap Sensal < CClotBody
 			amount_of_people = 1.0;
 
 		RaidModeScaling *= amount_of_people; //More then 9 and he raidboss gets some troubles, bufffffffff
-		
-		if(ZR_GetWaveCount()+1 > 40 && ZR_GetWaveCount()+1 < 55)
+
+		if(!cutscene && !cutscene2 && !tripple)
 		{
-			RaidModeScaling *= 0.85;
+			RemoveAllDamageAddition();
+			func_NPCFuncWin[npc.index] = view_as<Function>(Raidmode_Expidonsa_Sensal_Win);
+			MusicEnum music;
+			strcopy(music.Path, sizeof(music.Path), "#zombiesurvival/expidonsa_waves/raid_sensal_2.mp3");
+			music.Time = 218;
+			music.Volume = 2.0;
+			music.Custom = true;
+			strcopy(music.Name, sizeof(music.Name), "Goukisan - Betrayal of Fear (TeslaX VIP remix)");
+			strcopy(music.Artist, sizeof(music.Artist), "Talurre/TeslaX11");
+			Music_SetRaidMusic(music);
 		}
-		else if(ZR_GetWaveCount()+1 > 55)
-		{
-			RaidModeScaling *= 0.7;
-		}
-		
-		Raidboss_Clean_Everyone();
-		Music_SetRaidMusic("#zombiesurvival/expidonsa_waves/raid_sensal_2.mp3", 218, true);
 		npc.m_iChanged_WalkCycle = -1;
 
 		int skin = 1;
 		SetEntProp(npc.index, Prop_Send, "m_nSkin", skin);
+		npc.m_fbGunout = false;
 
 	//	Weapon
 	//	npc.m_iWearable1 = npc.EquipItem("head", "models/weapons/c_models/c_rocketlauncher/c_rocketlauncher.mdl");
@@ -342,9 +459,6 @@ methodmap Sensal < CClotBody
 		SetVariantString("1.0");
 		AcceptEntityInput(npc.m_iWearable4, "SetModelScale");
 
-		npc.m_iWearable5 = npc.EquipItem("head", "models/workshop/player/items/all_class/hw2013_the_caws_of_death/hw2013_the_caws_of_death_soldier.mdl");
-		SetVariantString("1.0");
-		AcceptEntityInput(npc.m_iWearable5, "SetModelScale");
 
 		npc.m_iWearable6 = npc.EquipItem("head", "models/workshop/player/items/soldier/spr18_veterans_attire/spr18_veterans_attire.mdl");
 		SetVariantString("1.0");
@@ -353,13 +467,17 @@ methodmap Sensal < CClotBody
 		SetEntProp(npc.m_iWearable2, Prop_Send, "m_nSkin", skin);
 		SetEntProp(npc.m_iWearable3, Prop_Send, "m_nSkin", skin);
 		SetEntProp(npc.m_iWearable4, Prop_Send, "m_nSkin", skin);
-		SetEntProp(npc.m_iWearable5, Prop_Send, "m_nSkin", skin);
 		SetEntProp(npc.m_iWearable6, Prop_Send, "m_nSkin", skin);
-		SensalEffects(npc.index);
+		SensalEffects(npc.index, view_as<int>(npc.Anger));
+		
+		float flPos[3]; // original
+		float flAng[3]; // original
+		npc.GetAttachment("head", flPos, flAng);
+		npc.m_iWearable8 = ParticleEffectAt_Parent(flPos, "unusual_symbols_parent_ice", npc.index, "head", {0.0,0.0,0.0});
 
 		
 		npc.m_iTeamGlow = TF2_CreateGlow(npc.index);
-
+		npc.m_bTeamGlowDefault = false;
 		SetVariantColor(view_as<int>({35, 35, 255, 200}));
 		AcceptEntityInput(npc.m_iTeamGlow, "SetGlowColor");
 		
@@ -367,7 +485,7 @@ methodmap Sensal < CClotBody
 	}
 }
 
-public void Sensal_ClotThink(int iNPC)
+static void Internal_ClotThink(int iNPC)
 {
 	Sensal npc = view_as<Sensal>(iNPC);
 	if(npc.m_flNextDelayTime > GetGameTime(npc.index))
@@ -376,20 +494,191 @@ public void Sensal_ClotThink(int iNPC)
 	}
 	npc.m_flNextDelayTime = GetGameTime(npc.index) + DEFAULT_UPDATE_DELAY_FLOAT;
 	npc.Update();
-	
+	if(i_RaidGrantExtra[npc.index] == 50)
+	{
+		npc.m_flSpeed = 660.0;
+		BlockLoseSay = true;
+		if(npc.m_flGetClosestTargetTime < GetGameTime(npc.index))
+		{
+			npc.m_iTarget = GetClosestAlly(npc.index);
+			npc.m_flGetClosestTargetTime = GetRandomRetargetTime();
+		}
+		if(IsValidAlly(npc.index, npc.m_iTarget))
+		{
+			float vecTarget[3]; WorldSpaceCenter(npc.m_iTarget, vecTarget );
+			float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+			float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
+			if(flDistanceToTarget < npc.GetLeadRadius()) 
+			{
+				npc.StopPathing();
+				
+			}
+			else 
+			{
+				npc.SetGoalEntity(npc.m_iTarget);
+				npc.StartPathing();
+			}
+		}
+		else
+		{
+			npc.m_flGetClosestTargetTime = 0.0;
+		}
+		return;
+	}
+	if(i_RaidGrantExtra[npc.index] == 51)
+	{
+		npc.m_flSpeed = 660.0;
+		BlockLoseSay = true;
+		if(npc.m_flGetClosestTargetTime < GetGameTime(npc.index))
+		{
+			npc.m_iTarget = GetClosestAlly(npc.index);
+			npc.m_flGetClosestTargetTime = GetRandomRetargetTime();
+		}
+		if(IsValidAlly(npc.index, npc.m_iTarget))
+		{
+			float vecTarget[3]; WorldSpaceCenter(npc.m_iTarget, vecTarget );
+			float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+			float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
+			if(flDistanceToTarget < npc.GetLeadRadius()) 
+			{
+				npc.StopPathing();
+				
+			}
+			else 
+			{
+				npc.SetGoalEntity(npc.m_iTarget);
+				npc.StartPathing();
+			}
+		}
+		else
+		{
+			npc.m_flGetClosestTargetTime = 0.0;
+		}
+
+		if(npc.f_SensalMeleeCooldown > GetGameTime())
+		{
+			return;
+		}
+		npc.f_SensalMeleeCooldown = GetGameTime() + 4.0;
+		switch(npc.i_GunMode)
+		{
+			case 0:
+			{
+				CPrintToChatAll("{blue}Sensal{default}: Stop the fight this instant.");
+			}
+			case 1:
+			{
+				CPrintToChatAll("{blue}Sensal{default}: What is happening here?");
+			}
+			case 2:
+			{
+				CPrintToChatAll("{blue}Castellan{default}: They attacked us while invading Ziberia, what else is there to add?");
+			}
+			case 3:
+			{
+				CPrintToChatAll("{blue}Sensal{default}: Invading Ziberia? Right after {darkblue}Kahmlstein{default} Perished?");
+			}
+			case 4:
+			{
+				CPrintToChatAll("{blue}Sensal{default}: There are more important matters to attend to.\nZiberia is not like Him.");
+			}
+			case 5:
+			{
+				CPrintToChatAll("{blue}Castellan{default}: Youre meaning to say that he was the cause?");
+			}
+			case 6:
+			{
+				CPrintToChatAll("{blue}Sensal{default}: Correct. The country itself isnt at fault. Now leave, I also believe Victoria has to deal with chaos.");
+			}
+			case 7:
+			{
+				CPrintToChatAll("{blue}Castellan{default}: I remember you mentioning chaos before, if you say its in our city walls, then we will immedietly return and assess the situation.");
+			}
+			case 8:
+			{
+				CPrintToChatAll("{blue}Sensal{default}: Good.");
+			}
+			case 9:
+			{
+				CPrintToChatAll("{blue}Castellan{default}: We will return to Victoria now.");
+				for (int client = 1; client <= MaxClients; client++)
+				{
+					if(IsValidClient(client) && GetClientTeam(client) == 2 && TeutonType[client] != TEUTON_WAITING && PlayerPoints[client] > 500)
+					{
+						Items_GiveNamedItem(client, "Avangard's Processing Core-B");
+						CPrintToChat(client,"{default}As Castellan and his army leave, they drop something: {darkblue}''Avangard's Processing Core-B''{default}!");
+					}
+				}
+			}
+			default:
+			{
+				RequestFrame(KillNpc, EntIndexToEntRef(npc.index));
+			}
+		}
+		npc.i_GunMode++;
+		return;
+	}
 	if(SensalTalkPostWin(npc))
 		return;
 
+	if(LastMann)
+	{
+		if(!npc.m_fbGunout)
+		{
+			npc.m_fbGunout = true;
+			switch(GetRandomInt(0,2))
+			{
+				case 0:
+				{
+					CPrintToChatAll("{blue}Sensal{default}: You are the last one.");
+				}
+				case 1:
+				{
+					CPrintToChatAll("{blue}Sensal{default}: None of you criminals are of any importants infront of {gold}Expidonsa{default}.");
+				}
+				case 2:
+				{
+					CPrintToChatAll("{blue}Sensal{default}: All your friends are gone. Submit to {gold}Expidonsa{default}.");
+				}
+			}
+		}
+	}
+	if(i_RaidGrantExtra[npc.index] == RAIDITEM_INDEX_WIN_COND)
+	{
+		npc.m_bisWalking = false;
+		npc.AddActivityViaSequence("selectionMenu_Idle");
+		npc.SetCycle(0.01);
+		func_NPCThink[npc.index] = INVALID_FUNCTION;
+		
+		CPrintToChatAll("{blue}Sensal{default}: Refusing to collaborate or even reason with {gold}Expidonsa{default} will result in termination.");
+		return;
+	}
 	if(RaidModeTime < GetGameTime())
 	{
-		int entity = CreateEntityByName("game_round_win"); //You loose.
-		DispatchKeyValue(entity, "force_map_reset", "1");
-		SetEntProp(entity, Prop_Data, "m_iTeamNum", TFTeam_Blue);
-		DispatchSpawn(entity);
-		AcceptEntityInput(entity, "RoundWin");
-		Music_RoundEnd(entity);
+		DeleteAndRemoveAllNpcs = 10.0;
+		mp_bonusroundtime.IntValue = (12 * 2);
+		ZR_NpcTauntWinClear();
+		ForcePlayerLoss();
+		npc.m_bisWalking = false;
+		npc.AddActivityViaSequence("selectionMenu_Idle");
+		npc.SetCycle(0.01);
 		RaidBossActive = INVALID_ENT_REFERENCE;
-		SDKUnhook(npc.index, SDKHook_Think, Sensal_ClotThink);
+		func_NPCThink[npc.index] = INVALID_FUNCTION;
+		CPrintToChatAll("{blue}Sensal{default}: You are under arrest. The Expidonsan elite forces will take you now.");
+		for(int i; i<32; i++)
+		{
+			float pos[3]; GetEntPropVector(npc.index, Prop_Data, "m_vecAbsOrigin", pos);
+			float ang[3]; GetEntPropVector(npc.index, Prop_Data, "m_angRotation", ang);
+			
+			int spawn_index = NPC_CreateByName("npc_diversionistico", -1, pos, ang, GetTeam(npc.index));
+			if(spawn_index > MaxClients)
+			{
+				NpcStats_CopyStats(npc.index, spawn_index);
+				NpcAddedToZombiesLeftCurrently(spawn_index, true);
+				SetEntProp(spawn_index, Prop_Data, "m_iHealth", 10000000);
+				SetEntProp(spawn_index, Prop_Data, "m_iMaxHealth", 10000000);
+			}
+		}
 		BlockLoseSay = true;
 	}
 
@@ -410,12 +699,6 @@ public void Sensal_ClotThink(int iNPC)
 		}
 	}
 	
-	if(npc.m_bAllowBackWalking)
-	{
-		if(IsValidEnemy(npc.index, npc.m_iTarget))
-			npc.FaceTowards(WorldSpaceCenter(npc.m_iTarget), 150.0);
-	}
-
 	if(npc.m_blPlayHurtAnimation)
 	{
 		npc.AddGesture("ACT_MP_GESTURE_FLINCH_CHEST", false);
@@ -431,6 +714,11 @@ public void Sensal_ClotThink(int iNPC)
 
 	npc.m_flNextThinkTime = GetGameTime(npc.index) + 0.1;
 
+	if(!IsValidEntity(RaidBossActive))
+	{
+		RaidBossActive = EntIndexToEntRef(npc.index);
+	}
+
 	if(npc.m_flGetClosestTargetTime < GetGameTime(npc.index))
 	{
 		npc.m_iTarget = GetClosestTarget(npc.index);
@@ -439,8 +727,9 @@ public void Sensal_ClotThink(int iNPC)
 	
 	if(IsValidEnemy(npc.index, npc.m_iTarget))
 	{
-		float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
-		float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+		float vecTarget[3]; WorldSpaceCenter(npc.m_iTarget, vecTarget );
+		float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+		float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 		int SetGoalVectorIndex = 0;
 		SetGoalVectorIndex = SensalSelfDefense(npc,GetGameTime(npc.index), npc.m_iTarget, flDistanceToTarget); 
 
@@ -453,20 +742,20 @@ public void Sensal_ClotThink(int iNPC)
 				if(flDistanceToTarget < npc.GetLeadRadius()) 
 				{
 					float vPredictedPos[3];
-					vPredictedPos = PredictSubjectPosition(npc, npc.m_iTarget);
-					NPC_SetGoalVector(npc.index, vPredictedPos);
+					PredictSubjectPosition(npc, npc.m_iTarget,_,_, vPredictedPos);
+					npc.SetGoalVector(vPredictedPos);
 				}
 				else 
 				{
-					NPC_SetGoalEntity(npc.index, npc.m_iTarget);
+					npc.SetGoalEntity(npc.m_iTarget);
 				}
 			}
 			case 1:
 			{
 				npc.m_bAllowBackWalking = true;
 				float vBackoffPos[3];
-				vBackoffPos = BackoffFromOwnPositionAndAwayFromEnemy(npc, npc.m_iTarget);
-				NPC_SetGoalVector(npc.index, vBackoffPos, true); //update more often, we need it
+				BackoffFromOwnPositionAndAwayFromEnemy(npc, npc.m_iTarget,_,vBackoffPos);
+				npc.SetGoalVector(vBackoffPos, true); //update more often, we need it
 			}
 		}
 	}
@@ -483,7 +772,7 @@ public void Sensal_ClotThink(int iNPC)
 	npc.PlayIdleAlertSound();
 }
 
-public Action Sensal_OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3], int damagecustom)
+static Action Internal_OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3], int damagecustom)
 {
 	Sensal npc = view_as<Sensal>(victim);
 		
@@ -495,9 +784,10 @@ public Action Sensal_OnTakeDamage(int victim, int &attacker, int &inflictor, flo
 		npc.m_flHeadshotCooldown = GetGameTime(npc.index) + DEFAULT_HURTDELAY;
 		npc.m_blPlayHurtAnimation = true;
 	}		
-	if(ZR_GetWaveCount()+1 > 55 && !b_angered_twice[npc.index] && !Waves_InFreeplay())
+	Sensal_Weapon_Lines(npc, attacker);
+	if(!b_angered_twice[npc.index] && i_RaidGrantExtra[npc.index] == 6)
 	{
-		if(((GetEntProp(npc.index, Prop_Data, "m_iMaxHealth")/40) >= GetEntProp(npc.index, Prop_Data, "m_iHealth")) || (RoundToCeil(damage) >= GetEntProp(npc.index, Prop_Data, "m_iHealth"))) //npc.Anger after half hp/400 hp
+		if(((ReturnEntityMaxHealth(npc.index)/40) >= GetEntProp(npc.index, Prop_Data, "m_iHealth")) || (RoundToCeil(damage) >= GetEntProp(npc.index, Prop_Data, "m_iHealth"))) //npc.Anger after half hp/400 hp
 		{
 			b_ThisEntityIgnoredByOtherNpcsAggro[npc.index] = true; //Make allied npcs ignore him.
 
@@ -507,12 +797,12 @@ public Action Sensal_OnTakeDamage(int victim, int &attacker, int &inflictor, flo
 			i_SaidLineAlready[npc.index] = 0; 
 			f_TimeSinceHasBeenHurt[npc.index] = GetGameTime() + 20.0;
 			RaidModeTime += 60.0;
-			f_NpcImmuneToBleed[npc.index] = GetGameTime() + 1.0;
+			NPCStats_RemoveAllDebuffs(npc.index, 1.0);
 			b_NpcIsInvulnerable[npc.index] = true;
 			RemoveNpcFromEnemyList(npc.index);
 			GiveProgressDelay(20.0);
 			
-			CPrintToChatAll("{blue}Sensal{default}: You keep talking about Silvester and Blue Goggles, what is the meaning of this?");
+			CPrintToChatAll("{blue}Sensal{default}: You keep talking about Silvester and Waldch, what is the meaning of this?");
 
 			damage = 0.0; //So he doesnt get oneshot somehow, atleast once.
 			return Plugin_Handled;
@@ -522,23 +812,28 @@ public Action Sensal_OnTakeDamage(int victim, int &attacker, int &inflictor, flo
 	
 	return Plugin_Changed;
 }
+public void Raidmode_Expidonsa_Sensal_Win(int entity)
+{
+	i_RaidGrantExtra[entity] = RAIDITEM_INDEX_WIN_COND;
+}
 
-public void Sensal_NPCDeath(int entity)
+static void Internal_NPCDeath(int entity)
 {
 	Sensal npc = view_as<Sensal>(entity);
 	/*
 		Explode on death code here please
 
 	*/
+	float WorldSpaceVec[3]; WorldSpaceCenter(npc.index, WorldSpaceVec);
 	
-	ParticleEffectAt(WorldSpaceCenter(npc.index), "teleported_blue", 0.5);
+	ParticleEffectAt(WorldSpaceVec, "teleported_blue", 0.5);
 	npc.PlayDeathSound();	
 
 	RaidBossActive = INVALID_ENT_REFERENCE;
-	ExpidonsaRemoveEffects(entity);
-	SDKUnhook(npc.index, SDKHook_Think, Sensal_ClotThink);
 		
 	
+	if(IsValidEntity(npc.m_iWearable8))
+		RemoveEntity(npc.m_iWearable8);
 	if(IsValidEntity(npc.m_iWearable7))
 		RemoveEntity(npc.m_iWearable7);
 	if(IsValidEntity(npc.m_iWearable6))
@@ -561,7 +856,19 @@ public void Sensal_NPCDeath(int entity)
 			RemoveEntity(i_LaserEntityIndex[EnemyLoop]);
 		}					
 	}
-	
+	if(i_RaidGrantExtra[npc.index] == 50)
+	{
+		if(XenoExtraLogic())
+			CPrintToChatAll("{blue}Sensal{default}: This area is restricted for all of you.");
+		else
+			CPrintToChatAll("{blue}Sensal{default}: You all are coming with me.");
+
+		return;
+	}
+	if(i_RaidGrantExtra[npc.index] == 51)
+	{
+		return;
+	}
 	if(BlockLoseSay)
 		return;
 
@@ -569,7 +876,7 @@ public void Sensal_NPCDeath(int entity)
 	{
 		case 0:
 		{
-			CPrintToChatAll("{blue}Sensal{default}: Your Actions against a fellow {gold}Expidonsan{default} will not be forgiven, I will be back with reinforcements.");
+			CPrintToChatAll("{blue}Sensal{default}: Your actions against a fellow {gold}Expidonsan{default} will not be forgiven, I will be back with reinforcements.");
 		}
 		case 1:
 		{
@@ -657,7 +964,7 @@ void SensalAnimationChange(Sensal npc)
 int SensalSelfDefense(Sensal npc, float gameTime, int target, float distance)
 {
 	npc.i_GunMode = 0;
-	if(ZR_GetWaveCount()+1 >= 45 && npc.m_flAngerDelay < GetGameTime(npc.index))
+	if(i_RaidGrantExtra[npc.index] >= 4 && npc.m_flAngerDelay < GetGameTime(npc.index))
 	{
 		int Enemy_I_See;
 									
@@ -687,23 +994,31 @@ int SensalSelfDefense(Sensal npc, float gameTime, int target, float distance)
 				npc.m_flDead_Ringer_Invis_bool = false;
 			}
 
-			ExpidonsaRemoveEffects(npc.index);
+			if(IsValidEntity(npc.m_iWearable7))
+			{
+				RemoveEntity(npc.m_iWearable7);
+			}
+			npc.m_bisWalking = false;
 			npc.AddActivityViaSequence("taunt05");
 			npc.m_flAttackHappens = 0.0;
 			EmitSoundToAll("mvm/mvm_tank_end.wav", npc.index, SNDCHAN_STATIC, 120, _, 0.8);
 			npc.SetCycle(0.01);
-			NPC_StopPathing(npc.index);
-			npc.m_bPathing = false;
-			VausMagicaGiveShield(npc.index, CountPlayersOnRed() * 2); //Give self a shield
+			npc.m_flReloadIn = gameTime + 3.0;
+			npc.StopPathing();
+			
+			SensalGiveShield(npc.index, CountPlayersOnRed(1) * 3); //Give self a shield
 
 			SensalThrowScythes(npc);
 			npc.m_flDoingAnimation = gameTime + 0.45;
 			npc.m_flAngerDelay = gameTime + 60.0;
 
-			if(ZR_GetWaveCount()+1 >= 60)
-				npc.m_flAngerDelay = gameTime + 30.0;
+			if(i_RaidGrantExtra[npc.index] >= 5)
+			{
+				npc.m_flReloadIn = gameTime + 1.5;
+				npc.SetPlaybackRate(2.0);
+				npc.m_flAngerDelay = gameTime + 45.0;
+			}
 
-			npc.m_flReloadIn = gameTime + 3.0;
 		}
 		else
 		{
@@ -724,9 +1039,16 @@ int SensalSelfDefense(Sensal npc, float gameTime, int target, float distance)
 			SensalThrowScythes(npc);
 			npc.m_flDoingAnimation = gameTime + 0.45;
 			npc.m_flNextRangedSpecialAttackHappens = gameTime + 7.5;
+			SensalGiveShield(npc.index, CountPlayersOnRed(1));
+
+			if(i_RaidGrantExtra[npc.index] >= 2)
+				npc.m_flNextRangedSpecialAttackHappens = gameTime + 4.0;
+				
+			if(i_RaidGrantExtra[npc.index] >= 3)
+				npc.m_flNextRangedSpecialAttackHappens = gameTime + 5.5;
 		}
 	}
-	else if(ZR_GetWaveCount()+1 >= 30 && npc.m_flRangedSpecialDelay < GetGameTime(npc.index))
+	else if(i_RaidGrantExtra[npc.index] >= 3 && npc.m_flRangedSpecialDelay < GetGameTime(npc.index))
 	{
 		int Enemy_I_See;
 									
@@ -734,17 +1056,27 @@ int SensalSelfDefense(Sensal npc, float gameTime, int target, float distance)
 						
 		if(IsValidEntity(Enemy_I_See) && IsValidEnemy(npc.index, Enemy_I_See))
 		{
-			ExpidonsaRemoveEffects(npc.index);
+			SensalThrowScythes(npc);
+			if(IsValidEntity(npc.m_iWearable7))
+			{
+				RemoveEntity(npc.m_iWearable7);
+			}
 			npc.m_flRangedSpecialDelay = gameTime + 15.5;
-			npc.m_flAttackHappens_2 = gameTime + 1.4;
-			NPC_StopPathing(npc.index);
-			npc.m_bPathing = false;
+			npc.StopPathing();
+			
 			npc.m_flDoingAnimation = gameTime + 99.0;
+			npc.m_bisWalking = false;
 			npc.AddActivityViaSequence("taunt_the_fist_bump_fistbump");
 			npc.m_flAttackHappens = 0.0;
-			VausMagicaGiveShield(npc.index, CountPlayersOnRed() * 2); //Give self a shield
+			npc.m_flAttackHappens_2 = gameTime + 1.4;
+			SensalGiveShield(npc.index,CountPlayersOnRed(1) * 2);
 			EmitSoundToAll("mvm/mvm_cpoint_klaxon.wav", npc.index, SNDCHAN_STATIC, 120, _, 0.8);
 			npc.SetCycle(0.01);
+			if(i_RaidGrantExtra[npc.index] >= 5)
+			{
+				npc.m_flAttackHappens_2 = gameTime + 1.275;
+				npc.SetPlaybackRate(1.25);
+			}
 			float flPos[3];
 			float flAng[3];
 			npc.m_iChanged_WalkCycle = 0;
@@ -753,10 +1085,6 @@ int SensalSelfDefense(Sensal npc, float gameTime, int target, float distance)
 				npc.m_iWearable1 = ParticleEffectAt_Parent(flPos, "flaregun_trail_blue", npc.index, "effect_hand_r", {0.0,0.0,0.0});
 			else
 				npc.m_iWearable1 = ParticleEffectAt_Parent(flPos, "flaregun_trail_red", npc.index, "effect_hand_r", {0.0,0.0,0.0});
-
-			/*
-				Fire a shitretlrrsgtrsglsoads of lasers
-			*/
 
 		}
 	}	
@@ -768,59 +1096,68 @@ int SensalSelfDefense(Sensal npc, float gameTime, int target, float distance)
 			
 			if(IsValidEnemy(npc.index, target))
 			{
+				int HowManyEnemeisAoeMelee = 64;
 				Handle swingTrace;
-				npc.FaceTowards(WorldSpaceCenter(target), 15000.0);
-				if(npc.DoSwingTrace(swingTrace, target, { 150.0, 150.0, 150.0 }, { -150.0, -150.0, -150.0 })) 
+				float VecEnemy[3]; WorldSpaceCenter(npc.m_iTarget, VecEnemy);
+				npc.FaceTowards(VecEnemy, 15000.0);
+				npc.DoSwingTrace(swingTrace, npc.m_iTarget,_,_,_,1,_,HowManyEnemeisAoeMelee);
+				delete swingTrace;
+				bool PlaySound = false;
+				for (int counter = 1; counter <= HowManyEnemeisAoeMelee; counter++)
 				{
-								
-					int target_traced = TR_GetEntityIndex(swingTrace);	
-					
-					float vecHit[3];
-					TR_GetEndPosition(vecHit, swingTrace);
-					
-					if(target_traced > 0) 
+					if (i_EntitiesHitAoeSwing_NpcSwing[counter] > 0)
 					{
-						float damage = 24.0;
-						damage *= 1.15;
+						if(IsValidEntity(i_EntitiesHitAoeSwing_NpcSwing[counter]))
+						{
+							PlaySound = true;
+							int targetTrace = i_EntitiesHitAoeSwing_NpcSwing[counter];
+							float vecHit[3];
+							
+							WorldSpaceCenter(targetTrace, vecHit);
 
-						SDKHooks_TakeDamage(target_traced, npc.index, npc.index, damage * RaidModeScaling, DMG_CLUB, -1, _, vecHit);								
+							float damage = 24.0;
+							damage *= 1.15;
+
+							SDKHooks_TakeDamage(targetTrace, npc.index, npc.index, damage * RaidModeScaling, DMG_CLUB, -1, _, vecHit);								
+								
+							
+							// Hit particle
 							
 						
-						// Hit particle
-						
-						
-						// Hit sound
-						npc.PlayMeleeHitSound();
-						
-						bool Knocked = false;
-									
-						if(IsValidClient(target_traced))
-						{
-							if (IsInvuln(target_traced))
+							
+							bool Knocked = false;
+										
+							if(IsValidClient(targetTrace))
 							{
-								Knocked = true;
-								Custom_Knockback(npc.index, target_traced, 900.0, true);
-								if(!NpcStats_IsEnemySilenced(npc.index))
+								if (IsInvuln(targetTrace))
 								{
-									TF2_AddCondition(target_traced, TFCond_LostFooting, 0.5);
-									TF2_AddCondition(target_traced, TFCond_AirCurrent, 0.5);
+									Knocked = true;
+									Custom_Knockback(npc.index, targetTrace, 900.0, true);
+									if(!NpcStats_IsEnemySilenced(npc.index))
+									{
+										TF2_AddCondition(targetTrace, TFCond_LostFooting, 0.5);
+										TF2_AddCondition(targetTrace, TFCond_AirCurrent, 0.5);
+									}
+								}
+								else
+								{
+									if(!NpcStats_IsEnemySilenced(npc.index))
+									{
+										TF2_AddCondition(targetTrace, TFCond_LostFooting, 0.5);
+										TF2_AddCondition(targetTrace, TFCond_AirCurrent, 0.5);
+									}
 								}
 							}
-							else
-							{
-								if(!NpcStats_IsEnemySilenced(npc.index))
-								{
-									TF2_AddCondition(target_traced, TFCond_LostFooting, 0.5);
-									TF2_AddCondition(target_traced, TFCond_AirCurrent, 0.5);
-								}
-							}
-						}
-									
-						if(!Knocked)
-							Custom_Knockback(npc.index, target_traced, 650.0); 
-					} 
+										
+							if(!Knocked)
+								Custom_Knockback(npc.index, targetTrace, 450.0, true); 
+						} 
+					}
 				}
-				delete swingTrace;
+				if(PlaySound)
+				{
+					npc.PlayMeleeHitSound();
+				}
 			}
 		}
 	}
@@ -829,7 +1166,7 @@ int SensalSelfDefense(Sensal npc, float gameTime, int target, float distance)
 	{
 		if(IsValidEnemy(npc.index, target)) 
 		{
-			if(distance < (NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED * 1.25))
+			if(distance < (GIANT_ENEMY_MELEE_RANGE_FLOAT_SQUARED))
 			{
 				int Enemy_I_See;
 									
@@ -857,146 +1194,72 @@ int SensalSelfDefense(Sensal npc, float gameTime, int target, float distance)
 	return 0;
 }
 
-/*
-void Sensal_Rocket_Base_Explode(int entity, int damage, const float VecPos[3])
-{
-	PrintToChatAll("Boom! Sensal_Rocket_Base_Explode");
-}
-*/
-/*
-void ResetSensalWeapon(Sensal npc, int weapon_Type)
-{
-	
-	if(IsValidEntity(npc.m_iWearable1))
-	{
-		RemoveEntity(npc.m_iWearable1);
-	}
-	switch(weapon_Type)
-	{
-		case 1:
-		{
-			npc.m_iWearable1 = npc.EquipItem("head", "models/weapons/c_models/c_rocketlauncher/c_rocketlauncher.mdl");
-			SetVariantString("1.0");
-			AcceptEntityInput(npc.m_iWearable1, "SetModelScale");
-		}
-		case 0:
-		{
-			float flPos[3];
-			float flAng[3];
-			npc.GetAttachment("effect_hand_r", flPos, flAng);
-			npc.m_iWearable1 = ParticleEffectAt_Parent(flPos, "raygun_projectile_blue_crit", npc.index, "effect_hand_r", {0.0,0.0,0.0});
-		}
-	}
-	
-}
-*/
 
-
-void SensalEffects(int iNpc, int colour = 0, char[] attachment = "effect_hand_r")
+void SensalEffects(int iNpc, int colour = 0, char[] attachment = "effect_hand_r", int colourdiff = 0)
 {
-	int red = 35;
-	int green = 35;
-	int blue = 255;
-	if(colour == 1)
-	{
-		red = 255;
-		green = 35;
-		blue = 35;
-	}
-	float flPos[3];
-	float flAng[3];
 	if(attachment[0])
 	{
-		GetAttachment(iNpc, "effect_hand_r", flPos, flAng);
-	}
-	else
-	{
-		
-		GetEntPropVector(iNpc, Prop_Data, "m_vecAbsOrigin", flPos);
-	}
-	int particle_1 = ParticleEffectAt({0.0,0.0,0.0}, "", 0.0); //This is the root bone basically
-	int particle_2;
-	int particle_3;
-	int particle_4;
-	int particle_5;
-	if(attachment[0])
-	{
-		
-		particle_2 = ParticleEffectAt({0.0,0.0,30.0}, "", 0.0); //First offset we go by
-		particle_3 = ParticleEffectAt({0.0,0.0,-100.0}, "", 0.0); //First offset we go by
-		particle_4 = ParticleEffectAt({0.0,35.0,-100.0}, "", 0.0); //First offset we go by
-		particle_5 = ParticleEffectAt({0.0,70.0,-85.0}, "", 0.0); //First offset we go by
-
-	}
-	else
-	{
-		particle_2 = ParticleEffectAt({0.0,25.0,0.0}, "", 0.0); //First offset we go by
-		particle_3 = ParticleEffectAt({0.0,-40.0,0.0}, "", 0.0); //First offset we go by
-		particle_4 = ParticleEffectAt({12.0,-40.0,0.0}, "", 0.0); //First offset we go by
-		particle_5 = ParticleEffectAt({35.0,-30.0,0.0}, "", 0.0); //First offset we go by
-	}
-	int particle_6;
-	if(colour == 0)
-	{
-		if(attachment[0])
+		CClotBody npc = view_as<CClotBody>(iNpc);
+		if(IsValidEntity(npc.m_iWearable7))
 		{
-			particle_6 = ParticleEffectAt({0.0,100.0,-70.0}, "raygun_projectile_blue_crit", 0.0); //First offset we go by
+			if(colour)
+			{
+				SetEntityRenderColor(npc.m_iWearable7, 255, 255, 255, 1);
+			}
+			else
+			{
+				SetEntityRenderColor(npc.m_iWearable7, 255, 255, 255, 0);
+			}
 		}
 		else
 		{
-			particle_6 = ParticleEffectAt({50.0,-25.0,0.0}, "", 0.0); //First offset we go by
+			npc.m_iWearable7 = npc.EquipItem("head", WEAPON_CUSTOM_WEAPONRY_1);
+			SetVariantString("1.35");
+			AcceptEntityInput(npc.m_iWearable7, "SetModelScale");	
+			SetVariantInt(1);
+			AcceptEntityInput(npc.m_iWearable7, "SetBodyGroup");	
+			if(colour)
+			{
+				SetEntityRenderColor(npc.m_iWearable7, 255, 255, 255, 1);
+			}
+			else
+			{
+				SetEntityRenderColor(npc.m_iWearable7, 255, 255, 255, 0);
+			}
 		}
 	}
 	else
 	{
-		if(attachment[0])
+		int ModelApply = ApplyCustomModelToWandProjectile(iNpc, WEAPON_CUSTOM_WEAPONRY_1, 1.65, "scythe_spin");
+
+		if(colourdiff)
 		{
-			particle_6 = ParticleEffectAt({0.0,100.0,-70.0}, "raygun_projectile_red_crit", 0.0); //First offset we go by
+			SetEntityRenderColor(ModelApply, 255, 255, 255, 2);
 		}
 		else
 		{
-			particle_6 = ParticleEffectAt({50.0,-25.0,0.0}, "", 0.0); //First offset we go by
+			if(colour)
+			{
+				SetEntityRenderColor(ModelApply, 255, 255, 255, 1);
+			}
+			else
+			{
+				SetEntityRenderColor(ModelApply, 255, 255, 255, 0);
+			}
 		}
+		SetVariantInt(2);
+		AcceptEntityInput(ModelApply, "SetBodyGroup");
 	}
-	
-	SetParent(particle_1, particle_2, "",_, true);
-	SetParent(particle_1, particle_3, "",_, true);
-	SetParent(particle_1, particle_4, "",_, true);
-	SetParent(particle_1, particle_5, "",_, true);
-	SetParent(particle_1, particle_6, "",_, true);
-
-	Custom_SDKCall_SetLocalOrigin(particle_1, flPos);
-	SetEntPropVector(particle_1, Prop_Data, "m_angRotation", flAng); 
-	SetParent(iNpc, particle_1, attachment,_);
-
-
-	int Laser_1 = ConnectWithBeamClient(particle_2, particle_3, red, green, blue, 5.0, 5.0, 1.0, LASERBEAM);
-	int Laser_2 = ConnectWithBeamClient(particle_3, particle_4, red, green, blue, 5.0, 5.0, 1.0, LASERBEAM);
-	int Laser_3 = ConnectWithBeamClient(particle_4, particle_5, red, green, blue, 5.0, 4.0, 1.0, LASERBEAM);
-	int Laser_4 = ConnectWithBeamClient(particle_5, particle_6, red, green, blue, 4.0, 2.0, 1.0, LASERBEAM);
-	
-
-	i_ExpidonsaEnergyEffect[iNpc][0] = EntIndexToEntRef(particle_1);
-	i_ExpidonsaEnergyEffect[iNpc][1] = EntIndexToEntRef(particle_2);
-	i_ExpidonsaEnergyEffect[iNpc][2] = EntIndexToEntRef(particle_3);
-	i_ExpidonsaEnergyEffect[iNpc][3] = EntIndexToEntRef(particle_4);
-	i_ExpidonsaEnergyEffect[iNpc][4] = EntIndexToEntRef(particle_5);
-	i_ExpidonsaEnergyEffect[iNpc][5] = EntIndexToEntRef(particle_6);
-	i_ExpidonsaEnergyEffect[iNpc][6] = EntIndexToEntRef(Laser_1);
-	i_ExpidonsaEnergyEffect[iNpc][7] = EntIndexToEntRef(Laser_2);
-	i_ExpidonsaEnergyEffect[iNpc][8] = EntIndexToEntRef(Laser_3);
-	i_ExpidonsaEnergyEffect[iNpc][9] = EntIndexToEntRef(Laser_4);
 }
 
 
 public void RaidbossSensal_OnTakeDamagePost(int victim, int attacker, int inflictor, float damage, int damagetype) 
 {
 	Sensal npc = view_as<Sensal>(victim);
-	if(ZR_GetWaveCount()+1 >= 45)
+	if(i_RaidGrantExtra[victim] >= 4)
 	{
-		if((GetEntProp(npc.index, Prop_Data, "m_iMaxHealth")/4) >= GetEntProp(npc.index, Prop_Data, "m_iHealth") && !npc.Anger) //npc.Anger after half hp/400 hp
+		if((ReturnEntityMaxHealth(npc.index)/4) >= GetEntProp(npc.index, Prop_Data, "m_iHealth") && !npc.Anger) //npc.Anger after half hp/400 hp
 		{
-			ExpidonsaRemoveEffects(npc.index);
 			npc.m_flNextChargeSpecialAttack = GetGameTime(npc.index) + 3.0;
 			b_NpcIsInvulnerable[npc.index] = true; //Special huds for invul targets
 			npc.PlayAngerSound();
@@ -1004,7 +1267,10 @@ public void RaidbossSensal_OnTakeDamagePost(int victim, int attacker, int inflic
 			b_RageAnimated[npc.index] = false;
 			RaidModeTime += 60.0;
 			npc.m_bisWalking = false;
-			
+			if(IsValidEntity(npc.m_iWearable7))
+			{
+				RemoveEntity(npc.m_iWearable7);
+			}
 			float pos[3]; GetEntPropVector(npc.index, Prop_Data, "m_vecAbsOrigin", pos);
 			pos[2] += 5.0;
 			ParticleEffectAt(pos, "utaunt_electricity_cloud1_WY", 3.0);
@@ -1021,9 +1287,9 @@ void SensalThrowScythes(Sensal npc)
 	float DelaybewteenPillars = 0.5;
 	float ang_Look[3];
 	float pos[3];
-	pos = WorldSpaceCenter(npc.index);
+	WorldSpaceCenter(npc.index, pos);
 	
-	if(ZR_GetWaveCount()+1 >= 60)
+	if(i_RaidGrantExtra[npc.index] >= 5)
 		MaxCount = 2;
 
 	for(int Repeat; Repeat <= 7; Repeat++)
@@ -1211,23 +1477,52 @@ public Action Sensal_SpawnSycthes(Handle timer, DataPack pack)
 		delete trace;
 
 		Sensal npc = view_as<Sensal>(entity);
-		int Projectile = npc.FireParticleRocket(WorldSpaceCenter(npc.m_iTarget), damage , 400.0 , 100.0 , "",_,_,true,origin_altered);
-		SensalEffects(Projectile,view_as<int>(npc.Anger),"");
+		float FloatVector[3];
+		
+		
+		if(IsValidEntity(npc.m_iTarget))
+		{
+			WorldSpaceCenter(npc.m_iTarget, FloatVector);
+		}
+		else
+		{
+			WorldSpaceCenter(entity, FloatVector);
+		}
+
+		int Projectile = npc.FireParticleRocket(FloatVector, damage , 400.0 , 100.0 , "",_,_,true,origin_altered,_,_,_,false);
 		b_RageProjectile[Projectile] = npc.Anger;
 		//dont exist !
 		SDKUnhook(Projectile, SDKHook_StartTouch, Rocket_Particle_StartTouch);
 		SDKHook(Projectile, SDKHook_StartTouch, Sensal_Particle_StartTouch);
 		CreateTimer(15.0, Timer_RemoveEntitySensal, EntIndexToEntRef(Projectile), TIMER_FLAG_NO_MAPCHANGE);
-		CreateTimer(0.0, TimerRotateMainEffect, EntIndexToEntRef(Projectile), TIMER_FLAG_NO_MAPCHANGE|TIMER_REPEAT);
 		static float ang_Look[3];
 		GetEntPropVector(Projectile, Prop_Send, "m_angRotation", ang_Look);
-		Initiate_HomingProjectile(Projectile,
-		 npc.index,
-		 	70.0,			// float lockonAngleMax,
-		   	10.0,				//float homingaSec,
-			true,				// bool LockOnlyOnce,
-			false,				// bool changeAngles,
-			  ang_Look);// float AnglesInitiate[3]);
+		bool DoHoming = true;
+		if(count == 2)
+		{
+			int EnemySearch = GetClosestTarget(Projectile, true, _, true, _, _, _, true, .UseVectorDistance = true);
+			if(IsValidEntity(EnemySearch))
+			{
+				TeleportEntity(Projectile, NULL_VECTOR, NULL_VECTOR, {0.0,0.0,0.0});
+				SensalEffects(Projectile,view_as<int>(npc.Anger),"", 1);
+				DoHoming = false;
+				DataPack pack1;
+				CreateDataTimer(0.1, WhiteflowerTank_Rocket_Stand, pack1, TIMER_FLAG_NO_MAPCHANGE);
+				pack1.WriteCell(EntIndexToEntRef(Projectile));
+				pack1.WriteCell(EntIndexToEntRef(EnemySearch));
+			}
+		}
+		if(DoHoming)
+		{
+			SensalEffects(Projectile,view_as<int>(npc.Anger),"");
+			Initiate_HomingProjectile(Projectile,
+			npc.index,
+				70.0,			// float lockonAngleMax,
+				9.0,				//float homingaSec,
+				true,				// bool LockOnlyOnce,
+				true,				// bool changeAngles,
+				ang_Look);// float AnglesInitiate[3]);
+		}
 
 		if(volume == 0.25)
 		{
@@ -1263,7 +1558,6 @@ public Action Timer_RemoveEntitySensal(Handle timer, any entid)
 	int entity = EntRefToEntIndex(entid);
 	if(IsValidEntity(entity))
 	{
-		ExpidonsaRemoveEffects(entity);
 		RemoveEntity(entity);
 	}
 	return Plugin_Stop;
@@ -1303,7 +1597,8 @@ public void Sensal_Particle_StartTouch(int entity, int target)
 		{
 			SDKHooks_TakeDamage(target, owner, inflictor, DamageDeal, DMG_BULLET|DMG_PREVENT_PHYSICS_FORCE, -1);	//acts like a kinetic rocket
 		}
-		ExpidonsaRemoveEffects(entity);
+		float VulnerabilityToGive = 0.065;
+		IncreaseEntityDamageTakenBy(target, VulnerabilityToGive, 5.0, true);
 		EmitSoundToAll(g_SyctheHitSound[GetRandomInt(0, sizeof(g_SyctheHitSound) - 1)], entity, SNDCHAN_AUTO, RAIDBOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME);
 		TE_Particle(b_RageProjectile[entity] ? "spell_batball_impact_red" : "spell_batball_impact_blue", ProjectileLoc, NULL_VECTOR, NULL_VECTOR, _, _, _, _, _, _, _, _, _, _, 0.0);
 
@@ -1321,7 +1616,6 @@ public void Sensal_Particle_StartTouch(int entity, int target)
 		GetEntPropVector(entity, Prop_Data, "m_vecAbsOrigin", ProjectileLoc);
 		TE_Particle(b_RageProjectile[entity] ? "spell_batball_impact_red" : "spell_batball_impact_blue", ProjectileLoc, NULL_VECTOR, NULL_VECTOR, _, _, _, _, _, _, _, _, _, _, 0.0);
 
-		ExpidonsaRemoveEffects(entity);
 		if(IsValidEntity(particle))
 		{
 			RemoveEntity(particle);
@@ -1330,19 +1624,6 @@ public void Sensal_Particle_StartTouch(int entity, int target)
 	RemoveEntity(entity);
 }
 
-public Action TimerRotateMainEffect(Handle cut_timer, int ref)
-{
-	int entity = EntRefToEntIndex(ref);
-	if (IsValidEntity(entity))
-	{
-		float ang_Look[3];
-		GetEntPropVector(entity, Prop_Data, "m_angRotation", ang_Look); 
-		ang_Look[1] += 35.0;
-		SetEntPropVector(entity, Prop_Data, "m_angRotation", ang_Look); 
-		return Plugin_Continue;
-	}
-	return Plugin_Stop;
-}
 
 bool SensalTalkPostWin(Sensal npc)
 {
@@ -1351,13 +1632,16 @@ bool SensalTalkPostWin(Sensal npc)
 
 	if(npc.m_iChanged_WalkCycle != 6)
 	{
-		ExpidonsaRemoveEffects(npc.index);
+		if(IsValidEntity(npc.m_iWearable7))
+		{
+			RemoveEntity(npc.m_iWearable7);
+		}
 		SensalEffects(npc.index, view_as<int>(npc.Anger));
-		npc.m_bisWalking = true;
+		npc.m_bisWalking = false;
 		npc.m_iChanged_WalkCycle = 6;
 		npc.AddActivityViaSequence("selectionMenu_Idle");
 		npc.SetCycle(0.01);
-		NPC_StopPathing(npc.index);
+		npc.StopPathing();
 	}
 	for(int client=1; client<=MaxClients; client++)
 	{
@@ -1373,13 +1657,13 @@ bool SensalTalkPostWin(Sensal npc)
 	}
 	if(GetGameTime() > f_TimeSinceHasBeenHurt[npc.index])
 	{
-		CPrintToChatAll("{blue}Sensal{default}: We apoligize for the sudden attack, we didn't know, take this as an apology.");
+		CPrintToChatAll("{blue}Sensal{default}: We apologize for the sudden attack, we didn't know, take this as an apology.");
 		
 		RequestFrame(KillNpc, EntIndexToEntRef(npc.index));
 		BlockLoseSay = true;
-		for (int client = 0; client < MaxClients; client++)
+		for (int client = 1; client <= MaxClients; client++)
 		{
-			if(IsValidClient(client) && GetClientTeam(client) == 2 && TeutonType[client] != TEUTON_WAITING)
+			if(IsValidClient(client) && GetClientTeam(client) == 2 && TeutonType[client] != TEUTON_WAITING && PlayerPoints[client] > 500)
 			{
 				Items_GiveNamedItem(client, "Expidonsan Battery Device");
 				CPrintToChat(client,"{default}Sensal gave you a high tech battery: {darkblue}''Expidonsan Battery Device''{default}!");
@@ -1389,12 +1673,12 @@ bool SensalTalkPostWin(Sensal npc)
 	else if(GetGameTime() + 5.0 > f_TimeSinceHasBeenHurt[npc.index] && i_SaidLineAlready[npc.index] < 4)
 	{
 		i_SaidLineAlready[npc.index] = 4;
-		CPrintToChatAll("{blue}Sensal{default}: But i see that this was to protect you guys, yet you were able to destroy Nemesis.");
+		CPrintToChatAll("{blue}Sensal{default}: But I see that this was to protect you guys, yet you were able to destroy Calmaticus.");
 	}
 	else if(GetGameTime() + 10.0 > f_TimeSinceHasBeenHurt[npc.index] && i_SaidLineAlready[npc.index] < 3)
 	{
 		i_SaidLineAlready[npc.index] = 3;
-		CPrintToChatAll("{blue}Sensal{default}: We got send to rescue him and we just saw you lot attacking him.");
+		CPrintToChatAll("{blue}Sensal{default}: We got sent to rescue him and we saw you attacking him.");
 	}
 	else if(GetGameTime() + 13.0 > f_TimeSinceHasBeenHurt[npc.index] && i_SaidLineAlready[npc.index] < 2)
 	{
@@ -1415,17 +1699,18 @@ bool SensalTransformation(Sensal npc)
 	{
 		if(!b_RageAnimated[npc.index])
 		{
-			NPC_StopPathing(npc.index);
-			npc.m_bPathing = false;
+			npc.StopPathing();
+			
+			npc.m_bisWalking = false;
 			npc.AddActivityViaSequence("taunt_the_profane_puppeteer");
 			npc.m_flAttackHappens = 0.0;
 			npc.SetCycle(0.01);
 			b_RageAnimated[npc.index] = true;
 			b_CannotBeHeadshot[npc.index] = true;
 			b_CannotBeBackstabbed[npc.index] = true;
-			b_CannotBeStunned[npc.index] = true;
-			b_CannotBeKnockedUp[npc.index] = true;
-			b_CannotBeSlowed[npc.index] = true;
+			ApplyStatusEffect(npc.index, npc.index, "Clear Head", 999999.0);	
+			ApplyStatusEffect(npc.index, npc.index, "Solid Stance", 999999.0);	
+			ApplyStatusEffect(npc.index, npc.index, "Fluid Movement", 999999.0);	
 			npc.m_flAttackHappens_2 = 0.0;	
 			if(IsValidEntity(npc.m_iWearable1))
 				RemoveEntity(npc.m_iWearable1);
@@ -1451,12 +1736,12 @@ bool SensalTransformation(Sensal npc)
 			AcceptEntityInput(npc.index, "SetBodyGroup");
 			b_CannotBeHeadshot[npc.index] = false;
 			b_CannotBeBackstabbed[npc.index] = false;
-			b_CannotBeStunned[npc.index] = false;
-			b_CannotBeKnockedUp[npc.index] = false;
-			b_CannotBeSlowed[npc.index] = false;
+			RemoveSpecificBuff(npc.index, "Clear Head");
+			RemoveSpecificBuff(npc.index, "Solid Stance");
+			RemoveSpecificBuff(npc.index, "Fluid Movement");
 			npc.DispatchParticleEffect(npc.index, "hightower_explosion", NULL_VECTOR, NULL_VECTOR, NULL_VECTOR, npc.FindAttachment("head"), PATTACH_POINT_FOLLOW, true);
-			NPC_StartPathing(npc.index);
-			npc.m_bPathing = true;
+			npc.StartPathing();
+			
 			npc.m_flSpeed = 330.0;
 			npc.m_flNextChargeSpecialAttack = 0.0;
 			npc.m_bisWalking = true;
@@ -1464,15 +1749,14 @@ bool SensalTransformation(Sensal npc)
 			int iActivity = npc.LookupActivity("ACT_MP_RUN_MELEE");
 			if(iActivity > 0) npc.StartActivity(iActivity);
 			b_NpcIsInvulnerable[npc.index] = false; //Special huds for invul targets
-			SetEntityRenderMode(npc.m_iWearable3, RENDER_TRANSCOLOR);
-			SetEntityRenderColor(npc.m_iWearable3, 255, 35, 35, 255);
+			
 		//	i_NpcInternalId[npc.index] = XENO_RAIDBOSS_SUPERSILVESTER;
 			i_NpcWeight[npc.index] = 4;
 			SensalEffects(npc.index, view_as<int>(npc.Anger));
 			npc.m_flRangedArmor = 0.7;
 			npc.m_flMeleeArmor = 0.875;		
 
-			SetEntProp(npc.index, Prop_Data, "m_iHealth", (GetEntProp(npc.index, Prop_Data, "m_iMaxHealth") / 2));
+			SetEntProp(npc.index, Prop_Data, "m_iHealth", (ReturnEntityMaxHealth(npc.index) / 2));
 
 				
 			SetVariantColor(view_as<int>({255, 35, 35, 200}));
@@ -1494,9 +1778,10 @@ bool SensalMassLaserAttack(Sensal npc)
 	if(npc.m_flAttackHappens_2)
 	{
 		UnderTides npcGetInfo = view_as<UnderTides>(npc.index);
-		int enemy_2[MAXTF2PLAYERS];
-		bool ClientTargeted[MAXTF2PLAYERS];
-		GetHighDefTargets(npcGetInfo, enemy_2, sizeof(enemy_2), true, true);
+		int enemy_2[RAIDBOSS_GLOBAL_ATTACKLIMIT]; 
+		//It should target upto 20 people only, if its anymore it starts becomming un dodgeable due to the nature of AOE laser attacks
+		bool ClientTargeted[MAXENTITIES];
+		GetHighDefTargets(npcGetInfo, enemy_2, sizeof(enemy_2), true, false);
 		for(int i; i < sizeof(enemy_2); i++)
 		{
 			if(enemy_2[i])
@@ -1520,7 +1805,7 @@ bool SensalMassLaserAttack(Sensal npc)
 				}
 			}
 		}
-		for(int client_clear=1; client_clear<=MaxClients; client_clear++)
+		for(int client_clear=1; client_clear<MAXENTITIES; client_clear++)
 		{
 			if(!ClientTargeted[client_clear])
 			{
@@ -1559,22 +1844,27 @@ bool SensalMassLaserAttack(Sensal npc)
 				}				
 			}
 
-			int enemy[32];
-			GetHighDefTargets(npcGetInfo, enemy, sizeof(enemy), true, true);
+			int enemy[RAIDBOSS_GLOBAL_ATTACKLIMIT];
+			GetHighDefTargets(npcGetInfo, enemy, sizeof(enemy), true, false);
 			bool foundEnemy = false;
 			for(int i; i < sizeof(enemy); i++)
 			{
 				if(enemy[i])
 				{
 					foundEnemy = true;
-					SensalInitiateLaserAttack(npc.index, WorldSpaceCenter(enemy[i]), flPos);
+					float WorldSpaceVec[3]; WorldSpaceCenter(enemy[i], WorldSpaceVec);
+					SensalInitiateLaserAttack(npc.index, WorldSpaceVec, flPos);
 				}
 			}
 			if(foundEnemy)
 			{
-				EmitSoundToAll(g_LaserGlobalAttackSound[GetRandomInt(0, sizeof(g_LaserGlobalAttackSound) - 1)], npc.index, SNDCHAN_AUTO, 150, _, BOSS_ZOMBIE_VOLUME);
-				EmitSoundToAll(g_LaserGlobalAttackSound[GetRandomInt(0, sizeof(g_LaserGlobalAttackSound) - 1)], npc.index, SNDCHAN_AUTO, 150, _, BOSS_ZOMBIE_VOLUME);
-				EmitSoundToAll(g_LaserGlobalAttackSound[GetRandomInt(0, sizeof(g_LaserGlobalAttackSound) - 1)], npc.index, SNDCHAN_AUTO, 150, _, BOSS_ZOMBIE_VOLUME);
+				int Pitch = 100;
+				if(i_RaidGrantExtra[npc.index] >= 5)
+					Pitch = 125;
+
+				EmitSoundToAll(g_LaserGlobalAttackSound[GetRandomInt(0, sizeof(g_LaserGlobalAttackSound) - 1)], npc.index, SNDCHAN_AUTO, 150, _, BOSS_ZOMBIE_VOLUME, Pitch);
+				EmitSoundToAll(g_LaserGlobalAttackSound[GetRandomInt(0, sizeof(g_LaserGlobalAttackSound) - 1)], npc.index, SNDCHAN_AUTO, 150, _, BOSS_ZOMBIE_VOLUME, Pitch);
+				EmitSoundToAll(g_LaserGlobalAttackSound[GetRandomInt(0, sizeof(g_LaserGlobalAttackSound) - 1)], npc.index, SNDCHAN_AUTO, 150, _, BOSS_ZOMBIE_VOLUME, Pitch);
 			}
 			else
 			{
@@ -1656,19 +1946,17 @@ public Action Sensal_TimerRepeatPortalGate(Handle timer, DataPack pack)
 		static float flMyPos[3];
 		GetEntPropVector(Particle, Prop_Data, "m_vecOrigin", flMyPos);
 		UnderTides npcGetInfo = view_as<UnderTides>(Originator);
-		int enemy[16];
-		GetHighDefTargets(npcGetInfo, enemy, sizeof(enemy), true, true, Particle, (1800.0 * 1800.0));
+		int enemy[MAXENTITIES];
+		GetHighDefTargets(npcGetInfo, enemy, sizeof(enemy), true, false, Particle, (1800.0 * 1800.0));
 		bool Foundenemies = false;
 
 		for(int i; i < sizeof(enemy); i++)
 		{
 			if(enemy[i])
 			{
-				if(i != 0 && i > (CountPlayersOnRed() /2)) //dont do more then half but always do 1
-					break;
-					
 				Foundenemies = true;
-				int Projectile = npc.FireParticleRocket(WorldSpaceCenter(enemy[i]), SENSAL_BASE_RANGED_SCYTHE_DAMGAE * RaidModeScaling , 400.0 , 100.0 , "",_,_,true, flMyPos);
+				float WorldSpaceVec[3]; WorldSpaceCenter(enemy[i], WorldSpaceVec);
+				int Projectile = npc.FireParticleRocket(WorldSpaceVec, SENSAL_BASE_RANGED_SCYTHE_DAMGAE * RaidModeScaling , 400.0 , 100.0 , "",_,_,true, flMyPos,_,_,_,false);
 				SensalEffects(Projectile,view_as<int>(npc.Anger),"");
 				b_RageProjectile[Projectile] = npc.Anger;
 
@@ -1677,15 +1965,14 @@ public Action Sensal_TimerRepeatPortalGate(Handle timer, DataPack pack)
 				SDKHook(Projectile, SDKHook_StartTouch, Sensal_Particle_StartTouch);
 				
 				CreateTimer(15.0, Timer_RemoveEntitySensal, EntIndexToEntRef(Projectile), TIMER_FLAG_NO_MAPCHANGE);
-				CreateTimer(0.0, TimerRotateMainEffect, EntIndexToEntRef(Projectile), TIMER_FLAG_NO_MAPCHANGE|TIMER_REPEAT);
 				static float ang_Look[3];
 				GetEntPropVector(Projectile, Prop_Send, "m_angRotation", ang_Look);
 				Initiate_HomingProjectile(Projectile,
 				npc.index,
 					70.0,			// float lockonAngleMax,
-					10.0,				//float homingaSec,
+					9.0,				//float homingaSec,
 					true,				// bool LockOnlyOnce,
-					false,				// bool changeAngles,
+					true,				// bool changeAngles,
 					ang_Look,			
 					enemy[i]); //home onto this enemy
 			}
@@ -1723,9 +2010,6 @@ public Action Sensal_TimerRepeatPortalGate(Handle timer, DataPack pack)
 }
 
 
-
-
-int SensalHitDetected[MAXENTITIES];
 
 void SensalInitiateLaserAttack(int entity, float VectorTarget[3], float VectorStart[3])
 {
@@ -1789,7 +2073,7 @@ void SensalInitiateLaserAttack_DamagePart(DataPack pack)
 {
 	for (int i = 1; i < MAXENTITIES; i++)
 	{
-		SensalHitDetected[i] = false;
+		LaserVarious_HitDetection[i] = false;
 	}
 	pack.Reset();
 	int entity = EntRefToEntIndex(pack.ReadCell());
@@ -1848,7 +2132,7 @@ void SensalInitiateLaserAttack_DamagePart(DataPack pack)
 	float playerPos[3];
 	for (int victim = 1; victim < MAXENTITIES; victim++)
 	{
-		if (SensalHitDetected[victim] && GetEntProp(entity, Prop_Send, "m_iTeamNum") != GetEntProp(victim, Prop_Send, "m_iTeamNum"))
+		if (LaserVarious_HitDetection[victim] && GetTeam(entity) != GetTeam(victim))
 		{
 			GetEntPropVector(victim, Prop_Send, "m_vecOrigin", playerPos, 0);
 			float distance = GetVectorDistance(VectorStart, playerPos, false);
@@ -1857,8 +2141,8 @@ void SensalInitiateLaserAttack_DamagePart(DataPack pack)
 				damage *= -1.0;
 
 			
-			if(victim > MaxClients) //make sure barracks units arent bad
-				damage *= 0.5;
+			if(victim > MaxClients) //make sure barracks units arent bad, they now get targetted too.
+				damage *= 0.25;
 
 			SDKHooks_TakeDamage(victim, entity, entity, damage, DMG_PLASMA, -1, NULL_VECTOR, playerPos);	// 2048 is DMG_NOGIB?
 				
@@ -1872,7 +2156,7 @@ public bool Sensal_BEAM_TraceUsers(int entity, int contentsMask, int client)
 {
 	if (IsEntityAlive(entity))
 	{
-		SensalHitDetected[entity] = true;
+		LaserVarious_HitDetection[entity] = true;
 	}
 	return false;
 }
@@ -1880,4 +2164,94 @@ public bool Sensal_BEAM_TraceUsers(int entity, int contentsMask, int client)
 public bool Sensal_TraceWallsOnly(int entity, int contentsMask)
 {
 	return !entity;
+}
+
+
+void SensalGiveShield(int sensal, int shieldcount)
+{
+	Sensal npc = view_as<Sensal>(sensal);
+	if(i_RaidGrantExtra[sensal] >= 5)
+	{
+		shieldcount = RoundToNearest(float(shieldcount) * 1.4);
+	}
+	else if(i_RaidGrantExtra[sensal] >= 4)
+	{
+		shieldcount = RoundToNearest(float(shieldcount) * 1.3);
+	}
+	else if(i_RaidGrantExtra[sensal] >= 3)
+	{
+		shieldcount = RoundToNearest(float(shieldcount) * 1.25);
+	}
+	else
+	{
+		shieldcount = RoundToNearest(float(shieldcount) * 0.75);
+	}
+
+	if(npc.Anger)
+	{
+		shieldcount = RoundToNearest(float(shieldcount) * 1.1);
+	}
+
+	VausMagicaGiveShield(sensal, shieldcount); //Give self a shield
+}
+
+static void Sensal_Weapon_Lines(Sensal npc, int client)
+{
+	if(client > MaxClients)
+		return;
+
+	if(b_said_player_weaponline[client])	//only 1 line per player.
+		return;
+
+	int weapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+
+	if(!IsValidEntity(weapon))	//invalid weapon, go back and get a valid one you <...>
+		return;
+
+	float GameTime = GetGameTime();	//no need to throttle this.
+
+	if(fl_said_player_weaponline_time[npc.index] > GameTime)	//no spamming in chat please!
+		return;
+
+	bool valid = true;
+	char Text_Lines[255];
+
+	Text_Lines = "";
+
+	switch(i_CustomWeaponEquipLogic[weapon])
+	{
+		
+		case WEAPON_SENSAL_SCYTHE,WEAPON_SENSAL_SCYTHE_PAP_1,WEAPON_SENSAL_SCYTHE_PAP_2,WEAPON_SENSAL_SCYTHE_PAP_3:
+		 switch(GetRandomInt(0,1)) 	{case 0: Format(Text_Lines, sizeof(Text_Lines), "You are trying to wield my weapon, {gold}%N{default}? You do not have the expertiese in it.", client);
+		  							case 1: Format(Text_Lines, sizeof(Text_Lines), "You think you can use it to its fullest potentnial {gold}%N{default}? You dont even own the {gold}Manifestation glove.", client);}	//IT ACTUALLY WORKS, LMFAO
+		case WEAPON_FUSION,WEAPON_FUSION_PAP1,WEAPON_FUSION_PAP2: switch(GetRandomInt(0,1)) 		{case 0: Format(Text_Lines, sizeof(Text_Lines), "{gold}Silvesters{default} blade? Why is he so nice to everyone...");
+		 							case 1: Format(Text_Lines, sizeof(Text_Lines), "{gold}Silvester{default}, you...");}
+		case WEAPON_SICCERINO,WEAPON_WALDCH_SWORD_NOVISUAL:  Format(Text_Lines, sizeof(Text_Lines), "How do you have access to such expidonsan weaponry {gold}%N{default}?",client);
+		case WEAPON_WALDCH_SWORD_REAL:  Format(Text_Lines, sizeof(Text_Lines), "What? How did you get this elite blade {gold}%N{default}?",client);
+		case WEAPON_NEARL:  Format(Text_Lines, sizeof(Text_Lines), "{gold}Silvester{default} decided to visit Kazimierz?");
+		case WEAPON_KAHMLFIST:  Format(Text_Lines, sizeof(Text_Lines), "Kahmlstein caused enough problems as it is.");
+		case WEAPON_KIT_BLITZKRIEG_CORE:  Format(Text_Lines, sizeof(Text_Lines), "This machine is gone now, use it better then it has {gold}%N{default}.",client);
+		case WEAPON_IRENE:  Format(Text_Lines, sizeof(Text_Lines), "Iberia's Weapons!? Looks like the secret is out of the bag now...");
+		case WEAPON_BOBS_GUN:  Format(Text_Lines, sizeof(Text_Lines), "OH MY GOD, {snow}BOB THE FIRST{default} IS ON YOUR SIDE?!");
+		case WEAPON_ANGELIC_SHOTGUN:  Format(Text_Lines, sizeof(Text_Lines), "Howd you get {lightblue}Nemal's{default} Weapon {gold}%N{default}?",client);
+		case WEAPON_IMPACT_LANCE:  Format(Text_Lines, sizeof(Text_Lines), "The lance... the only weapon that was forged from both ruina and {gold}expidonsa{default}...");
+		/*
+		//uncomment on release
+		case WEAPON_NECRO_WANDS:
+		{
+			Format(Text_Lines, sizeof(Text_Lines), "What is this, the dead, an imitation...? Is this a prank again{green} Spookmaster Bones{default}?");
+		}
+		*/
+		default:
+		{
+			valid = false;
+		}
+	}
+
+	if(valid)
+	{
+		CPrintToChatAll("{blue}Sensal{default}: %s", Text_Lines);
+		fl_said_player_weaponline_time[npc.index] = GameTime + GetRandomFloat(17.0, 26.0);
+		b_said_player_weaponline[client] = true;
+	}
 }

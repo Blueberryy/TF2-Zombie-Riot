@@ -7,15 +7,16 @@
 
 static const float gf_gordon_propthrowforce	= 900.0;
 static const float gf_gordon_propthrowoffset = 90.0;
-static int Coin_flip[MAXTF2PLAYERS];
-static int particle_1[MAXTF2PLAYERS];
+static int Coin_flip[MAXPLAYERS];
+static int particle_1[MAXPLAYERS];
 static bool mb_coin[MAXENTITIES];
 static bool already_ricocated[MAXENTITIES];
 static int Beam_Laser;
 static int Entity_Owner[MAXENTITIES];
 static float damage_multiplier[MAXENTITIES];
+static float f_Thrownrecently[MAXENTITIES];
 static float mf_extra_damage[MAXENTITIES];
-static int coins_flipped[MAXTF2PLAYERS];
+static int coins_flipped[MAXPLAYERS];
 
 //	if (Ability_Check_Cooldown(client, slot) < 0.0)
 //	{
@@ -23,11 +24,16 @@ static int coins_flipped[MAXTF2PLAYERS];
 		
 // Ability_Check_Cooldown(client, slot);
 
+void CoinEntityCreated(int entity)
+{
+	mb_coin[entity] = false;
+}
+
 public void Ability_Coin_Flip(int client, int weapon, bool crit, int slot)
 {
 	if (Ability_Check_Cooldown(client, slot) < 0.0)
 	{
-		Ability_Apply_Cooldown(client, slot, 10.0);
+		Ability_Apply_Cooldown(client, slot, 30.0);
 		CreateTimer(0.0, flip_extra, client, TIMER_FLAG_NO_MAPCHANGE);
 	}
 	else
@@ -53,7 +59,7 @@ public void Ability_Coin_Flip2(int client, int weapon, bool crit, int slot)
 		if(coins_flipped[client] >= 2)
 		{
 			coins_flipped[client] = 0;
-			Ability_Apply_Cooldown(client, slot, 10.0);
+			Ability_Apply_Cooldown(client, slot, 30.0);
 		}
 	}
 	else
@@ -79,7 +85,7 @@ public void Ability_Coin_Flip3(int client, int weapon, bool crit, int slot)
 		if(coins_flipped[client] >= 3)
 		{
 			coins_flipped[client] = 0;
-			Ability_Apply_Cooldown(client, slot, 10.0);
+			Ability_Apply_Cooldown(client, slot, 30.0);
 		}
 	}
 	else
@@ -104,7 +110,7 @@ public void Ability_Coin_Flip4(int client, int weapon, bool crit, int slot)
 		if(coins_flipped[client] >= 4)
 		{
 			coins_flipped[client] = 0;
-			Ability_Apply_Cooldown(client, slot, 10.0);
+			Ability_Apply_Cooldown(client, slot, 30.0);
 		}
 	}
 	else
@@ -128,15 +134,10 @@ public Action short_bonus_damage(Handle timer, int ref)
 	{
 		float chargerPos[3];
 		GetEntPropVector(entity, Prop_Data, "m_vecAbsOrigin", chargerPos);
-		mf_extra_damage[entity] = GetGameTime() + 0.30; //how much time is given for extra damage to apply for the flash appeared
+		mf_extra_damage[entity] = GetGameTime() + 0.7; //how much time is given for extra damage to apply for the flash appeared
 		ParticleEffectAt(chargerPos, "raygun_projectile_blue_crit", 0.3);
 	}
-	else
-	{
-		KillTimer(timer);
-		return Plugin_Handled;
-	}
-	return Plugin_Handled;
+	return Plugin_Stop;
 }
 
 public Action Coin_on_for_too_long(Handle timer, int ref)
@@ -148,12 +149,7 @@ public Action Coin_on_for_too_long(Handle timer, int ref)
 		Entity_Owner[entity] = 0;
 		AcceptEntityInput(entity, "break");
 	}
-	else
-	{
-		KillTimer(timer);
-		return Plugin_Handled;
-	}
-	return Plugin_Handled;
+	return Plugin_Stop;
 }
 public Action Coin_on_ground(Handle timer, int ref)
 {
@@ -192,7 +188,7 @@ public Action flip_extra(Handle timer, int client)
 	int weapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
 	static char classname[36];
 	GetEntityClassname(weapon, classname, sizeof(classname));
-	if (TF2_GetClassnameSlot(classname) != TFWeaponSlot_Melee)
+	if (TF2_GetClassnameSlot(classname, weapon) != TFWeaponSlot_Melee)
 	{
 		
 		float fPlayerPos[3];
@@ -201,18 +197,19 @@ public Action flip_extra(Handle timer, int client)
 		
 		GetClientEyeAngles( client, fPlayerAngles );
 		GetClientEyePosition( client, fPlayerPos );
+
+		fPlayerAngles[0] += GetRandomFloat(-5.0, 5.0);
+		fPlayerAngles[1] += GetRandomFloat(-5.0, 5.0);
 	
 		float fLen = gf_gordon_propthrowoffset * Sine( DegToRad( fPlayerAngles[0] + 90.0 ) );
 		
 		int entity = CreateEntityByName( "prop_physics_multiplayer" );
 		if(entity != -1)
 		{
-		//	SetEntityCollisionGroup(entity, 2); //COLLISION_GROUP_DEBRIS_TRIGGER
-		//	SDKHook(entity, SDKHook_ShouldCollide, Gib_ShouldCollide);
 			AddEntityToLagCompList(entity);
-			b_IsAlliedNpc[entity] = true;
 			b_DoNotIgnoreDuringLagCompAlly[entity] = true;
 			Entity_Owner[entity] = client;
+			f_Thrownrecently[entity] = GetGameTime () + 0.35;
 
 			fPlayerPos[0] = fPlayerPos[0] + fLen * Cosine( DegToRad( fPlayerAngles[1] + 0.0) );
 			fPlayerPos[1] = fPlayerPos[1] + fLen * Sine( DegToRad( fPlayerAngles[1] + 0.0) );
@@ -234,7 +231,7 @@ public Action flip_extra(Handle timer, int client)
 			Coin_flip[client] = EntIndexToEntRef(entity);
 			mb_coin[entity] = true;
 			
-			SetEntProp(entity, Prop_Send, "m_iTeamNum", TFTeam_Red);
+			SetTeam(entity, TFTeam_Spectator);
 			
 			SDKHook(entity, SDKHook_OnTakeDamage, Coin_HookDamaged);
 			
@@ -257,15 +254,16 @@ public Action flip_extra(Handle timer, int client)
 			damage_multiplier[entity] *= Attributes_Get(weapon, 2, 1.0);
 				
 			damage_multiplier[entity] *= 2.0;
+			damage_multiplier[entity] *= 1.4;
 			
-			if(i_CurrentEquippedPerk[client] == 5)
+			if(i_CurrentEquippedPerk[client] & PERK_MARKSMAN_BEER)
 			{
-				damage_multiplier[entity] *= 1.35;
+				damage_multiplier[entity] *= 1.25;
 			}
 			
 			if(i_HeadshotAffinity[client] == 1)
 			{
-				damage_multiplier[entity] *= 1.30;
+				damage_multiplier[entity] *= 1.20;
 			}
 			
 			newVel[0] = GetEntPropFloat(client, Prop_Send, "m_vecVelocity[0]");
@@ -353,8 +351,8 @@ public Action coin_got_rioceted(Handle timer, int client)
 
 public Action Coin_HookDamaged(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3], int damagecustom)
 {
-	if(GetEntProp(victim, Prop_Send, "m_iTeamNum") != GetEntProp(attacker, Prop_Send, "m_iTeamNum"))
-		return Plugin_Continue;
+//	if(GetTeam(victim) != GetTeam(attacker))
+//		return Plugin_Continue;
 		
 	//Valid attackers only.
 	if(attacker < 0)
@@ -430,19 +428,32 @@ stock void Do_Coin_calc(int victim)
 	float targPos[3];
 	float chargerPos[3];
 		
+	SetTeam(victim, TFTeam_Red);
 	int Closest_entity = GetClosestTarget_Coin(victim);
-	
+	SetTeam(victim, TFTeam_Spectator);
+	if(mf_extra_damage[victim] > GetGameTime()) //You got one second.
+	{
+		damage_multiplier[victim] *= 1.20;
+		float chargerPos2[3];
+		GetEntPropVector(victim, Prop_Data, "m_vecAbsOrigin", chargerPos2);
+		if(IsValidClient(Entity_Owner[victim]))
+		{
+			DisplayCritAboveNpc(victim, Entity_Owner[victim], true,chargerPos2,_,true); //Display minicrit
+		}
+	}
 	if (IsValidEntity(Closest_entity))
 	{
-		
-		SetEntityMoveType(Closest_entity, MOVETYPE_NONE);
-		damage_multiplier[victim] *= 1.6;
+		if(f_Thrownrecently[victim] > GetGameTime())
+		{
+			damage_multiplier[victim] *= 0.25;
+		}
 		damage_multiplier[Closest_entity] = damage_multiplier[victim]; //Extra bonus dmg
 		
 		static char classname[36];
 		GetEntityClassname(Closest_entity, classname, sizeof(classname));
 		if (mb_coin[Closest_entity] && !StrContains(classname, "prop_physics_multiplayer", true))
 		{
+			SetEntityMoveType(Closest_entity, MOVETYPE_NONE);
 			GetEntPropVector(Closest_entity, Prop_Data, "m_vecAbsOrigin", chargerPos);
 			ParticleEffectAt(chargerPos, "raygun_projectile_red_crit", 0.3);
 			
@@ -450,7 +461,10 @@ stock void Do_Coin_calc(int victim)
 			GetEntPropVector(victim, Prop_Data, "m_vecAbsOrigin", chargerPos);
 			if (GetVectorDistance(chargerPos, targPos) <= 1200.0 && !already_ricocated[victim] && Closest_entity != victim)
 			{
+				//increase damage.
+				damage_multiplier[victim] *= 1.65;
 				already_ricocated[victim] = true;
+				damage_multiplier[Closest_entity] = damage_multiplier[victim]; //Extra bonus dmg
 				CreateTimer(0.05, coin_got_rioceted, EntIndexToEntRef(Closest_entity), TIMER_FLAG_NO_MAPCHANGE);
 				mb_coin[Closest_entity] = false;
 				
@@ -458,18 +472,9 @@ stock void Do_Coin_calc(int victim)
 				if(TR_DidHit())
 				{
 					int target = TR_GetEntityIndex();	
-					static char classname_baseboss_extra[36];
-					GetEntityClassname(target, classname_baseboss_extra, sizeof(classname_baseboss_extra));
-					if ( target != Closest_entity && !StrContains(classname_baseboss_extra, "zr_base_npc", true) && (GetEntProp(target, Prop_Send, "m_iTeamNum") != GetEntProp(victim, Prop_Send, "m_iTeamNum")))
+					if ( target != Closest_entity && b_ThisWasAnNpc[target] && (GetTeam(target) != GetTeam(victim)))
 					{
-						if(mf_extra_damage[victim] > GetGameTime() && mf_extra_damage[victim] < GetGameTime() + 1) //You got one second.
-						{
-							SDKHooks_TakeDamage(target, victim, Entity_Owner[victim], damage_multiplier[victim]*2, DMG_BULLET, -1, NULL_VECTOR, chargerPos);
-						}
-						else
-						{
-							SDKHooks_TakeDamage(target, victim, Entity_Owner[victim], damage_multiplier[victim], DMG_BULLET, -1, NULL_VECTOR, chargerPos);
-						}
+						SDKHooks_TakeDamage(target, victim, Entity_Owner[victim], damage_multiplier[victim], DMG_BULLET, -1, NULL_VECTOR, chargerPos);
 					}
 					TE_SetupBeamPoints(chargerPos, targPos, Beam_Laser, Beam_Laser, 0, 30, 1.0, 3.0, 5.0, 1, 1.0, view_as<int>({255, 0, 0, 255}), 30);
 					TE_SendToAll();
@@ -484,10 +489,8 @@ stock void Do_Coin_calc(int victim)
 			{
 				if (IsValidEntity(Closest_entity))
 				{
-					static char classname_baseboss[36];
-					GetEntityClassname(Closest_entity, classname_baseboss, sizeof(classname_baseboss));
 					
-					if (!StrContains(classname_baseboss, "zr_base_npc", true) && (GetEntProp(Closest_entity, Prop_Send, "m_iTeamNum") != GetEntProp(victim, Prop_Send, "m_iTeamNum")))
+					if (b_ThisWasAnNpc[Closest_entity] && (GetTeam(Closest_entity) != GetTeam(victim)))
 					{
 						GetEntPropVector(Closest_entity, Prop_Data, "m_vecAbsOrigin", targPos);
 						targPos[2] += 35;
@@ -499,18 +502,9 @@ stock void Do_Coin_calc(int victim)
 							if(TR_DidHit())
 							{
 								int target = TR_GetEntityIndex();	
-								static char classname_baseboss_extra[36];
-								GetEntityClassname(target, classname_baseboss_extra, sizeof(classname_baseboss_extra));
-								if ( target != Closest_entity && !StrContains(classname_baseboss_extra, "zr_base_npc", true) && (GetEntProp(target, Prop_Send, "m_iTeamNum") != GetEntProp(victim, Prop_Send, "m_iTeamNum")))
+								if ( target != Closest_entity && b_ThisWasAnNpc[target] && (GetTeam(target) != GetTeam(victim)))
 								{
-									if(mf_extra_damage[victim] > GetGameTime() && mf_extra_damage[victim] < GetGameTime() + 1.0) //You got one second.
-									{
-										SDKHooks_TakeDamage(target, victim, Entity_Owner[victim], damage_multiplier[victim]*2, DMG_BULLET, -1, NULL_VECTOR, chargerPos);
-									}
-									else
-									{
-										SDKHooks_TakeDamage(target, victim, Entity_Owner[victim], damage_multiplier[victim], DMG_BULLET, -1, NULL_VECTOR, chargerPos);
-									}
+									SDKHooks_TakeDamage(target, victim, Entity_Owner[victim], damage_multiplier[victim], DMG_BULLET, -1, NULL_VECTOR, chargerPos);
 								}
 								TE_SetupBeamPoints(chargerPos, targPos, Beam_Laser, Beam_Laser, 0, 30, 1.0, 3.0, 5.0, 1, 1.0, view_as<int>({255, 0, 0, 255}), 30);
 								TE_SendToAll();
@@ -531,14 +525,7 @@ stock void Do_Coin_calc(int victim)
 							pack_boom.WriteCell(0);
 							RequestFrame(MakeExplosionFrameLater, pack_boom);
 				
-							if(mf_extra_damage[victim] > GetGameTime())
-							{
-								SDKHooks_TakeDamage(Closest_entity, victim, Entity_Owner[victim], damage_multiplier[victim]*2, DMG_BULLET, -1, NULL_VECTOR, chargerPos);
-							}
-							else
-							{
-								SDKHooks_TakeDamage(Closest_entity, victim, Entity_Owner[victim], damage_multiplier[victim], DMG_BULLET, -1, NULL_VECTOR, chargerPos);
-							}
+							SDKHooks_TakeDamage(Closest_entity, victim, Entity_Owner[victim], damage_multiplier[victim], DMG_BULLET, -1, NULL_VECTOR, chargerPos);
 						}
 					}
 				}
@@ -548,9 +535,7 @@ stock void Do_Coin_calc(int victim)
 		{
 			if (IsValidEntity(Closest_entity))
 			{
-				static char classname_baseboss[36];
-				GetEntityClassname(Closest_entity, classname_baseboss, sizeof(classname_baseboss));
-				if (!StrContains(classname_baseboss, "zr_base_npc", true) && (GetEntProp(Closest_entity, Prop_Send, "m_iTeamNum") != GetEntProp(victim, Prop_Send, "m_iTeamNum")))
+				if (b_ThisWasAnNpc[Closest_entity] && (GetTeam(Closest_entity) != GetTeam(victim)))
 				{
 					GetEntPropVector(Closest_entity, Prop_Data, "m_vecAbsOrigin", targPos);
 					targPos[2] += 35;
@@ -562,18 +547,9 @@ stock void Do_Coin_calc(int victim)
 						if(TR_DidHit())
 						{
 							int target = TR_GetEntityIndex();	
-							static char classname_baseboss_extra[36];
-							GetEntityClassname(target, classname_baseboss_extra, sizeof(classname_baseboss_extra));
-							if ( target != Closest_entity && !StrContains(classname_baseboss_extra, "zr_base_npc", true) && (GetEntProp(target, Prop_Send, "m_iTeamNum") != GetEntProp(victim, Prop_Send, "m_iTeamNum")))
+							if ( target != Closest_entity && b_ThisWasAnNpc[target] && (GetTeam(target) != GetTeam(victim)))
 							{
-								if(mf_extra_damage[victim] > GetGameTime() && mf_extra_damage[victim] < GetGameTime() + 1.0) //You got one second.
-								{
-									SDKHooks_TakeDamage(target, victim, Entity_Owner[victim], damage_multiplier[victim]*2, DMG_BULLET, -1, NULL_VECTOR, chargerPos);
-								}
-								else
-								{
-									SDKHooks_TakeDamage(target, victim, Entity_Owner[victim], damage_multiplier[victim], DMG_BULLET, -1, NULL_VECTOR, chargerPos);
-								}
+								SDKHooks_TakeDamage(target, victim, Entity_Owner[victim], damage_multiplier[victim], DMG_BULLET, -1, NULL_VECTOR, chargerPos);
 							}
 							TE_SetupBeamPoints(chargerPos, targPos, Beam_Laser, Beam_Laser, 0, 30, 1.0, 3.0, 5.0, 1, 1.0, view_as<int>({255, 0, 0, 255}), 30);
 							TE_SendToAll();
@@ -594,14 +570,7 @@ stock void Do_Coin_calc(int victim)
 						pack_boom.WriteCell(0);
 						RequestFrame(MakeExplosionFrameLater, pack_boom);
 							
-						if(mf_extra_damage[victim] > GetGameTime() && mf_extra_damage[victim] < GetGameTime() + 1.0) //You got one second.
-						{
-							SDKHooks_TakeDamage(Closest_entity, victim, Entity_Owner[victim], damage_multiplier[victim]*2, DMG_BULLET, -1, NULL_VECTOR, chargerPos);
-						}
-						else
-						{
-							SDKHooks_TakeDamage(Closest_entity, victim, Entity_Owner[victim], damage_multiplier[victim], DMG_BULLET, -1, NULL_VECTOR, chargerPos);
-						}
+						SDKHooks_TakeDamage(Closest_entity, victim, Entity_Owner[victim], damage_multiplier[victim], DMG_BULLET, -1, NULL_VECTOR, chargerPos);
 					}
 				}
 			}
@@ -680,9 +649,7 @@ stock int GetClosestTarget_Coin(int entity)
 	{
 		if (IsValidEntity(new_entity) && !b_NpcHasDied[new_entity])
 		{
-			static char classname[36];
-			GetEntityClassname(new_entity, classname, sizeof(classname));
-			if (!b_npcspawnprotection[new_entity] && !b_NpcIsInvulnerable[new_entity] && !StrContains(classname, "zr_base_npc", false) && (GetEntProp(new_entity, Prop_Send, "m_iTeamNum") != GetEntProp(entity, Prop_Send, "m_iTeamNum")) && entity != new_entity)
+			if(IsValidEnemy(entity, new_entity))
 			{
 				float EntityLocation[3], TargetLocation[3]; 
 				GetEntPropVector( entity, Prop_Data, "m_vecAbsOrigin", EntityLocation ); 
@@ -730,7 +697,7 @@ public bool WorldOnly(int entity, int contentsMask, any iExclude)
 	{
 		return false;
 	}
-	else if(GetEntProp(iExclude, Prop_Send, "m_iTeamNum") == GetEntProp(entity, Prop_Send, "m_iTeamNum"))
+	else if(GetTeam(iExclude) == GetTeam(entity))
 		return false;
 	
 	return !(entity == iExclude);

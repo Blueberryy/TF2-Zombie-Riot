@@ -39,6 +39,24 @@ static const char g_MeleeAttackSounds[][] =
 	"weapons/knife_swing.wav"
 };
 
+void SeabornSpy_Precache()
+{
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Seaborn Spy");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_seaborn_spy");
+	strcopy(data.Icon, sizeof(data.Icon), "sea_spy");
+	data.IconCustom = true;
+	data.Flags = 0;
+	data.Category = Type_Seaborn;
+	data.Func = ClotSummon;
+	NPC_Add(data);
+}
+
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team)
+{
+	return SeabornSpy(vecPos, vecAng, team);
+}
+
 methodmap SeabornSpy < CClotBody
 {
 	public void PlayIdleSound()
@@ -66,11 +84,10 @@ methodmap SeabornSpy < CClotBody
 		EmitSoundToAll(g_MeleeHitSounds[GetRandomInt(0, sizeof(g_MeleeHitSounds) - 1)], this.index, SNDCHAN_AUTO, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, _);	
 	}
 	
-	public SeabornSpy(int client, float vecPos[3], float vecAng[3], bool ally)
+	public SeabornSpy(float vecPos[3], float vecAng[3], int ally)
 	{
-		SeabornSpy npc = view_as<SeabornSpy>(CClotBody(vecPos, vecAng, "models/player/spy.mdl", "1.0", "1500", ally));
+		SeabornSpy npc = view_as<SeabornSpy>(CClotBody(vecPos, vecAng, "models/player/spy.mdl", "1.0", "5000", ally));
 		
-		i_NpcInternalId[npc.index] = SEABORN_SPY;
 		i_NpcWeight[npc.index] = 1;
 		npc.SetActivity("ACT_MP_RUN_MELEE");
 		
@@ -80,7 +97,9 @@ methodmap SeabornSpy < CClotBody
 		
 		SetEntProp(npc.index, Prop_Send, "m_nSkin", 1);
 
-		SDKHook(npc.index, SDKHook_Think, SeabornSpy_ClotThink);
+		func_NPCDeath[npc.index] = SeabornSpy_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = Generic_OnTakeDamage;
+		func_NPCThink[npc.index] = SeabornSpy_ClotThink;
 		
 		npc.m_flSpeed = 320.0;
 		npc.m_flGetClosestTargetTime = 0.0;
@@ -126,7 +145,9 @@ public void SeabornSpy_ClotThink(int iNPC)
 		int alpha = 255;
 
 		bool camo = true;
-		Building_CamoOrRegrowBlocker(npc.index, camo);
+		if(HasSpecificBuff(npc.index, "Revealed"))
+			camo = false;
+			
 		if(camo)
 		{
 			alpha = 255 - RoundFloat((gameTime - npc.m_flNextRangedAttack) * 350.0);
@@ -163,17 +184,18 @@ public void SeabornSpy_ClotThink(int iNPC)
 	
 	if(npc.m_iTarget > 0)
 	{
-		float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
-		float distance = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);		
+		float vecTarget[3]; WorldSpaceCenter(npc.m_iTarget, vecTarget );
+		float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+		float distance = GetVectorDistance(vecTarget, VecSelfNpc, true);	
 		
 		if(distance < npc.GetLeadRadius())
 		{
-			float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, npc.m_iTarget);
-			NPC_SetGoalVector(npc.index, vPredictedPos);
+			float vPredictedPos[3]; PredictSubjectPosition(npc, npc.m_iTarget,_,_, vPredictedPos);
+			npc.SetGoalVector(vPredictedPos);
 		}
 		else 
 		{
-			NPC_SetGoalEntity(npc.index, npc.m_iTarget);
+			npc.SetGoalEntity(npc.m_iTarget);
 		}
 
 		npc.StartPathing();
@@ -242,6 +264,4 @@ void SeabornSpy_NPCDeath(int entity)
 	
 	if(IsValidEntity(npc.m_iWearable1))
 		RemoveEntity(npc.m_iWearable1);
-	
-	SDKUnhook(npc.index, SDKHook_Think, SeabornSpy_ClotThink);
 }

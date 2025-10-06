@@ -56,8 +56,21 @@ void SelfamIre_OnMapStart_NPC()
 	for (int i = 0; i < (sizeof(g_MeleeHitSounds)); i++) { PrecacheSound(g_MeleeHitSounds[i]); }
 	for (int i = 0; i < (sizeof(g_DashSound)); i++) { PrecacheSound(g_DashSound[i]); }
 	PrecacheModel("models/player/soldier.mdl");
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Selfam Ire");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_selfam_ire");
+	strcopy(data.Icon, sizeof(data.Icon), "demoknight_samurai");
+	data.IconCustom = false;
+	data.Flags = 0;
+	data.Category = Type_Expidonsa;
+	data.Func = ClotSummon;
+	NPC_Add(data);
 }
 
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team)
+{
+	return SelfamIre(vecPos, vecAng, team);
+}
 
 methodmap SelfamIre < CClotBody
 {
@@ -93,7 +106,7 @@ methodmap SelfamIre < CClotBody
 	}
 	public void PlayMeleeHitSound() 
 	{
-		EmitSoundToAll(g_MeleeHitSounds[GetRandomInt(0, sizeof(g_MeleeHitSounds) - 1)], this.index, SNDCHAN_STATIC, RAIDBOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME);
+		EmitSoundToAll(g_MeleeHitSounds[GetRandomInt(0, sizeof(g_MeleeHitSounds) - 1)], this.index, SNDCHAN_STATIC, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME);
 
 	}
 	public void PlayDashSound() 
@@ -102,11 +115,10 @@ methodmap SelfamIre < CClotBody
 	}
 	
 	
-	public SelfamIre(int client, float vecPos[3], float vecAng[3], bool ally)
+	public SelfamIre(float vecPos[3], float vecAng[3], int ally)
 	{
 		SelfamIre npc = view_as<SelfamIre>(CClotBody(vecPos, vecAng, "models/player/soldier.mdl", "1.0", "550", ally));
 		
-		i_NpcInternalId[npc.index] = EXPIDONSA_SELFAM_IRE;
 		i_NpcWeight[npc.index] = 1;
 		FormatEx(c_HeadPlaceAttachmentGibName[npc.index], sizeof(c_HeadPlaceAttachmentGibName[]), "head");
 		
@@ -118,17 +130,17 @@ methodmap SelfamIre < CClotBody
 		
 		
 		
+		func_NPCDeath[npc.index] = SelfamIre_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = SelfamIre_OnTakeDamage;
+		func_NPCThink[npc.index] = SelfamIre_ClotThink;
 		npc.m_flNextMeleeAttack = 0.0;
 		
 		npc.m_iBleedType = BLEEDTYPE_NORMAL;
 		npc.m_iStepNoiseType = STEPSOUND_NORMAL;	
 		npc.m_iNpcStepVariation = STEPTYPE_NORMAL;
+		SetEntPropFloat(npc.index, Prop_Data, "m_flElementRes", 1.0, Element_Chaos);
 		
-		SDKHook(npc.index, SDKHook_Think, SelfamIre_ClotThink);
 		
-		//IDLE
-		npc.m_iState = 0;
-		npc.m_flGetClosestTargetTime = 0.0;
 		npc.StartPathing();
 		npc.m_flSpeed = 250.0;
 		
@@ -186,18 +198,19 @@ public void SelfamIre_ClotThink(int iNPC)
 	
 	if(IsValidEnemy(npc.index, npc.m_iTarget))
 	{
-		float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
+		float vecTarget[3]; WorldSpaceCenter(npc.m_iTarget, vecTarget );
 	
-		float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+		float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+		float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 		if(flDistanceToTarget < npc.GetLeadRadius()) 
 		{
 			float vPredictedPos[3];
-			vPredictedPos = PredictSubjectPosition(npc, npc.m_iTarget);
-			NPC_SetGoalVector(npc.index, vPredictedPos);
+			PredictSubjectPosition(npc, npc.m_iTarget,_,_, vPredictedPos);
+			npc.SetGoalVector(vPredictedPos);
 		}
 		else 
 		{
-			NPC_SetGoalEntity(npc.index, npc.m_iTarget);
+			npc.SetGoalEntity(npc.m_iTarget);
 		}
 		SelfamIreSelfDefense(npc,GetGameTime(npc.index), npc.m_iTarget, flDistanceToTarget); 
 		SelfamIreSprint(npc,GetGameTime(npc.index), npc.m_iTarget, flDistanceToTarget); 
@@ -210,7 +223,7 @@ public void SelfamIre_ClotThink(int iNPC)
 	npc.PlayIdleAlertSound();
 }
 
-public Action Selfamire_OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3], int damagecustom)
+public Action SelfamIre_OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3], int damagecustom)
 {
 	SelfamIre npc = view_as<SelfamIre>(victim);
 		
@@ -233,7 +246,6 @@ public void SelfamIre_NPCDeath(int entity)
 	{
 		npc.PlayDeathSound();	
 	}
-	SDKUnhook(npc.index, SDKHook_Think, SelfamIre_ClotThink);
 		
 	if(IsValidEntity(npc.m_iWearable5))
 		RemoveEntity(npc.m_iWearable5);
@@ -290,7 +302,8 @@ void SelfamIreSelfDefense(SelfamIre npc, float gameTime, int target, float dista
 			npc.m_flAttackHappens = 0.0;
 			
 			Handle swingTrace;
-			npc.FaceTowards(WorldSpaceCenter(npc.m_iTarget), 15000.0);
+			float VecEnemy[3]; WorldSpaceCenter(npc.m_iTarget, VecEnemy);
+			npc.FaceTowards(VecEnemy, 15000.0);
 			if(npc.DoSwingTrace(swingTrace, npc.m_iTarget)) //Big range, but dont ignore buildings if somehow this doesnt count as a raid to be sure.
 			{
 							
@@ -311,14 +324,14 @@ void SelfamIreSelfDefense(SelfamIre npc, float gameTime, int target, float dista
 					// Hit sound
 					npc.PlayMeleeHitSound();
 				} 
-				delete swingTrace;
 			}
+			delete swingTrace;
 		}
 	}
 
 	if(GetGameTime(npc.index) > npc.m_flNextMeleeAttack)
 	{
-		if(distance < (NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED * 1.25))
+		if(distance < (NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED))
 		{
 			int Enemy_I_See;
 								

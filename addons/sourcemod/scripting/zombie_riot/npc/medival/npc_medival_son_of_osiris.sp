@@ -86,8 +86,21 @@ void MedivalSonOfOsiris_OnMapStart_NPC()
 	for (int i = 0; i < (sizeof(g_MeleeHitSounds));	i++) { PrecacheSound(g_MeleeHitSounds[i]);	}
 	for (int i = 0; i < (sizeof(g_MeleeAttackSounds));	i++) { PrecacheSound(g_MeleeAttackSounds[i]);	}
 	PrecacheModel(COMBINE_CUSTOM_MODEL);
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Son Of Osiris");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_medival_son_of_osiris");
+	strcopy(data.Icon, sizeof(data.Icon), "son_of_osiris");
+	data.IconCustom = true;
+	data.Flags = MVM_CLASS_FLAG_MINIBOSS|MVM_CLASS_FLAG_ALWAYSCRIT;
+	data.Category = Type_Medieval;
+	data.Func = ClotSummon;
+	NPC_Add(data);
 }
 
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team)
+{
+	return MedivalSonOfOsiris(vecPos, vecAng, team);
+}
 static bool b_EntityHitByLightning[MAXENTITIES];
 
 methodmap MedivalSonOfOsiris < CClotBody
@@ -98,9 +111,7 @@ methodmap MedivalSonOfOsiris < CClotBody
 		EmitSoundToAll(g_IdleSounds[GetRandomInt(0, sizeof(g_IdleSounds) - 1)], this.index, SNDCHAN_VOICE, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME, 80);
 		this.m_flNextIdleSound = GetGameTime(this.index) + GetRandomFloat(24.0, 48.0);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayIdleSound()");
-		#endif
+
 	}
 	
 	public void PlayIdleAlertSound() {
@@ -110,9 +121,7 @@ methodmap MedivalSonOfOsiris < CClotBody
 		EmitSoundToAll(g_IdleAlertedSounds[GetRandomInt(0, sizeof(g_IdleAlertedSounds) - 1)], this.index, SNDCHAN_VOICE, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME, 80);
 		this.m_flNextIdleSound = GetGameTime(this.index) + GetRandomFloat(12.0, 24.0);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayIdleAlertSound()");
-		#endif
+		
 	}
 	
 	public void PlayHurtSound() {
@@ -124,34 +133,27 @@ methodmap MedivalSonOfOsiris < CClotBody
 		EmitSoundToAll(g_HurtSounds[GetRandomInt(0, sizeof(g_HurtSounds) - 1)], this.index, SNDCHAN_VOICE, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME, 80);
 		
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayHurtSound()");
-		#endif
+		
 	}
 	
 	public void PlayDeathSound() {
 	
 		EmitSoundToAll(g_DeathSounds[GetRandomInt(0, sizeof(g_DeathSounds) - 1)], this.index, SNDCHAN_VOICE, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME, 80);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayDeathSound()");
-		#endif
+		
 	}
 	
 	public void PlayMeleeSound() {
 		EmitSoundToAll(g_MeleeAttackSounds[GetRandomInt(0, sizeof(g_MeleeAttackSounds) - 1)], this.index, _, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME, 100);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayMeleeHitSound()");
-		#endif
+
 	}
 	
-	public MedivalSonOfOsiris(int client, float vecPos[3], float vecAng[3], bool ally)
+	public MedivalSonOfOsiris(float vecPos[3], float vecAng[3], int ally)
 	{
 		MedivalSonOfOsiris npc = view_as<MedivalSonOfOsiris>(CClotBody(vecPos, vecAng, COMBINE_CUSTOM_MODEL, "1.15", "750000", ally));
 		SetVariantInt(1);
-		AcceptEntityInput(npc.index, "SetBodyGroup");				
-		i_NpcInternalId[npc.index] = MEDIVAL_SON_OF_OSIRIS;
+		AcceptEntityInput(npc.index, "SetBodyGroup");			
 		i_NpcWeight[npc.index] = 5;
 		
 		FormatEx(c_HeadPlaceAttachmentGibName[npc.index], sizeof(c_HeadPlaceAttachmentGibName[]), "head");
@@ -167,7 +169,17 @@ methodmap MedivalSonOfOsiris < CClotBody
 		npc.m_iNpcStepVariation = STEPTYPE_COMBINE_METRO;
 		
 		
-		SDKHook(npc.index, SDKHook_Think, MedivalSonOfOsiris_ClotThink);
+		if(!IsValidEntity(RaidBossActive))
+		{
+			RaidBossActive = EntIndexToEntRef(npc.index);
+			RaidModeTime = GetGameTime(npc.index) + 9000.0;
+			RaidModeScaling = 0.0;
+			RaidAllowsBuildings = true;
+		}
+
+		func_NPCDeath[npc.index] = MedivalSonOfOsiris_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = MedivalSonOfOsiris_OnTakeDamage;
+		func_NPCThink[npc.index] = MedivalSonOfOsiris_ClotThink;
 
 		npc.m_iWearable1 = npc.EquipItem("weapon_bone", "models/workshop_partner/weapons/c_models/c_tw_eagle/c_tw_eagle.mdl");
 		SetVariantString("1.15");
@@ -190,10 +202,10 @@ methodmap MedivalSonOfOsiris < CClotBody
 
 	//	b_CannotBeHeadshot[npc.index] = true;
 	//	b_CannotBeBackstabbed[npc.index] = true;
-		b_CannotBeStunned[npc.index] = true;
-		b_CannotBeKnockedUp[npc.index] = true;
-		b_CannotBeSlowed[npc.index] = true;
-		Is_a_Medic[npc.index] = true; //cannot be healed
+		ApplyStatusEffect(npc.index, npc.index, "Fluid Movement", 999999.0);	
+		ApplyStatusEffect(npc.index, npc.index, "Solid Stance", 999999.0);	
+		ApplyStatusEffect(npc.index, npc.index, "Clear Head", 999999.0);	
+	//	Is_a_Medic[npc.index] = true; //cannot be healed
 		
 
 		npc.StartPathing();
@@ -202,8 +214,7 @@ methodmap MedivalSonOfOsiris < CClotBody
 	}
 }
 
-//TODO 
-//Rewrite
+
 public void MedivalSonOfOsiris_ClotThink(int iNPC)
 {
 	MedivalSonOfOsiris npc = view_as<MedivalSonOfOsiris>(iNPC);
@@ -243,7 +254,7 @@ public void MedivalSonOfOsiris_ClotThink(int iNPC)
 	{
 		if(IsValidEnemy(npc.index, npc.m_iTarget))
 		{
-			float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
+			float vecTarget[3]; WorldSpaceCenter(npc.m_iTarget, vecTarget );
 			npc.FaceTowards(vecTarget, 20000.0);
 		}
 
@@ -252,9 +263,7 @@ public void MedivalSonOfOsiris_ClotThink(int iNPC)
 			npc.m_flAttackHappens = 0.0;
 			if(IsValidEnemy(npc.index, npc.m_iTarget))
 			{		
-				int Enemy_I_See;
-							
-				Enemy_I_See = Can_I_See_Enemy(npc.index, npc.m_iTarget);
+				int Enemy_I_See = Can_I_See_Enemy(npc.index, npc.m_iTarget);
 				//Can i see This enemy, is something in the way of us?
 				npc.PlayMeleeSound();
 				if(IsValidEntity(Enemy_I_See) && IsValidEnemy(npc.index, Enemy_I_See))
@@ -266,9 +275,9 @@ public void MedivalSonOfOsiris_ClotThink(int iNPC)
 					GetEntPropVector( npc.m_iTarget, Prop_Data, "m_vecAbsOrigin", EntityLocation ); 
 					float distance = GetVectorDistance( EntityLocation, TargetLocation, true );  
 						
-					if(distance <= (NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED * 9.5)) //Sanity check! we want to change targets but if they are too far away then we just dont cast it.
+					if(distance <= (NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED * 20.5)) //Sanity check! we want to change targets but if they are too far away then we just dont cast it.
 					{
-						SonOfOsiris_Lightning_Strike(npc.index, npc.m_iTarget, 550.0, b_IsAlliedNpc[npc.index]);
+						SonOfOsiris_Lightning_Strike(npc.index, npc.m_iTarget, 900.0, GetTeam(npc.index) == TFTeam_Red);
 					}
 				}
 			}
@@ -277,19 +286,20 @@ public void MedivalSonOfOsiris_ClotThink(int iNPC)
 	
 	if(IsValidEnemy(npc.index, npc.m_iTarget))
 	{
-		float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
-		float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+		float vecTarget[3]; WorldSpaceCenter(npc.m_iTarget, vecTarget );
+		float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+		float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 			
 		//Predict their pos.
 		if(flDistanceToTarget < npc.GetLeadRadius()) 
 		{
-			float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, npc.m_iTarget);
+			float vPredictedPos[3]; PredictSubjectPosition(npc, npc.m_iTarget,_,_, vPredictedPos);
 			
-			NPC_SetGoalVector(npc.index, vPredictedPos);
+			npc.SetGoalVector(vPredictedPos);
 		}
 		else
 		{
-			NPC_SetGoalEntity(npc.index, npc.m_iTarget);
+			npc.SetGoalEntity(npc.m_iTarget);
 		}
 		//Get position for just travel here.
 
@@ -326,11 +336,9 @@ public void MedivalSonOfOsiris_ClotThink(int iNPC)
 			}
 			case 1:
 			{			
-				int Enemy_I_See;
-							
-				Enemy_I_See = Can_I_See_Enemy(npc.index, npc.m_iTarget);
+				int Enemy_I_See = Can_I_See_Enemy(npc.index, npc.m_iTarget);
 				//Can i see This enemy, is something in the way of us?
-				//Dont even check if its the same enemy, just engage in rape, and also set our new target to this just in case.
+				//Dont even check if its the same enemy, just engage in killing, and also set our new target to this just in case.
 				if(IsValidEntity(Enemy_I_See) && IsValidEnemy(npc.index, Enemy_I_See))
 				{
 					if(npc.m_iChanged_WalkCycle != 5) 	
@@ -338,7 +346,7 @@ public void MedivalSonOfOsiris_ClotThink(int iNPC)
 						npc.m_bisWalking = false;
 						npc.m_iChanged_WalkCycle = 5;
 						npc.SetActivity("ACT_PRINCE_IDLE");
-						NPC_StopPathing(npc.index);
+						npc.StopPathing();
 						npc.m_flSpeed = 0.0;
 					}
 					npc.m_iTarget = Enemy_I_See;
@@ -387,9 +395,6 @@ public void MedivalSonOfOsiris_NPCDeath(int entity)
 	{
 		npc.PlayDeathSound();	
 	}
-	
-	
-	SDKUnhook(npc.index, SDKHook_Think, MedivalSonOfOsiris_ClotThink);
 		
 	if(IsValidEntity(npc.m_iWearable1))
 		RemoveEntity(npc.m_iWearable1);
@@ -403,11 +408,26 @@ public void MedivalSonOfOsiris_NPCDeath(int entity)
 		RemoveEntity(npc.m_iWearable5);
 }
 
-static void SonOfOsiris_Lightning_Effect(int entity = -1, int target = -1, float VecPos_entity[3] = {0.0,0.0,0.0}, float VecPos_target[3] = {0.0,0.0,0.0})
+void SonOfOsiris_Lightning_Effect(int entity = -1, int target = -1, float VecPos_entity[3] = {0.0,0.0,0.0}, float VecPos_target[3] = {0.0,0.0,0.0})
 {	
 	int r = 65; //Blue.
 	int g = 65;
 	int b = 255;
+
+	//shittiest coded known to man
+	bool ReilaMode = false;
+	for(int i; i < i_MaxcountNpcTotal; i++)
+	{
+		int other = EntRefToEntIndexFast(i_ObjectsNpcsTotal[i]);
+		if(IsValidEntity(other) && i_NpcInternalId[other] == Boss_ReilaID())
+		{
+			r = 125; //purple
+			g = 60;
+			b = 200;
+			ReilaMode = true;
+			break;
+		}
+	}
 	int laser;
 	if(entity != -1 && target != -1)
 	{
@@ -425,11 +445,16 @@ static void SonOfOsiris_Lightning_Effect(int entity = -1, int target = -1, float
 	{
 		laser = ConnectWithBeam(-1, -1, r, g, b, 3.0, 3.0, 2.35, LASERBEAM, VecPos_entity, VecPos_target);
 	}
-	CreateTimer(0.5, Timer_RemoveEntity, EntIndexToEntRef(laser), TIMER_FLAG_NO_MAPCHANGE);
+	SetEntityRenderFx(laser, RENDERFX_FADE_FAST);
+	if(ReilaMode)
+		CreateTimer(0.2, Timer_RemoveEntity, EntIndexToEntRef(laser), TIMER_FLAG_NO_MAPCHANGE);
+	else
+		CreateTimer(0.5, Timer_RemoveEntity, EntIndexToEntRef(laser), TIMER_FLAG_NO_MAPCHANGE);
+
 }
 
 
-static void SonOfOsiris_Lightning_Strike(int entity, int target, float damage, bool alliednpc = false)
+void SonOfOsiris_Lightning_Strike(int entity, int target, float damage, bool alliednpc = false)
 {
 	static float vecHit[3];
 	GetEntPropVector(target, Prop_Data, "m_vecAbsOrigin", vecHit);
@@ -444,8 +469,8 @@ static void SonOfOsiris_Lightning_Strike(int entity, int target, float damage, b
 
 	float vecTarget[3];
 	float vecTarget_2[3];
-	vecTarget = WorldSpaceCenter(target);
-	vecTarget_2 = WorldSpaceCenter(target);
+	WorldSpaceCenter(target, vecTarget );
+	WorldSpaceCenter(target, vecTarget_2);
 
 	bool first_target = true;
 	bool enemy_died = false;
@@ -463,7 +488,7 @@ static void SonOfOsiris_Lightning_Strike(int entity, int target, float damage, b
 	}
 
 	b_EntityHitByLightning[target] = true;
-	float original_damage = damage;
+//	float original_damage = damage;
 
 	int PreviousTarget = target;
 	int TraceFromThis = entity;
@@ -473,6 +498,7 @@ static void SonOfOsiris_Lightning_Strike(int entity, int target, float damage, b
 		int enemy = SonOfOsiris_GetClosestTargetNotAffectedByLightning(TraceFromThis, vecHit, alliednpc);
 		if(IsValidEntity(enemy) && PreviousTarget != enemy)
 		{
+			/*
 			if(IsValidClient(enemy))
 			{
 				if(IsInvuln(enemy))
@@ -480,13 +506,14 @@ static void SonOfOsiris_Lightning_Strike(int entity, int target, float damage, b
 					original_damage *= 2.0;
 				}
 			}
-			damage = (original_damage * (0.15 * loop));
+			*/
+		//	damage = (original_damage * (0.15 * loop));
 
 			if(!first_target)
 			{
 				if(!enemy_died)
 				{
-					vecTarget = WorldSpaceCenter(PreviousTarget);
+					WorldSpaceCenter(PreviousTarget, vecTarget);
 				}
 				else
 				{
@@ -496,7 +523,7 @@ static void SonOfOsiris_Lightning_Strike(int entity, int target, float damage, b
 
 			first_target = false;
 			
-			vecTarget_2 = WorldSpaceCenter(enemy);
+			WorldSpaceCenter(enemy, vecTarget_2);
 			enemy_died = false;
 			float vehit_save[3];
 			GetEntPropVector(enemy, Prop_Data, "m_vecAbsOrigin", vehit_save);
@@ -540,16 +567,16 @@ static void SonOfOsiris_Lightning_Strike(int entity, int target, float damage, b
 	Zero(b_EntityHitByLightning); //delete this logic.
 }
 
-stock int SonOfOsiris_GetClosestTargetNotAffectedByLightning(int traceentity , float EntityLocation[3], bool ally = false)
+int SonOfOsiris_GetClosestTargetNotAffectedByLightning(int traceentity , float EntityLocation[3], bool ally = false)
 {
 	float TargetDistance = 0.0; 
 	int ClosestTarget = 0; 
 	if(ally)
 	{
-		for(int targ; targ<i_MaxcountNpc; targ++)
+		for(int targ; targ<i_MaxcountNpcTotal; targ++)
 		{
-			int baseboss_index = EntRefToEntIndex(i_ObjectsNpcs[targ]);
-			if (IsValidEntity(baseboss_index) && !b_NpcHasDied[baseboss_index] && !b_EntityHitByLightning[baseboss_index])
+			int baseboss_index = EntRefToEntIndexFast(i_ObjectsNpcsTotal[targ]);
+			if (IsValidEntity(baseboss_index) && !b_NpcHasDied[baseboss_index] && !b_EntityHitByLightning[baseboss_index] && GetTeam(baseboss_index) != TFTeam_Red)
 			{
 				float TargetLocation[3]; 
 				GetEntPropVector( baseboss_index, Prop_Data, "m_vecAbsOrigin", TargetLocation ); 
@@ -580,10 +607,10 @@ stock int SonOfOsiris_GetClosestTargetNotAffectedByLightning(int traceentity , f
 	}
 	else
 	{
-		for(int targ; targ<i_MaxcountNpc_Allied; targ++)
+		for(int targ; targ<i_MaxcountNpcTotal; targ++)
 		{
-			int baseboss_index = EntRefToEntIndex(i_ObjectsNpcs_Allied[targ]);
-			if (IsValidEntity(baseboss_index) && !b_NpcHasDied[baseboss_index] && !b_EntityHitByLightning[baseboss_index])
+			int baseboss_index = EntRefToEntIndexFast(i_ObjectsNpcsTotal[targ]);
+			if (IsValidEntity(baseboss_index) && !b_NpcHasDied[baseboss_index] && !b_EntityHitByLightning[baseboss_index] && GetTeam(baseboss_index) == TFTeam_Red)
 			{
 				float TargetLocation[3]; 
 				GetEntPropVector( baseboss_index, Prop_Data, "m_vecAbsOrigin", TargetLocation ); 

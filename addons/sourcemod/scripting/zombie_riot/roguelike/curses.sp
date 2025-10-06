@@ -1,3 +1,6 @@
+#pragma semicolon 1
+#pragma newdecls required
+
 static int ObsessedIngots = -1;
 static bool Solitary;
 static bool Blind;
@@ -31,7 +34,7 @@ public void Rogue_Curse_Bewildered(bool enable)
 	{
 		Rogue_AddExtraStage(1);
 	}
-	
+		
 	// ExtraStageCount cleared on new floor
 }
 
@@ -39,7 +42,7 @@ public void Rogue_Curse_Sensitive(bool enable)
 {
 	if(enable)
 	{
-		Rogue_GiveNamedArtifact("Sensitive");
+		Rogue_GiveNamedArtifact("Sensitive", true);
 	}
 	else
 	{
@@ -53,14 +56,26 @@ public void Rogue_SensitiveCurse_Ally(int entity, StringMap map)
 	{
 		float value = 1.0;
 		map.GetValue("412", value);
-		map.SetValue("412", value * 1.5);
+		map.SetValue("412", value * 1.25);
+
+		
+		map.GetValue("526", value);
+		map.SetValue("526", value * 2.0);
 	}
 }
 
-public void Rogue_SensitiveCurse_Weapon(int entity)
+public void Rogue_FirstClass_Collect()
 {
-	if(Attributes_Has(entity, 8))
-		Attributes_SetMulti(entity, 8, 2.0);
+	/*
+	int entity = Citizen_SpawnAtPoint("a");
+	if(entity != -1)
+	{
+		Citizen_ReviveTicks(entity, 999, 0);
+		Citizen_GivePerk(entity, 2);
+	}
+	*/
+	Spawn_Cured_Grigori();
+	Store_RandomizeNPCStore(ZR_STORE_DEFAULT_SALE);
 }
 
 public void Rogue_Curse_Obsessed(bool enable)

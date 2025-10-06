@@ -46,8 +46,21 @@ public void XenoMedicMain_OnMapStart_NPC()
 	for (int i = 0; i < (sizeof(g_MeleeMissSounds));   i++) { PrecacheSound(g_MeleeMissSounds[i]);   }
 
 	PrecacheSound("player/flow.wav");
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Xeno Battle Medic Main");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_xeno_medic_main");
+	strcopy(data.Icon, sizeof(data.Icon), "medic_main");
+	data.IconCustom = true;
+	data.Flags = 0;
+	data.Category = Type_Xeno;
+	data.Func = ClotSummon;
+	NPC_Add(data);
 }
 
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team)
+{
+	return XenoMedicMain(vecPos, vecAng, team);
+}
 methodmap XenoMedicMain < CClotBody
 {
 	
@@ -58,9 +71,7 @@ methodmap XenoMedicMain < CClotBody
 		EmitSoundToAll(g_IdleAlertedSounds[GetRandomInt(0, sizeof(g_IdleAlertedSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 80);
 		this.m_flNextIdleSound = GetGameTime(this.index) + GetRandomFloat(12.0, 24.0);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayIdleAlertSound()");
-		#endif
+		
 	}
 	
 	public void PlayHurtSound() {
@@ -72,50 +83,39 @@ methodmap XenoMedicMain < CClotBody
 		EmitSoundToAll(g_HurtSounds[GetRandomInt(0, sizeof(g_HurtSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 80);
 		
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayHurtSound()");
-		#endif
+		
 	}
 	
 	public void PlayDeathSound() {
 	
 		EmitSoundToAll(g_DeathSounds[GetRandomInt(0, sizeof(g_DeathSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 80);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayDeathSound()");
-		#endif
+		
 	}
 	
 	public void PlayMeleeSound() {
-		EmitSoundToAll(g_MeleeAttackSounds[GetRandomInt(0, sizeof(g_MeleeAttackSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 80);
+		EmitSoundToAll(g_MeleeAttackSounds[GetRandomInt(0, sizeof(g_MeleeAttackSounds) - 1)], this.index, SNDCHAN_STATIC, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 80);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayMeleeHitSound()");
-		#endif
+		
 	}
 	public void PlayMeleeHitSound() {
 		EmitSoundToAll(g_MeleeHitSounds[GetRandomInt(0, sizeof(g_MeleeHitSounds) - 1)], this.index, SNDCHAN_STATIC, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 80);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayMeleeHitSound()");
-		#endif
+		
 	}
 
 	public void PlayMeleeMissSound() {
 		EmitSoundToAll(g_MeleeMissSounds[GetRandomInt(0, sizeof(g_MeleeMissSounds) - 1)], this.index, SNDCHAN_STATIC, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 80);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CGoreFast::PlayMeleeMissSound()");
-		#endif
+		
 	}
 	
 	
 	
-	public XenoMedicMain(int client, float vecPos[3], float vecAng[3], bool ally)
+	public XenoMedicMain(float vecPos[3], float vecAng[3], int ally)
 	{
 		XenoMedicMain npc = view_as<XenoMedicMain>(CClotBody(vecPos, vecAng, "models/player/medic.mdl", "1.0", "25000", ally));
 		
-		i_NpcInternalId[npc.index] = XENO_BATTLE_MEDIC_MAIN;
 		i_NpcWeight[npc.index] = 1;
 		
 		FormatEx(c_HeadPlaceAttachmentGibName[npc.index], sizeof(c_HeadPlaceAttachmentGibName[]), "head");
@@ -128,8 +128,10 @@ methodmap XenoMedicMain < CClotBody
 		npc.m_iStepNoiseType = STEPSOUND_NORMAL;	
 		npc.m_iNpcStepVariation = STEPTYPE_NORMAL;
 		
-		
-		SDKHook(npc.index, SDKHook_Think, XenoMedicMain_ClotThink);
+	
+		func_NPCDeath[npc.index] = XenoMedicMain_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = XenoMedicMain_OnTakeDamage;
+		func_NPCThink[npc.index] = XenoMedicMain_ClotThink;			
 		
 		npc.m_flNextMeleeAttack = 0.0;
 		
@@ -160,13 +162,9 @@ methodmap XenoMedicMain < CClotBody
 		npc.StartPathing();
 		
 		
-		SetEntityRenderMode(npc.index, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(npc.index, 150, 255, 150, 255);
-		SetEntityRenderMode(npc.m_iWearable1, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(npc.m_iWearable1, 150, 255, 150, 255);
-		SetEntityRenderMode(npc.m_iWearable2, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(npc.m_iWearable2, 150, 255, 150, 255);
-		SetEntityRenderMode(npc.m_iWearable3, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(npc.m_iWearable3, 150, 255, 150, 255);
 		
 		return npc;
@@ -175,8 +173,7 @@ methodmap XenoMedicMain < CClotBody
 	
 }
 
-//TODO 
-//Rewrite
+
 public void XenoMedicMain_ClotThink(int iNPC)
 {
 	XenoMedicMain npc = view_as<XenoMedicMain>(iNPC);
@@ -189,6 +186,14 @@ public void XenoMedicMain_ClotThink(int iNPC)
 	npc.m_flNextDelayTime = GetGameTime(npc.index) + DEFAULT_UPDATE_DELAY_FLOAT;
 	
 	npc.Update();
+	
+	float TrueArmor = 1.0;
+	if(!NpcStats_IsEnemySilenced(npc.index))
+	{
+		if(npc.flXenoInfectedSpecialHurtTime > GetGameTime(npc.index))
+			TrueArmor *= 0.25;
+	}
+	fl_TotalArmor[npc.index] = TrueArmor;
 	
 	if(npc.m_blPlayHurtAnimation)
 	{
@@ -215,14 +220,15 @@ public void XenoMedicMain_ClotThink(int iNPC)
 	
 	if(IsValidEnemy(npc.index, PrimaryThreatIndex))
 	{
-			float vecTarget[3]; vecTarget = WorldSpaceCenter(PrimaryThreatIndex);
+			float vecTarget[3]; WorldSpaceCenter(PrimaryThreatIndex, vecTarget);
 		
-			float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+			float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+			float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 			
 			//Predict their pos.
 			if(flDistanceToTarget < npc.GetLeadRadius()) {
 				
-				float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, PrimaryThreatIndex);
+				float vPredictedPos[3]; PredictSubjectPosition(npc, PrimaryThreatIndex,_,_, vPredictedPos);
 				
 			/*	int color[4];
 				color[0] = 255;
@@ -235,13 +241,13 @@ public void XenoMedicMain_ClotThink(int iNPC)
 				TE_SetupBeamPoints(vPredictedPos, vecTarget, xd, xd, 0, 0, 0.25, 0.5, 0.5, 5, 5.0, color, 30);
 				TE_SendToAllInRange(vecTarget, RangeType_Visibility);*/
 				
-				NPC_SetGoalVector(npc.index, vPredictedPos);
+				npc.SetGoalVector(vPredictedPos);
 			} else {
-				NPC_SetGoalEntity(npc.index, PrimaryThreatIndex);
+				npc.SetGoalEntity(PrimaryThreatIndex);
 			}
 			
 			//Target close enough to hit
-			if(flDistanceToTarget < 10000 || npc.m_flAttackHappenswillhappen)
+			if(flDistanceToTarget < NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED || npc.m_flAttackHappenswillhappen)
 			{
 				//Look at target so we hit.
 			//	npc.FaceTowards(vecTarget, 1000.0);
@@ -305,8 +311,8 @@ public void XenoMedicMain_ClotThink(int iNPC)
 	}
 	else
 	{
-		NPC_StopPathing(npc.index);
-		npc.m_bPathing = false;
+		npc.StopPathing();
+		
 		npc.m_flGetClosestTargetTime = 0.0;
 		npc.m_iTarget = GetClosestTarget(npc.index);
 	}
@@ -319,31 +325,31 @@ public Action XenoMedicMain_OnTakeDamage(int victim, int &attacker, int &inflict
 		
 	if(attacker <= 0)
 		return Plugin_Continue;
-	if(!NpcStats_IsEnemySilenced(victim))
+	if(!npc.bXenoInfectedSpecialHurt)
 	{
-		if(!npc.bXenoInfectedSpecialHurt)
+		npc.bXenoInfectedSpecialHurt = true;
+		npc.flXenoInfectedSpecialHurtTime = GetGameTime(npc.index) + 2.0;
+		SetEntityRenderColor(npc.index, 255, 0, 0, 255);
+		SetEntityRenderColor(npc.m_iWearable1, 255, 0, 0, 255);
+		SetEntityRenderColor(npc.m_iWearable2, 255, 0, 0, 255);
+		SetEntityRenderColor(npc.m_iWearable3, 255, 0, 0, 255);
+		
+		npc.m_flSpeed = 400.0;
+		CreateTimer(2.0, XenoMedicMain_Revert_Poison_Zombie_Resistance, EntIndexToEntRef(victim), TIMER_FLAG_NO_MAPCHANGE);
+		CreateTimer(10.0, XenoMedicMain_Revert_Poison_Zombie_Resistance_Enable, EntIndexToEntRef(victim), TIMER_FLAG_NO_MAPCHANGE);
+		float TrueArmor = 1.0;
+		if(!NpcStats_IsEnemySilenced(victim))
 		{
-			npc.bXenoInfectedSpecialHurt = true;
-			npc.flXenoInfectedSpecialHurtTime = GetGameTime(npc.index) + 2.0;
-			SetEntityRenderMode(npc.index, RENDER_TRANSCOLOR);
-			SetEntityRenderColor(npc.index, 255, 0, 0, 255);
-			SetEntityRenderMode(npc.m_iWearable1, RENDER_TRANSCOLOR);
-			SetEntityRenderColor(npc.m_iWearable1, 255, 0, 0, 255);
-			SetEntityRenderMode(npc.m_iWearable2, RENDER_TRANSCOLOR);
-			SetEntityRenderColor(npc.m_iWearable2, 255, 0, 0, 255);
-			SetEntityRenderMode(npc.m_iWearable3, RENDER_TRANSCOLOR);
-			SetEntityRenderColor(npc.m_iWearable3, 255, 0, 0, 255);
-			
-			npc.m_flSpeed = 400.0;
-			CreateTimer(2.0, XenoMedicMain_Revert_Poison_Zombie_Resistance, EntIndexToEntRef(victim), TIMER_FLAG_NO_MAPCHANGE);
-			CreateTimer(10.0, XenoMedicMain_Revert_Poison_Zombie_Resistance_Enable, EntIndexToEntRef(victim), TIMER_FLAG_NO_MAPCHANGE);
+			if(fl_TotalArmor[npc.index] == 1.0)
+			{
+				TrueArmor *= 0.25;
+				fl_TotalArmor[npc.index] = TrueArmor;
+				OnTakeDamageNpcBaseArmorLogic(victim, attacker, damage, damagetype, true);
+			}
 		}
-		if(npc.flXenoInfectedSpecialHurtTime > GetGameTime(npc.index))
-		{
-			damage *= 0.25;
-		}
+		fl_TotalArmor[npc.index] = TrueArmor;
 	}
-	
+
 	if (npc.m_flHeadshotCooldown < GetGameTime(npc.index))
 	{
 		npc.m_flHeadshotCooldown = GetGameTime(npc.index) + DEFAULT_HURTDELAY;
@@ -360,23 +366,16 @@ public Action XenoMedicMain_Revert_Poison_Zombie_Resistance(Handle timer, int re
 	{
 		XenoMedicMain npc = view_as<XenoMedicMain>(zombie);
 		npc.m_flSpeed = 300.0;
-		SetEntityRenderMode(npc.index, RENDER_TRANSCOLOR);
+		SetEntityRenderMode(npc.index, RENDER_NORMAL);
 		SetEntityRenderColor(npc.index, 150, 255, 150, 255);
 		if(IsValidEntity(npc.m_iWearable1))
-		{
-			SetEntityRenderMode(npc.m_iWearable1, RENDER_TRANSCOLOR);
 			SetEntityRenderColor(npc.m_iWearable1, 150, 255, 150, 255);	
-		}
+		
 		if(IsValidEntity(npc.m_iWearable2))
-		{
-			SetEntityRenderMode(npc.m_iWearable2, RENDER_TRANSCOLOR);
 			SetEntityRenderColor(npc.m_iWearable2, 150, 255, 150, 255);	
-		}
+		
 		if(IsValidEntity(npc.m_iWearable3))
-		{
-			SetEntityRenderMode(npc.m_iWearable3, RENDER_TRANSCOLOR);
 			SetEntityRenderColor(npc.m_iWearable3, 150, 255, 150, 255);	
-		}
 	}
 	return Plugin_Handled;
 }
@@ -399,9 +398,6 @@ public void XenoMedicMain_NPCDeath(int entity)
 	{
 		npc.PlayDeathSound();	
 	}
-	
-	
-	SDKUnhook(npc.index, SDKHook_Think, XenoMedicMain_ClotThink);
 		
 	if(IsValidEntity(npc.m_iWearable1))
 		RemoveEntity(npc.m_iWearable1);

@@ -25,6 +25,33 @@ public void Lighting_Wand_Pap_ClearAll()
 	Zero(ability_cooldown);
 }
 
+public void Weapon_Wand_LightningPap2(int client, int weapon, bool &result, int slot)
+{
+	if (Ability_Check_Cooldown(client, slot) > 0.0)
+	{
+		float Ability_CD = Ability_Check_Cooldown(client, slot);
+
+		if(Ability_CD <= 0.0)
+			Ability_CD = 0.0;
+	
+		ClientCommand(client, "playgamesound items/medshotno1.wav");
+		SetDefaultHudPosition(client);
+		ShowSyncHudText(client,  SyncHud_Notifaction, "%T", "Ability has cooldown", client, Ability_CD);	
+		return;
+	}
+	int mana_cost = Smite_Cost;
+	if(mana_cost > Current_Mana[client])
+	{
+		ClientCommand(client, "playgamesound items/medshotno1.wav");
+		SetDefaultHudPosition(client);
+		SetGlobalTransTarget(client);
+		ShowSyncHudText(client,  SyncHud_Notifaction, "%t", "Not Enough Mana", mana_cost);
+		return;
+	}
+	Weapon_Wand_LightningSpell_Internal(client, weapon, result, slot, true);
+	Weapon_Wand_LightningPap(client, weapon, result, slot);
+
+}
 public void Weapon_Wand_LightningPap(int client, int weapon, bool &result, int slot)
 {
 	if(weapon >= MaxClients)
@@ -34,7 +61,7 @@ public void Weapon_Wand_LightningPap(int client, int weapon, bool &result, int s
 		{
 			if (Ability_Check_Cooldown(client, slot) < 0.0)
 			{
-				Rogue_OnAbilityUse(weapon);
+				Rogue_OnAbilityUse(client, weapon);
 				Ability_Apply_Cooldown(client, slot, 20.0);
 				
 				float damage = Smite_BaseDMG;
@@ -45,7 +72,7 @@ public void Weapon_Wand_LightningPap(int client, int weapon, bool &result, int s
 			
 				Smite_Damage[client] = damage;
 					
-				Mana_Regen_Delay[client] = GetGameTime() + 1.0;
+				SDKhooks_SetManaRegenDelayTime(client, 1.0);
 				Mana_Hud_Delay[client] = 0.0;
 				
 				Current_Mana[client] -= mana_cost;
@@ -68,8 +95,6 @@ public void Weapon_Wand_LightningPap(int client, int weapon, bool &result, int s
 				if(TR_DidHit(trace))
 				{   	 
 		   		 	TR_GetEndPosition(vEnd, trace);
-			
-					CloseHandle(trace);
 					
 					Handle pack;
 					CreateDataTimer(Smite_ChargeSpan, Smite_Timer, pack, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
@@ -86,6 +111,7 @@ public void Weapon_Wand_LightningPap(int client, int weapon, bool &result, int s
 					spawnBeam(0.8, 255, 255, 0, 120, "materials/sprites/lgtning.vmt", 8.0, 8.2, _, 5.0, vOrigin, vEnd);
 					spawnRing_Vectors(vEnd, Smite_Radius * 2.0, 0.0, 0.0, 0.0, "materials/sprites/laserbeam.vmt", 255, 255, 0, 200, 1, Smite_ChargeTime, 6.0, 0.1, 1, 1.0);
 				}
+				delete trace;
 				
 			}
 			else
@@ -197,28 +223,5 @@ static void spawnBeam(float beamTiming, int r, int g, int b, int a, char sprite[
 
 	TE_SetupBeamPoints(startLoc, endLoc, SPRITE_INT, 0, 0, 0, beamTiming, width, endwidth, fadelength, amp, color, 0);
 	
-	TE_SendToAll();
-}
-
-static void spawnRing_Vectors(float center[3], float range, float modif_X, float modif_Y, float modif_Z, char sprite[255], int r, int g, int b, int alpha, int fps, float life, float width, float amp, int speed, float endRange = -69.0) //Spawns a TE beam ring at a client's/entity's location
-{
-	center[0] += modif_X;
-	center[1] += modif_Y;
-	center[2] += modif_Z;
-			
-	int ICE_INT = PrecacheModel(sprite);
-		
-	int color[4];
-	color[0] = r;
-	color[1] = g;
-	color[2] = b;
-	color[3] = alpha;
-		
-	if (endRange == -69.0)
-	{
-		endRange = range + 0.5;
-	}
-	
-	TE_SetupBeamRingPoint(center, range, endRange, ICE_INT, ICE_INT, 0, fps, life, width, amp, color, speed, 0);
 	TE_SendToAll();
 }

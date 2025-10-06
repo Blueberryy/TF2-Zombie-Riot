@@ -36,6 +36,24 @@ static const char g_MeleeAttackSounds[][] =
 	"weapons/machete_swing.wav"
 };
 
+void SeabornPyro_Precache()
+{
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Seaborn Pyro");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_seaborn_pyro");
+	strcopy(data.Icon, sizeof(data.Icon), "sea_pyro");
+	data.IconCustom = true;
+	data.Flags = 0;
+	data.Category = Type_Seaborn;
+	data.Func = ClotSummon;
+	NPC_Add(data);
+}
+
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team)
+{
+	return SeabornPyro(vecPos, vecAng, team);
+}
+
 methodmap SeabornPyro < CClotBody
 {
 	public void PlayIdleSound()
@@ -63,11 +81,10 @@ methodmap SeabornPyro < CClotBody
 		EmitSoundToAll(g_MeleeHitSounds[GetRandomInt(0, sizeof(g_MeleeHitSounds) - 1)], this.index, SNDCHAN_AUTO, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, _);	
 	}
 	
-	public SeabornPyro(int client, float vecPos[3], float vecAng[3], bool ally)
+	public SeabornPyro(float vecPos[3], float vecAng[3], int ally)
 	{
-		SeabornPyro npc = view_as<SeabornPyro>(CClotBody(vecPos, vecAng, "models/player/pyro.mdl", "1.0", "2225", ally));
+		SeabornPyro npc = view_as<SeabornPyro>(CClotBody(vecPos, vecAng, "models/player/pyro.mdl", "1.0", "6000", ally));
 		
-		i_NpcInternalId[npc.index] = SEABORN_PYRO;
 		i_NpcWeight[npc.index] = 1;
 		npc.SetActivity("ACT_MP_RUN_MELEE");
 		KillFeed_SetKillIcon(npc.index, "lava_axe");
@@ -78,7 +95,9 @@ methodmap SeabornPyro < CClotBody
 		
 		SetEntProp(npc.index, Prop_Send, "m_nSkin", 1);
 
-		SDKHook(npc.index, SDKHook_Think, SeabornPyro_ClotThink);
+		func_NPCDeath[npc.index] = SeabornPyro_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = Generic_OnTakeDamage;
+		func_NPCThink[npc.index] = SeabornPyro_ClotThink;
 		
 		npc.m_bDissapearOnDeath = true;
 		npc.m_flSpeed = 300.0;
@@ -86,7 +105,6 @@ methodmap SeabornPyro < CClotBody
 		npc.m_flNextMeleeAttack = 0.0;
 		npc.m_flAttackHappens = 0.0;
 		
-		SetEntityRenderMode(npc.index, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(npc.index, 100, 100, 255, 255);
 		
 		npc.m_iWearable1 = npc.EquipItem("head", "models/weapons/c_models/c_rift_fire_axe/c_rift_fire_axe.mdl");
@@ -130,17 +148,18 @@ public void SeabornPyro_ClotThink(int iNPC)
 	
 	if(npc.m_iTarget > 0)
 	{
-		float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
-		float distance = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);		
+		float vecTarget[3]; WorldSpaceCenter(npc.m_iTarget, vecTarget );
+		float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+		float distance = GetVectorDistance(vecTarget, VecSelfNpc, true);	
 		
 		if(distance < npc.GetLeadRadius())
 		{
-			float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, npc.m_iTarget);
-			NPC_SetGoalVector(npc.index, vPredictedPos);
+			float vPredictedPos[3]; PredictSubjectPosition(npc, npc.m_iTarget,_,_, vPredictedPos);
+			npc.SetGoalVector(vPredictedPos);
 		}
 		else 
 		{
-			NPC_SetGoalEntity(npc.index, npc.m_iTarget);
+			npc.SetGoalEntity(npc.m_iTarget);
 		}
 
 		npc.StartPathing();
@@ -160,15 +179,7 @@ public void SeabornPyro_ClotThink(int iNPC)
 					{
 						if(!NpcStats_IsEnemySilenced(npc.index))
 						{
-							if(target > MaxClients)
-							{
-								NPC_Ignite(target, npc.index, 5.0, -1);
-							}
-							else
-							{
-								TF2_AddCondition(target, TFCond_Gas, 1.5);
-								StartBleedingTimer_Against_Client(target, npc.index, 4.0, 20);
-							}
+							NPC_Ignite(target, npc.index,4.0, -1, 5.0);
 						}
 						
 						npc.PlayMeleeHitSound();
@@ -232,6 +243,4 @@ void SeabornPyro_NPCDeath(int entity)
 		pack_boom.WriteCell(1);
 		RequestFrame(MakeExplosionFrameLater, pack_boom);
 	}
-	
-	SDKUnhook(npc.index, SDKHook_Think, SeabornPyro_ClotThink);
 }

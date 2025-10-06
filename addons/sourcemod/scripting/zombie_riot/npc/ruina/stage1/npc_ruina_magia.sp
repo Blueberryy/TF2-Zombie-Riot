@@ -1,22 +1,7 @@
 #pragma semicolon 1
 #pragma newdecls required
 
-static const char g_DeathSounds[][] = {
-	"vo/medic_paincrticialdeath01.mp3",
-	"vo/medic_paincrticialdeath02.mp3",
-	"vo/medic_paincrticialdeath03.mp3",
-};
 
-static const char g_HurtSounds[][] = {
-	"vo/medic_painsharp01.mp3",
-	"vo/medic_painsharp02.mp3",
-	"vo/medic_painsharp03.mp3",
-	"vo/medic_painsharp04.mp3",
-	"vo/medic_painsharp05.mp3",
-	"vo/medic_painsharp06.mp3",
-	"vo/medic_painsharp07.mp3",
-	"vo/medic_painsharp08.mp3",
-};
 
 static const char g_IdleSounds[][] = {
 	"vo/medic_standonthepoint01.mp3",
@@ -37,11 +22,6 @@ static const char g_IdleAlertedSounds[][] = {
 static const char g_MeleeHitSounds[][] = {
 	"weapons/halloween_boss/knight_axe_hit.wav",
 };
-static const char g_MeleeAttackSounds[][] = {
-	"weapons/demo_sword_swing1.wav",
-	"weapons/demo_sword_swing2.wav",
-	"weapons/demo_sword_swing3.wav",
-};
 
 static const char g_MeleeMissSounds[][] = {
 	"weapons/bat_draw_swoosh1.wav",
@@ -51,17 +31,36 @@ static char g_TeleportSounds[][] = {
 	"misc/halloween/spell_stealth.wav",
 };
 
+static float fl_npc_basespeed;
 void Magia_OnMapStart_NPC()
 {
-	for (int i = 0; i < (sizeof(g_DeathSounds));	   i++) { PrecacheSound(g_DeathSounds[i]);	   }
-	for (int i = 0; i < (sizeof(g_HurtSounds));		i++) { PrecacheSound(g_HurtSounds[i]);		}
-	for (int i = 0; i < (sizeof(g_IdleSounds));		i++) { PrecacheSound(g_IdleSounds[i]);		}
-	for (int i = 0; i < (sizeof(g_IdleAlertedSounds)); i++) { PrecacheSound(g_IdleAlertedSounds[i]); }
-	for (int i = 0; i < (sizeof(g_MeleeHitSounds));	i++) { PrecacheSound(g_MeleeHitSounds[i]);	}
-	for (int i = 0; i < (sizeof(g_MeleeAttackSounds));	i++) { PrecacheSound(g_MeleeAttackSounds[i]);	}
-	for (int i = 0; i < (sizeof(g_MeleeMissSounds));   i++) { PrecacheSound(g_MeleeMissSounds[i]);   }
-	for (int i = 0; i < (sizeof(g_TeleportSounds));   i++) { PrecacheSound(g_TeleportSounds[i]);  			}
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Magia");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_ruina_magia");
+	data.Category = Type_Ruina;
+	data.Func = ClotSummon;
+	data.Precache = ClotPrecache;
+	strcopy(data.Icon, sizeof(data.Icon), "magia"); 						//leaderboard_class_(insert the name)
+	data.IconCustom = true;												//download needed?
+	data.Flags = 0;						//example: MVM_CLASS_FLAG_MINIBOSS|MVM_CLASS_FLAG_ALWAYSCRIT;, forces these flags.	
+	NPC_Add(data);
+}
+static void ClotPrecache()
+{
+	PrecacheSoundArray(g_DefaultMedic_DeathSounds);
+	PrecacheSoundArray(g_DefaultMedic_HurtSounds);
+	PrecacheSoundArray(g_IdleSounds);
+	PrecacheSoundArray(g_IdleAlertedSounds);
+	PrecacheSoundArray(g_MeleeHitSounds);
+	PrecacheSoundArray(g_Ruina_MagicAttackSounds);
+	PrecacheSoundArray(g_MeleeMissSounds);
+	PrecacheSoundArray(g_TeleportSounds);
+
 	PrecacheModel("models/player/medic.mdl");
+}
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team)
+{
+	return Magia(vecPos, vecAng, team);
 }
 
 methodmap Magia < CClotBody
@@ -73,17 +72,13 @@ methodmap Magia < CClotBody
 		EmitSoundToAll(g_IdleSounds[GetRandomInt(0, sizeof(g_IdleSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, RUINA_NPC_PITCH);
 		this.m_flNextIdleSound = GetGameTime(this.index) + GetRandomFloat(24.0, 48.0);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayIdleSound()");
-		#endif
+
 	}
 	
 	public void PlayTeleportSound() {
 		EmitSoundToAll(g_TeleportSounds[GetRandomInt(0, sizeof(g_TeleportSounds) - 1)], this.index, SNDCHAN_STATIC, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayTeleportSound()");
-		#endif
+
 	}
 	
 	public void PlayIdleAlertSound() {
@@ -93,9 +88,7 @@ methodmap Magia < CClotBody
 		EmitSoundToAll(g_IdleAlertedSounds[GetRandomInt(0, sizeof(g_IdleAlertedSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, RUINA_NPC_PITCH);
 		this.m_flNextIdleSound = GetGameTime(this.index) + GetRandomFloat(12.0, 24.0);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayIdleAlertSound()");
-		#endif
+		
 	}
 	
 	public void PlayHurtSound() {
@@ -104,52 +97,41 @@ methodmap Magia < CClotBody
 			
 		this.m_flNextHurtSound = GetGameTime(this.index) + 0.4;
 		
-		EmitSoundToAll(g_HurtSounds[GetRandomInt(0, sizeof(g_HurtSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, RUINA_NPC_PITCH);
+		EmitSoundToAll(g_DefaultMedic_HurtSounds[GetRandomInt(0, sizeof(g_DefaultMedic_HurtSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, RUINA_NPC_PITCH);
 		
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayHurtSound()");
-		#endif
+		
 	}
 	
 	public void PlayDeathSound() {
 	
-		EmitSoundToAll(g_DeathSounds[GetRandomInt(0, sizeof(g_DeathSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, RUINA_NPC_PITCH);
+		EmitSoundToAll(g_DefaultMedic_DeathSounds[GetRandomInt(0, sizeof(g_DefaultMedic_DeathSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, RUINA_NPC_PITCH);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayDeathSound()");
-		#endif
+		
 	}
 	
 	public void PlayMeleeSound() {
-		EmitSoundToAll(g_MeleeAttackSounds[GetRandomInt(0, sizeof(g_MeleeAttackSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, RUINA_NPC_PITCH);
+		EmitSoundToAll(g_Ruina_MagicAttackSounds[GetRandomInt(0, sizeof(g_Ruina_MagicAttackSounds) - 1)], this.index, SNDCHAN_STATIC, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, GetRandomInt(RUINA_NPC_PITCH - 5, RUINA_NPC_PITCH + 5));
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayMeleeHitSound()");
-		#endif
+		
 	}
 	public void PlayMeleeHitSound() {
 		EmitSoundToAll(g_MeleeHitSounds[GetRandomInt(0, sizeof(g_MeleeHitSounds) - 1)], this.index, SNDCHAN_STATIC, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, RUINA_NPC_PITCH);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayMeleeHitSound()");
-		#endif
+		
 	}
 
 	public void PlayMeleeMissSound() {
 		EmitSoundToAll(g_MeleeMissSounds[GetRandomInt(0, sizeof(g_MeleeMissSounds) - 1)], this.index, SNDCHAN_STATIC, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, RUINA_NPC_PITCH);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CGoreFast::PlayMeleeMissSound()");
-		#endif
+		
 	}
 	
 	
-	public Magia(int client, float vecPos[3], float vecAng[3], bool ally)
+	public Magia(float vecPos[3], float vecAng[3], int ally)
 	{
 		Magia npc = view_as<Magia>(CClotBody(vecPos, vecAng, "models/player/medic.mdl", "1.0", "1250", ally));
 		
-		i_NpcInternalId[npc.index] = RUINA_MAGIA;
 		i_NpcWeight[npc.index] = 1;
 		
 		FormatEx(c_HeadPlaceAttachmentGibName[npc.index], sizeof(c_HeadPlaceAttachmentGibName[]), "head");
@@ -171,12 +153,13 @@ methodmap Magia < CClotBody
 		npc.m_iBleedType = BLEEDTYPE_NORMAL;
 		npc.m_iStepNoiseType = STEPSOUND_NORMAL;	
 		npc.m_iNpcStepVariation = STEPTYPE_NORMAL;
-		
-		
-		
-		SDKHook(npc.index, SDKHook_Think, Magia_ClotThink);
+
+		func_NPCDeath[npc.index] = view_as<Function>(NPC_Death);
+		func_NPCOnTakeDamage[npc.index] = view_as<Function>(OnTakeDamage);
+		func_NPCThink[npc.index] = view_as<Function>(ClotThink);
 		
 		npc.m_flSpeed = 300.0;
+		fl_npc_basespeed = 300.0;
 		npc.m_flGetClosestTargetTime = 0.0;
 		npc.StartPathing();
 		
@@ -205,13 +188,19 @@ methodmap Magia < CClotBody
 		SetEntProp(npc.m_iWearable3, Prop_Send, "m_nSkin", skin);
 		SetEntProp(npc.m_iWearable4, Prop_Send, "m_nSkin", skin);
 				
+		SetVariantInt(1);
+		AcceptEntityInput(npc.index, "SetBodyGroup");
 				
+		fl_ruina_battery_max[npc.index] = 750.0;
 		fl_ruina_battery[npc.index] = 0.0;
 		b_ruina_battery_ability_active[npc.index] = false;
 		fl_ruina_battery_timer[npc.index] = 0.0;
 		
-		Ruina_Set_Heirarchy(npc.index, 2);	//is a ranged npc
+		Ruina_Set_Heirarchy(npc.index, RUINA_RANGED_NPC);	//is a ranged npc
 		
+
+		Ruina_Clean_Particles(npc.index);
+
 		Magia_Create_Hand_Crest(npc.index);
 		
 		return npc;
@@ -220,9 +209,8 @@ methodmap Magia < CClotBody
 	
 }
 
-//TODO 
-//Rewrite
-public void Magia_ClotThink(int iNPC)
+
+static void ClotThink(int iNPC)
 {
 	Magia npc = view_as<Magia>(iNPC);
 	
@@ -232,7 +220,7 @@ public void Magia_ClotThink(int iNPC)
 		return;
 	}
 	
-	fl_ruina_battery[npc.index] += 5.0;
+	
 	
 	npc.m_flNextDelayTime = GameTime + DEFAULT_UPDATE_DELAY_FLOAT;
 	
@@ -252,120 +240,125 @@ public void Magia_ClotThink(int iNPC)
 	
 	npc.m_flNextThinkTime = GameTime + 0.1;
 
+	Ruina_Add_Battery(npc.index, 0.75);
+
 	
-	if(npc.m_flGetClosestTargetTime < GameTime)
-	{
-		npc.m_iTarget = GetClosestTarget(npc.index);
-		npc.m_flGetClosestTargetTime = GameTime + GetRandomRetargetTime();
-	}
+	int PrimaryThreatIndex = npc.m_iTarget;	//when the npc first spawns this will obv be invalid, the core handles this.
+
+	Ruina_Ai_Override_Core(npc.index, PrimaryThreatIndex, GameTime);	//handles movement, also handles targeting
 	
-	int PrimaryThreatIndex = npc.m_iTarget;
-	
-	if(fl_ruina_battery[npc.index]>500.0)
+	if(fl_ruina_battery[npc.index]>fl_ruina_battery_max[npc.index])
 	{
 		fl_ruina_battery[npc.index] = 0.0;
 		fl_ruina_battery_timer[npc.index] = GameTime + 2.5;
-		
 	}
 	if(fl_ruina_battery_timer[npc.index]>GameTime)	//apply buffs
-	{
-		bool buff_array[3];
-		buff_array[0] = false;	//defense
-		buff_array[1] = true;	//speed
-		buff_array[2] = false;	//attack
-		
-		float buff_array_amt[3];
-		//buff_array_amt[0] = 0.2;	//20% dmg bonus
-		buff_array_amt[1] = 1.3;	//going bellow 1.0 will reduce speed. 30% speed boost
-		//buff_array_amt[2] = 0.05;	//5% dmg resist
-				
-				
-		Apply_Master_Buff(npc.index, buff_array, 125.0, 1.0, buff_array_amt);
+	{	
+		Master_Apply_Speed_Buff(npc.index, 125.0, 1.0, 1.12);
 	}
 	if(IsValidEnemy(npc.index, PrimaryThreatIndex))
 	{
-			float vecTarget[3]; vecTarget = WorldSpaceCenter(PrimaryThreatIndex);
+			
+		float vecTarget[3]; WorldSpaceCenter(PrimaryThreatIndex, vecTarget);
 		
-			float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+		float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+		float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 			
-			//Predict their pos.
-			Ruina_Ai_Override_Core(npc.index, PrimaryThreatIndex);	//handles movement
-			
-			if(flDistanceToTarget < 100000)
+		if(flDistanceToTarget < 100000)
+		{
+			int Enemy_I_See;
+				
+			Enemy_I_See = Can_I_See_Enemy(npc.index, PrimaryThreatIndex);
+			//Target close enough to hit
+			if(IsValidEnemy(npc.index, Enemy_I_See)) //Check if i can even see.
 			{
-				if(flDistanceToTarget < 50000)
+				if(flDistanceToTarget < (75000))
 				{
 					Ruina_Runaway_Logic(npc.index, PrimaryThreatIndex);
+					npc.m_bAllowBackWalking=true;
 				}
 				else
 				{
-					NPC_StopPathing(npc.index);
-					npc.m_bPathing = false;
+					npc.StopPathing();
+					
+					npc.m_bAllowBackWalking=false;
 				}
-				
 			}
 			else
 			{
 				npc.StartPathing();
-				npc.m_bPathing = true;
-			}
+				
+				npc.m_bAllowBackWalking=false;
+			}		
+		}
+		else
+		{
+			npc.StartPathing();
 			
-			//Target close enough to hit
-			if(flDistanceToTarget < 1000000 || npc.m_flAttackHappenswillhappen)
+			npc.m_bAllowBackWalking=false;
+		}
+		if(npc.m_bAllowBackWalking)
+		{
+			npc.m_flSpeed = fl_npc_basespeed*RUINA_BACKWARDS_MOVEMENT_SPEED_PENALTY;	
+			npc.FaceTowards(vecTarget, RUINA_FACETOWARDS_BASE_TURNSPEED);
+		}
+		else
+			npc.m_flSpeed = fl_npc_basespeed;
+			
+		//Target close enough to hit
+		if(flDistanceToTarget < 1000000 || npc.m_flAttackHappenswillhappen)
+		{
+			//Look at target so we hit.
+			//npc.FaceTowards(vecTarget, 1000.0);				
+			//Can we attack right now?
+			if(npc.m_flNextMeleeAttack < GameTime)
 			{
-				//Look at target so we hit.
-				//npc.FaceTowards(vecTarget, 1000.0);
-				
-				//Can we attack right now?
-				if(npc.m_flNextMeleeAttack < GetGameTime(npc.index))
+				//Play attack ani
+				if (!npc.m_flAttackHappenswillhappen)
 				{
-					//Play attack ani
-					if (!npc.m_flAttackHappenswillhappen)
-					{
-						npc.FaceTowards(vecTarget, 100000.0);
-						npc.AddGesture("ACT_MP_ATTACK_STAND_MELEE");
-						npc.PlayMeleeSound();
-						npc.m_flNextMeleeAttack = GetGameTime(npc.index)+1.0;
-						npc.m_flAttackHappenswillhappen = true;
-						float flPos[3]; // original
-						float flAng[3]; // original
+					fl_ruina_in_combat_timer[npc.index]=GameTime+5.0;
+					npc.FaceTowards(vecTarget, 100000.0);
+					npc.AddGesture("ACT_MP_ATTACK_STAND_MELEE");
+					npc.PlayMeleeSound();
+					npc.m_flNextMeleeAttack = GameTime+2.0;
+					npc.m_flAttackHappenswillhappen = true;
+					float flPos[3]; // original
+					float flAng[3]; // original
 						
-						GetAttachment(npc.index, "effect_hand_r", flPos, flAng);
+					GetAttachment(npc.index, "effect_hand_r", flPos, flAng);
 						
-						float projectile_speed = 1000.0;
-						float target_vec[3];
-						target_vec = PredictSubjectPositionForProjectiles(npc, PrimaryThreatIndex, projectile_speed);
+					float projectile_speed = 1000.0;
 		
-						npc.FireParticleRocket(target_vec, 50.0 , projectile_speed , 100.0 , "raygun_projectile_blue", _, _, true, flPos);
+					npc.FireParticleRocket(vecTarget, 30.0 , projectile_speed , 100.0 , "raygun_projectile_blue", _, _, true, flPos);
 						
-					}
-					else
-					{
-						npc.m_flAttackHappenswillhappen = false;
-					}
 				}
-			}
-			else
-			{
-				npc.StartPathing();
-				
+				else
+				{
+					npc.m_flAttackHappenswillhappen = false;
+				}
 			}
 		}
+		else
+		{
+			npc.StartPathing();
+				
+		}
+	}
 	else
 	{
-		NPC_StopPathing(npc.index);
-		npc.m_bPathing = false;
+		npc.StopPathing();
+		
 		npc.m_flGetClosestTargetTime = 0.0;
 		npc.m_iTarget = GetClosestTarget(npc.index);
 	}
 	npc.PlayIdleAlertSound();
 }
 
-static int i_particle[MAXENTITIES][11];
-static int i_laser[MAXENTITIES][8];
-
 static void Magia_Create_Hand_Crest(int client)
 {
+	if(AtEdictLimit(EDICT_NPC))
+		return;
+		
 	float flPos[3];
 	float flAng[3];
 	GetAttachment(client, "effect_hand_r", flPos, flAng);
@@ -380,10 +373,10 @@ static void Magia_Create_Hand_Crest(int client)
 	f_end = 1.0;
 	amp = 0.1;
 	
-	int particle_0 = ParticleEffectAt({0.0,0.0,0.0}, "", 0.0);	//Root, from where all the stuff goes from
+	int particle_0 = InfoTargetParentAt({0.0,0.0,0.0}, "", 0.0);	//Root, from where all the stuff goes from
 	
 	
-	int particle_1 = ParticleEffectAt({0.0,0.0,0.0}, "", 0.0);
+	int particle_1 = InfoTargetParentAt({0.0,0.0,0.0}, "", 0.0);
 	
 	SetParent(particle_0, particle_1);
 	
@@ -393,23 +386,23 @@ static void Magia_Create_Hand_Crest(int client)
 	//Z axis - Up Down
 	
 	
-	int particle_2 = ParticleEffectAt({0.0, 0.0, 15.0}, "", 0.0);
-	int particle_2_1 = ParticleEffectAt({0.0, 0.0, -15.0}, "", 0.0);
+	int particle_2 = InfoTargetParentAt({0.0, 0.0, 15.0}, "", 0.0);
+	int particle_2_1 = InfoTargetParentAt({0.0, 0.0, -15.0}, "", 0.0);
 	SetParent(particle_1, particle_2, "",_, true);
 	SetParent(particle_2, particle_2_1, "",_, true);
 	
-	int particle_4 = ParticleEffectAt({15.0, 0.0, 0.0}, "", 0.0);
-	int particle_4_1 = ParticleEffectAt({-15.0, 0.0, 0.0}, "", 0.0);
+	int particle_4 = InfoTargetParentAt({15.0, 0.0, 0.0}, "", 0.0);
+	int particle_4_1 = InfoTargetParentAt({-15.0, 0.0, 0.0}, "", 0.0);
 	SetParent(particle_1, particle_4, "",_, true);
 	SetParent(particle_4, particle_4_1, "",_, true);
 	
-	int particle_5 = ParticleEffectAt({7.5, 0.0, 7.5}, "", 0.0);
-	int particle_5_1 = ParticleEffectAt({-7.5, 0.0, -7.5}, "", 0.0);
+	int particle_5 = InfoTargetParentAt({7.5, 0.0, 7.5}, "", 0.0);
+	int particle_5_1 = InfoTargetParentAt({-7.5, 0.0, -7.5}, "", 0.0);
 	SetParent(particle_1, particle_5, "",_, true);
 	SetParent(particle_5, particle_5_1, "",_, true);
 	
-	int particle_6 = ParticleEffectAt({-7.5, 0.0, 7.5}, "", 0.0);
-	int particle_6_1 = ParticleEffectAt({7.5, 0.0, -7.5}, "", 0.0);
+	int particle_6 = InfoTargetParentAt({-7.5, 0.0, 7.5}, "", 0.0);
+	int particle_6_1 = InfoTargetParentAt({7.5, 0.0, -7.5}, "", 0.0);
 	SetParent(particle_1, particle_6, "",_, true);
 	SetParent(particle_6, particle_6_1, "",_, true);
 
@@ -419,59 +412,46 @@ static void Magia_Create_Hand_Crest(int client)
 	SetParent(client, particle_0, "effect_hand_r",_);
 
 	
-	i_laser[client][0] = EntIndexToEntRef(ConnectWithBeamClient(particle_2_1, particle_2, r, g, b, f_start, f_end, amp, LASERBEAM));
+	i_laser_ref_id[client][0] = EntIndexToEntRef(ConnectWithBeamClient(particle_2_1, particle_2, r, g, b, f_start, f_end, amp, LASERBEAM));
 	
-	i_laser[client][1] = EntIndexToEntRef(ConnectWithBeamClient(particle_4_1, particle_4, r, g, b, f_start, f_end, amp, LASERBEAM));
+	i_laser_ref_id[client][1] = EntIndexToEntRef(ConnectWithBeamClient(particle_4_1, particle_4, r, g, b, f_start, f_end, amp, LASERBEAM));
 	
-	i_laser[client][2] = EntIndexToEntRef(ConnectWithBeamClient(particle_5_1, particle_5, r, g, b, f_start, f_end, amp, LASERBEAM));
+	i_laser_ref_id[client][2] = EntIndexToEntRef(ConnectWithBeamClient(particle_5_1, particle_5, r, g, b, f_start, f_end, amp, LASERBEAM));
 	
-	i_laser[client][3] = EntIndexToEntRef(ConnectWithBeamClient(particle_6_1, particle_6, r, g, b, f_start, f_end, amp, LASERBEAM));
+	i_laser_ref_id[client][3] = EntIndexToEntRef(ConnectWithBeamClient(particle_6_1, particle_6, r, g, b, f_start, f_end, amp, LASERBEAM));
 	
-	/*i_laser[client][0] = EntIndexToEntRef(ConnectWithBeamClient(particle_3_1, particle_2, 255, 0, 0, f_start, f_end, amp, LASERBEAM));
-	i_laser[client][1] = EntIndexToEntRef(ConnectWithBeamClient(particle_3_1, particle_2_1, 255, 0, 0, f_start, f_end, amp, LASERBEAM));
-	i_laser[client][2] = EntIndexToEntRef(ConnectWithBeamClient(particle_3_1, particle_4, 255, 0, 0, f_start, f_end, amp, LASERBEAM));
-	i_laser[client][3] = EntIndexToEntRef(ConnectWithBeamClient(particle_3_1, particle_4_1, 255, 0, 0, f_start, f_end, amp, LASERBEAM));
-	i_laser[client][4] = EntIndexToEntRef(ConnectWithBeamClient(particle_3_1, particle_5, 255, 0, 0, f_start, f_end, amp, LASERBEAM));
-	i_laser[client][5] = EntIndexToEntRef(ConnectWithBeamClient(particle_3_1, particle_5_1, 255, 0, 0, f_start, f_end, amp, LASERBEAM));
-	i_laser[client][6] = EntIndexToEntRef(ConnectWithBeamClient(particle_3_1, particle_6, 255, 0, 0, f_start, f_end, amp, LASERBEAM));
-	i_laser[client][7] = EntIndexToEntRef(ConnectWithBeamClient(particle_3_1, particle_6_1, 255, 0, 0, f_start, f_end, amp, LASERBEAM));*/
+	/*i_laser_ref_id[client][0] = EntIndexToEntRef(ConnectWithBeamClient(particle_3_1, particle_2, 255, 0, 0, f_start, f_end, amp, LASERBEAM));
+	i_laser_ref_id[client][1] = EntIndexToEntRef(ConnectWithBeamClient(particle_3_1, particle_2_1, 255, 0, 0, f_start, f_end, amp, LASERBEAM));
+	i_laser_ref_id[client][2] = EntIndexToEntRef(ConnectWithBeamClient(particle_3_1, particle_4, 255, 0, 0, f_start, f_end, amp, LASERBEAM));
+	i_laser_ref_id[client][3] = EntIndexToEntRef(ConnectWithBeamClient(particle_3_1, particle_4_1, 255, 0, 0, f_start, f_end, amp, LASERBEAM));
+	i_laser_ref_id[client][4] = EntIndexToEntRef(ConnectWithBeamClient(particle_3_1, particle_5, 255, 0, 0, f_start, f_end, amp, LASERBEAM));
+	i_laser_ref_id[client][5] = EntIndexToEntRef(ConnectWithBeamClient(particle_3_1, particle_5_1, 255, 0, 0, f_start, f_end, amp, LASERBEAM));
+	i_laser_ref_id[client][6] = EntIndexToEntRef(ConnectWithBeamClient(particle_3_1, particle_6, 255, 0, 0, f_start, f_end, amp, LASERBEAM));
+	i_laser_ref_id[client][7] = EntIndexToEntRef(ConnectWithBeamClient(particle_3_1, particle_6_1, 255, 0, 0, f_start, f_end, amp, LASERBEAM));*/
 	
 	
-	i_particle[client][0] = EntIndexToEntRef(particle_0);
-	i_particle[client][1] = EntIndexToEntRef(particle_1);
-	i_particle[client][2] = EntIndexToEntRef(particle_2);
-	i_particle[client][3] = EntIndexToEntRef(particle_4);
-	i_particle[client][4] = EntIndexToEntRef(particle_4_1);
-	i_particle[client][5] = EntIndexToEntRef(particle_5);
-	i_particle[client][6] = EntIndexToEntRef(particle_5_1);
-	i_particle[client][7] = EntIndexToEntRef(particle_6);
-	i_particle[client][8] = EntIndexToEntRef(particle_6_1);
+	i_particle_ref_id[client][0] = EntIndexToEntRef(particle_0);
+	i_particle_ref_id[client][1] = EntIndexToEntRef(particle_1);
+	i_particle_ref_id[client][2] = EntIndexToEntRef(particle_2);
+	i_particle_ref_id[client][3] = EntIndexToEntRef(particle_4);
+	i_particle_ref_id[client][4] = EntIndexToEntRef(particle_4_1);
+	i_particle_ref_id[client][5] = EntIndexToEntRef(particle_5);
+	i_particle_ref_id[client][6] = EntIndexToEntRef(particle_5_1);
+	i_particle_ref_id[client][7] = EntIndexToEntRef(particle_6);
+	i_particle_ref_id[client][8] = EntIndexToEntRef(particle_6_1);
 	
-}
-static void Delete_Hand_Crest(int client)
-{
-	for(int laser=0 ; laser<4 ; laser++)
-	{
-		int entity = EntRefToEntIndex(i_laser[client][laser]);
-		if(IsValidEntity(entity))
-			RemoveEntity(entity);
-	}
-	for(int particle=0 ; particle < 9 ; particle++)
-	{
-		int entity = EntRefToEntIndex(i_particle[client][particle]);
-		if(IsValidEntity(entity))
-			RemoveEntity(entity);
-	}
 }
 
-public Action Magia_OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3], int damagecustom)
+static Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3], int damagecustom)
 {
 	Magia npc = view_as<Magia>(victim);
 		
 	if(attacker <= 0)
 		return Plugin_Continue;
 		
-	fl_ruina_battery[npc.index] += damage;	//turn damage taken into energy
+	Ruina_NPC_OnTakeDamage_Override(npc.index, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
+		
+	//Ruina_Add_Battery(npc.index, damage);	//turn damage taken into energy
 	
 	if (npc.m_flHeadshotCooldown < GetGameTime(npc.index))
 	{
@@ -482,17 +462,18 @@ public Action Magia_OnTakeDamage(int victim, int &attacker, int &inflictor, floa
 	return Plugin_Changed;
 }
 
-public void Magia_NPCDeath(int entity)
+static void NPC_Death(int entity)
 {
 	Magia npc = view_as<Magia>(entity);
 	if(!npc.m_bGib)
 	{
 		npc.PlayDeathSound();	
 	}
+
+	Ruina_NPCDeath_Override(npc.index);
 	
-	Delete_Hand_Crest(entity);
-	
-	SDKUnhook(npc.index, SDKHook_Think, Magia_ClotThink);
+	Ruina_Clean_Particles(npc.index);
+
 		
 	if(IsValidEntity(npc.m_iWearable2))
 		RemoveEntity(npc.m_iWearable2);

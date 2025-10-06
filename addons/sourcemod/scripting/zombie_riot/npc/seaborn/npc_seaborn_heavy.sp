@@ -39,6 +39,24 @@ static const char g_MeleeAttackSounds[][] =
 	"weapons/boxing_gloves_swing4.wav"
 };
 
+void SeabornHeavy_Precache()
+{
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Seaborn Heavy");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_seaborn_heavy");
+	strcopy(data.Icon, sizeof(data.Icon), "sea_heavy");
+	data.IconCustom = true;
+	data.Flags = 0;
+	data.Category = Type_Seaborn;
+	data.Func = ClotSummon;
+	NPC_Add(data);
+}
+
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team)
+{
+	return SeabornHeavy(vecPos, vecAng, team);
+}
+
 methodmap SeabornHeavy < CClotBody
 {
 	public void PlayIdleSound()
@@ -66,14 +84,15 @@ methodmap SeabornHeavy < CClotBody
 		EmitSoundToAll(g_MeleeHitSounds[GetRandomInt(0, sizeof(g_MeleeHitSounds) - 1)], this.index, SNDCHAN_AUTO, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, _);	
 	}
 	
-	public SeabornHeavy(int client, float vecPos[3], float vecAng[3], bool ally)
+	public SeabornHeavy(float vecPos[3], float vecAng[3], int ally)
 	{
-		SeabornHeavy npc = view_as<SeabornHeavy>(CClotBody(vecPos, vecAng, "models/player/heavy.mdl", "1.0", "6000", ally));
+		SeabornHeavy npc = view_as<SeabornHeavy>(CClotBody(vecPos, vecAng, "models/player/heavy.mdl", "1.0", "15000", ally));
 		
-		i_NpcInternalId[npc.index] = SEABORN_HEAVY;
 		i_NpcWeight[npc.index] = 2;
 		npc.SetActivity("ACT_MP_RUN_MELEE");
 		KillFeed_SetKillIcon(npc.index, "fists");
+		SetVariantInt(3);
+		AcceptEntityInput(npc.index, "SetBodyGroup");
 		
 		npc.m_iBleedType = BLEEDTYPE_SEABORN;
 		npc.m_iStepNoiseType = STEPSOUND_NORMAL;
@@ -81,7 +100,9 @@ methodmap SeabornHeavy < CClotBody
 		
 		SetEntProp(npc.index, Prop_Send, "m_nSkin", 1);
 
-		SDKHook(npc.index, SDKHook_Think, SeabornHeavy_ClotThink);
+		func_NPCDeath[npc.index] = SeabornHeavy_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = SeabornHeavy_OnTakeDamage;
+		func_NPCThink[npc.index] = SeabornHeavy_ClotThink;
 		
 		npc.m_flSpeed = 230.0;
 		npc.m_flGetClosestTargetTime = 0.0;
@@ -90,7 +111,6 @@ methodmap SeabornHeavy < CClotBody
 		npc.m_flMeleeArmor = 0.9;
 		npc.m_flRangedArmor = 0.9;
 		
-		SetEntityRenderMode(npc.index, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(npc.index, 100, 100, 255, 255);
 
 		return npc;
@@ -131,17 +151,18 @@ public void SeabornHeavy_ClotThink(int iNPC)
 	
 	if(npc.m_iTarget > 0)
 	{
-		float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
-		float distance = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);		
+		float vecTarget[3]; WorldSpaceCenter(npc.m_iTarget, vecTarget );
+		float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+		float distance = GetVectorDistance(vecTarget, VecSelfNpc, true);	
 		
 		if(distance < npc.GetLeadRadius())
 		{
-			float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, npc.m_iTarget);
-			NPC_SetGoalVector(npc.index, vPredictedPos);
+			float vPredictedPos[3]; PredictSubjectPosition(npc, npc.m_iTarget,_,_, vPredictedPos);
+			npc.SetGoalVector(vPredictedPos);
 		}
 		else 
 		{
-			NPC_SetGoalEntity(npc.index, npc.m_iTarget);
+			npc.SetGoalEntity(npc.m_iTarget);
 		}
 
 		npc.StartPathing();
@@ -161,7 +182,7 @@ public void SeabornHeavy_ClotThink(int iNPC)
 					{
 						npc.PlayMeleeHitSound();
 						SDKHooks_TakeDamage(target, npc.index, npc.index, 50.0, DMG_CLUB);
-						SeaSlider_AddNeuralDamage(target, npc.index, 10);
+						Elemental_AddNervousDamage(target, npc.index, 10);
 					}
 				}
 
@@ -193,13 +214,17 @@ public void SeabornHeavy_ClotThink(int iNPC)
 	npc.PlayIdleSound();
 }
 
-void SeabornHeavy_OnTakeDamage(int victim, int attacker, int damagetype)
+void SeabornHeavy_OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3], int damagecustom)
 {
 	if(attacker > 0)
 	{
 		SeabornHeavy npc = view_as<SeabornHeavy>(victim);
 		if(npc.m_flHeadshotCooldown < GetGameTime(npc.index))
 		{
+			if (attacker <= MaxClients && attacker > 0 && TeutonType[attacker] != TEUTON_NONE)
+			{	
+				return;
+			}
 			npc.m_flHeadshotCooldown = GetGameTime(npc.index) + DEFAULT_HURTDELAY;
 			npc.m_blPlayHurtAnimation = true;
 
@@ -216,15 +241,18 @@ void SeabornHeavy_OnTakeDamage(int victim, int attacker, int damagetype)
 				if(npc.m_flRangedArmor > 1.5)
 					npc.m_flRangedArmor = 1.5;
 			}
-			else if(!(damagetype & DMG_SLASH))
+			else if(!(damagetype & DMG_TRUEDAMAGE))
 			{
 				npc.m_flRangedArmor -= 0.05;
 				if(npc.m_flRangedArmor < 0.05)
+				{
 					npc.m_flRangedArmor = 0.05;
-				
+				}
 				npc.m_flMeleeArmor += 0.05;
 				if(npc.m_flMeleeArmor > 1.5)
+				{
 					npc.m_flMeleeArmor = 1.5;
+				}
 			}
 		}
 	}
@@ -235,6 +263,4 @@ void SeabornHeavy_NPCDeath(int entity)
 	SeabornHeavy npc = view_as<SeabornHeavy>(entity);
 	if(!npc.m_bGib)
 		npc.PlayDeathSound();
-	
-	SDKUnhook(npc.index, SDKHook_Think, SeabornHeavy_ClotThink);
 }

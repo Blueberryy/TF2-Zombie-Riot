@@ -1,6 +1,24 @@
 #pragma semicolon 1
 #pragma newdecls required
 
+public void BarrackHussarOnMapStart()
+{
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Hussar");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_barrack_hussar");
+	strcopy(data.Icon, sizeof(data.Icon), "");
+	data.IconCustom = false;
+	data.Flags = 0;
+	data.Category = Type_Ally;
+	data.Func = ClotSummon;
+	NPC_Add(data);
+}
+
+static any ClotSummon(int client, float vecPos[3], float vecAng[3])
+{
+	return BarrackHussar(client, vecPos, vecAng);
+}
+
 methodmap BarrackHussar < BarrackBody
 {
 	public void PlayMeleeWarCry()
@@ -8,15 +26,16 @@ methodmap BarrackHussar < BarrackBody
 		return;
 //		EmitSoundToAll("mvm/mvm_tank_horn.wav", this.index, _, 60, _, 0.4, 60);
 	}
-	public BarrackHussar(int client, float vecPos[3], float vecAng[3], bool ally)
+	public BarrackHussar(int client, float vecPos[3], float vecAng[3])
 	{
-		BarrackHussar npc = view_as<BarrackHussar>(BarrackBody(client, vecPos, vecAng, "2000",_,_,_,_,"models/pickups/pickup_powerup_strength_arm.mdl"));
+		BarrackHussar npc = view_as<BarrackHussar>(BarrackBody(client, vecPos, vecAng, "2500",_,_,_,_,"models/pickups/pickup_powerup_strength_arm.mdl"));
 		
-		i_NpcInternalId[npc.index] = BARRACK_HUSSAR;
 		i_NpcWeight[npc.index] = 2;
 		KillFeed_SetKillIcon(npc.index, "scout_sword");
 		
-		SDKHook(npc.index, SDKHook_Think, BarrackHussar_ClotThink);
+		func_NPCOnTakeDamage[npc.index] = BarrackBody_OnTakeDamage;
+		func_NPCDeath[npc.index] = BarrackHussar_NPCDeath;
+		func_NPCThink[npc.index] = BarrackHussar_ClotThink;
 
 		npc.m_flSpeed = 250.0;
 
@@ -50,27 +69,29 @@ public void BarrackHussar_ClotThink(int iNPC)
 
 		if(npc.m_iTarget > 0)
 		{
-			float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
-			float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+			float vecTarget[3]; WorldSpaceCenter(npc.m_iTarget, vecTarget );
+			float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+			float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 
 			//Target close enough to hit
-			if(flDistanceToTarget < 10000 || npc.m_flAttackHappenswillhappen)
+			if(flDistanceToTarget < NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED || npc.m_flAttackHappenswillhappen)
 			{
 				if(npc.m_flNextMeleeAttack < GameTime || npc.m_flAttackHappenswillhappen)
 				{
+					float damage = 9000.0;
+					
 					if(!npc.m_flAttackHappenswillhappen)
 					{
 						npc.AddGesture("ACT_RIDER_ATTACK");
 						npc.PlaySwordSound();
 						npc.m_flAttackHappens = GameTime + 0.4;
-						npc.m_flAttackHappens_bullshit = GameTime + 0.54;
+						npc.m_flNextRangedSpecialAttack = GameTime + 0.54;
 						npc.m_flDoingAnimation = GameTime + 0.6;
-						npc.m_flReloadDelay = GameTime + 0.6;
-						npc.m_flNextMeleeAttack = GameTime + (1.2 * npc.BonusFireRate);
+						npc.m_flNextMeleeAttack = GameTime + (2.0 * npc.BonusFireRate);
 						npc.m_flAttackHappenswillhappen = true;
 					}
 						
-					if(npc.m_flAttackHappens < GameTime && npc.m_flAttackHappens_bullshit >= GameTime && npc.m_flAttackHappenswillhappen)
+					if(npc.m_flAttackHappens < GameTime && npc.m_flNextRangedSpecialAttack >= GameTime && npc.m_flAttackHappenswillhappen)
 					{
 						Handle swingTrace;
 						npc.FaceTowards(vecTarget, 20000.0);
@@ -83,14 +104,14 @@ public void BarrackHussar_ClotThink(int iNPC)
 							
 							if(target > 0) 
 							{
-								SDKHooks_TakeDamage(target, npc.index, client, Barracks_UnitExtraDamageCalc(npc.index, GetClientOfUserId(npc.OwnerUserId),15000.0, 0), DMG_CLUB, -1, _, vecHit);
+								SDKHooks_TakeDamage(target, npc.index, client, Barracks_UnitExtraDamageCalc(npc.index, GetClientOfUserId(npc.OwnerUserId),damage, 0), DMG_CLUB, -1, _, vecHit);
 								npc.PlaySwordHitSound();
 							} 
 						}
 						delete swingTrace;
 						npc.m_flAttackHappenswillhappen = false;
 					}
-					else if(npc.m_flAttackHappens_bullshit < GameTime && npc.m_flAttackHappenswillhappen)
+					else if(npc.m_flNextRangedSpecialAttack < GameTime && npc.m_flAttackHappenswillhappen)
 					{
 						npc.m_flAttackHappenswillhappen = false;
 					}
@@ -108,5 +129,4 @@ void BarrackHussar_NPCDeath(int entity)
 {
 	BarrackHussar npc = view_as<BarrackHussar>(entity);
 	BarrackBody_NPCDeath(npc.index);
-	SDKUnhook(npc.index, SDKHook_Think, BarrackHussar_ClotThink);
 }

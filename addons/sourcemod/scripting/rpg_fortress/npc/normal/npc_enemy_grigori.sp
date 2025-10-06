@@ -125,7 +125,7 @@ public void EnemyFatherGrigori_OnMapStart_NPC()
 	PrecacheModel("models/props_wasteland/rockgranite03b.mdl");
 	PrecacheModel("models/weapons/w_bullet.mdl");
 	PrecacheModel("models/weapons/w_grenade.mdl");
-	PrecacheModel("models/monk.mdl");
+	PrecacheModel("models/zombie_riot/grigori/monk_custom.mdl");
 	PrecacheSound("ambient/explosions/explode_9.wav",true);
 	PrecacheSound("ambient/energy/weld1.wav",true);
 	PrecacheSound("ambient/halloween/mysterious_perc_01.wav",true);
@@ -133,8 +133,17 @@ public void EnemyFatherGrigori_OnMapStart_NPC()
 	PrecacheSound("player/flow.wav");
 
 	PrecacheModel("models/props_mvm/mvm_player_shield2.mdl");
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Father Grigori");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_enemy_grigori");
+	data.Func = ClotSummon;
+	NPC_Add(data);
 }
 
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team, const char[] data)
+{
+	return EnemyFatherGrigori(vecPos, vecAng, team, data);
+}
 methodmap EnemyFatherGrigori < CClotBody
 {
 	public void PlayIdleSound() {
@@ -215,13 +224,12 @@ methodmap EnemyFatherGrigori < CClotBody
 	{
 		EmitSoundToAll(g_RangedSpecialAttackSoundsSecondary[GetRandomInt(0, sizeof(g_RangedSpecialAttackSoundsSecondary) - 1)], this.index, SNDCHAN_AUTO, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 100);
 	}
-	public EnemyFatherGrigori(int client, float vecPos[3], float vecAng[3], bool ally)
+	public EnemyFatherGrigori(float vecPos[3], float vecAng[3], int ally, const char[] data)
 	{
-		EnemyFatherGrigori npc = view_as<EnemyFatherGrigori>(CClotBody(vecPos, vecAng, "models/monk.mdl", "1.15", "300", ally, false,_,_,_,_));
-		
-		i_NpcInternalId[npc.index] = FATHER_GRIGORI;
+		EnemyFatherGrigori npc = view_as<EnemyFatherGrigori>(CClotBody(vecPos, vecAng, "models/zombie_riot/grigori/monk_custom.mdl", "1.15", "300", ally, false,_,_,_,_));
 		
 		FormatEx(c_HeadPlaceAttachmentGibName[npc.index], sizeof(c_HeadPlaceAttachmentGibName[]), "head");
+		KillFeed_SetKillIcon(npc.index, "shotgun_soldier");
 		
 		npc.SetActivity("ACT_IDLE");
 
@@ -245,24 +253,28 @@ methodmap EnemyFatherGrigori < CClotBody
 		npc.m_iOverlordComboAttack = 0;
 		//phases.
 		
-		SDKHook(npc.index, SDKHook_OnTakeDamage, EnemyFatherGrigori_OnTakeDamage);
+		func_NPCDeath[npc.index] = EnemyFatherGrigori_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = EnemyFatherGrigori_OnTakeDamage;
+		func_NPCThink[npc.index] = EnemyFatherGrigori_ClotThink;
+		npc.m_flRangedArmor = 0.75;
+
+		
+
 		SDKHook(npc.index, SDKHook_OnTakeDamagePost, EnemyFatherGrigori_OnTakeDamagePost);
-		SDKHook(npc.index, SDKHook_Think, EnemyFatherGrigori_ClotThink);
 
 		npc.m_iWearable1 = npc.EquipItem("anim_attachment_RH", "models/weapons/w_annabelle.mdl");
 		SetVariantString("1.0");
 		AcceptEntityInput(npc.m_iWearable1, "SetModelScale");
 
-		NPC_StopPathing(npc.index);
-		npc.m_bPathing = false;	
+		npc.StopPathing();
+			
 		
 		return npc;
 	}
 	
 }
 
-//TODO 
-//Rewrite
+
 public void EnemyFatherGrigori_ClotThink(int iNPC)
 {
 	EnemyFatherGrigori npc = view_as<EnemyFatherGrigori>(iNPC);
@@ -298,23 +310,23 @@ public void EnemyFatherGrigori_ClotThink(int iNPC)
 
 
 	//Boss deserves full uptime.
-	// npc.m_iTarget comes from here.
+	// npc.m_iTarget comes from here, This only handles out of battle instancnes, for inbattle, code it yourself. It also makes NPCS jump if youre too high up.
 	float speed;
 	if(npc.m_flAttackHappens_bullshit > gameTime)
 	{
-		speed = 240.0;
+		speed = 310.0;
 	}
 	else
 	{
-		speed = 120.0;
+		speed = 200.0;
 	}
+
 	Npc_Base_Thinking(iNPC, 500.0, "Walk_aiming_all", "ACT_IDLE", speed, gameTime, true, false);
 	if(npc.m_flJumpCooldown)
 	{
 		if(npc.m_flJumpCooldown < gameTime)
 		{
 			npc.m_flJumpCooldown = 0.0;
-			SetEntityRenderMode(npc.index, RENDER_TRANSCOLOR);
 			SetEntityRenderColor(npc.index, 255, 255, 255, 255);		
 		}
 	}
@@ -373,26 +385,29 @@ public void EnemyFatherGrigori_ClotThink(int iNPC)
 			if(IsValidEnemy(npc.index, npc.m_iTarget))
 			{
 				Handle swingTrace;
-				npc.FaceTowards(WorldSpaceCenter(npc.m_iTarget), 15000.0); //Snap to the enemy. make backstabbing hard to do.
+				float WorldSpaceCenterVec[3]; 
+				WorldSpaceCenter(npc.m_iTarget, WorldSpaceCenterVec);
+				npc.FaceTowards(WorldSpaceCenterVec, 15000.0); //Snap to the enemy. make backstabbing hard to do.
 				if(npc.DoSwingTrace(swingTrace, npc.m_iTarget, _, _, _, 1)) //Big range, but dont ignore buildings if somehow this doesnt count as a raid to be sure.
 				{
 					int target = TR_GetEntityIndex(swingTrace);	
 					
 					float vecHit[3];
 					TR_GetEndPosition(vecHit, swingTrace);
-					float damage = 100.0;
+					float damage = 30000.0;
 					
 					if(npc.m_iOverlordComboAttack >= 1)
 					{
-						damage = 130.0;
+						damage = 35000.0;
 					}
 
 					npc.PlayMeleeHitSound();
 
 					if(target > 0) 
 					{
+						KillFeed_SetKillIcon(npc.index, "club");
 						SDKHooks_TakeDamage(target, npc.index, npc.index, damage, DMG_CLUB);
-
+						KillFeed_SetKillIcon(npc.index, "shotgun_soldier");
 					}
 				}
 				delete swingTrace;
@@ -403,18 +418,19 @@ public void EnemyFatherGrigori_ClotThink(int iNPC)
 	{
 		if(IsValidEnemy(npc.index, npc.m_iTarget))
 		{
-			float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
+			float vecTarget[3]; 
+			WorldSpaceCenter(npc.m_iTarget, vecTarget);
 			npc.FaceTowards(vecTarget, 1000.0);
 			if(npc.m_flNextRangedAttackHappening < gameTime)
 			{
 				npc.m_flNextRangedAttackHappening = 0.0;
 				
 				float projectile_speed = 1000.0;
-				float damage_bullet = 80.0;
+				float damage_bullet = 25000.0;
 
 				if(npc.m_iOverlordComboAttack >= 1)
 				{
-					damage_bullet = 100.0;
+					damage_bullet = 30000.0;
 				}
 				if(npc.m_flAttackHappens_bullshit > gameTime)
 				{
@@ -436,7 +452,7 @@ public void EnemyFatherGrigori_ClotThink(int iNPC)
 					
 					npc.AddGesture("ACT_RANGE_ATTACK_SHOTGUN");	
 				}
-				vecTarget = PredictSubjectPositionForProjectiles(npc, npc.m_iTarget, projectile_speed);
+				PredictSubjectPositionForProjectiles(npc, npc.m_iTarget, projectile_speed, _,vecTarget);
 				npc.FireArrow(vecTarget, damage_bullet, projectile_speed, "models/weapons/w_bullet.mdl", 2.0);	
 				npc.PlayRangedSound();
 			}
@@ -453,7 +469,8 @@ public void EnemyFatherGrigori_ClotThink(int iNPC)
 	{
 		if(IsValidEnemy(npc.index, npc.m_iTarget))
 		{
-			float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
+			float vecTarget[3];
+			WorldSpaceCenter(npc.m_iTarget, vecTarget);
 			npc.FaceTowards(vecTarget, 30000.0);
 			if(npc.m_flNextRangedSpecialAttackHappens < gameTime)
 			{
@@ -466,19 +483,24 @@ public void EnemyFatherGrigori_ClotThink(int iNPC)
 
 	if(IsValidEnemy(npc.index, npc.m_iTarget))
 	{
-		float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
-		float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+		float vecTarget[3];
+		WorldSpaceCenter(npc.m_iTarget, vecTarget);
+		float vecSelf[3];
+		WorldSpaceCenter(npc.index, vecSelf);
+
+		float flDistanceToTarget = GetVectorDistance(vecTarget, vecSelf, true);
 			
 		//Predict their pos.
 		if(flDistanceToTarget < npc.GetLeadRadius()) 
 		{
-			float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, npc.m_iTarget);
+			float vPredictedPos[3]; 
+			PredictSubjectPosition(npc, npc.m_iTarget,_,_,vPredictedPos);
 			
-			NPC_SetGoalVector(npc.index, vPredictedPos);
+			npc.SetGoalVector(vPredictedPos);
 		}
 		else
 		{
-			NPC_SetGoalEntity(npc.index, npc.m_iTarget);
+			npc.SetGoalEntity(npc.m_iTarget);
 		}
 		//Get position for just travel here.
 
@@ -539,11 +561,9 @@ public void EnemyFatherGrigori_ClotThink(int iNPC)
 			}
 			case 1:
 			{			
-				int Enemy_I_See;
-							
-				Enemy_I_See = Can_I_See_Enemy(npc.index, npc.m_iTarget);
+				int Enemy_I_See = Can_I_See_Enemy(npc.index, npc.m_iTarget);
 				//Can i see This enemy, is something in the way of us?
-				//Dont even check if its the same enemy, just engage in rape, and also set our new target to this just in case.
+				//Dont even check if its the same enemy, just engage in killing, and also set our new target to this just in case.
 				if(IsValidEntity(Enemy_I_See) && IsValidEnemy(npc.index, Enemy_I_See))
 				{
 					npc.m_iTarget = Enemy_I_See;
@@ -554,19 +574,20 @@ public void EnemyFatherGrigori_ClotThink(int iNPC)
 							npc.m_iChanged_WalkCycle = 8;
 							npc.SetActivity("ACT_MELEE_ATTACK");
 						}
+						npc.SetPlaybackRate(3.0);
+						npc.m_flAttackHappens = gameTime + 0.15;
+
+						npc.m_flDoingAnimation = gameTime + 0.5;
+						npc.m_flNextMeleeAttack = gameTime + 0.5;
+					}
+					else
+					{
 						npc.SetPlaybackRate(2.0);
+						npc.AddGesture("ACT_MELEE_ATTACK");
 						npc.m_flAttackHappens = gameTime + 0.3;
 
 						npc.m_flDoingAnimation = gameTime + 0.75;
 						npc.m_flNextMeleeAttack = gameTime + 0.75;
-					}
-					else
-					{
-						npc.AddGesture("ACT_MELEE_ATTACK");
-						npc.m_flAttackHappens = gameTime + 0.6;
-
-						npc.m_flDoingAnimation = gameTime + 1.5;
-						npc.m_flNextMeleeAttack = gameTime + 1.5;
 					}
 					npc.PlayMeleeSound();
 					
@@ -585,7 +606,7 @@ public void EnemyFatherGrigori_ClotThink(int iNPC)
 								
 					Enemy_I_See = Can_I_See_Enemy(npc.index, npc.m_iTarget);
 					//Can i see This enemy, is something in the way of us?
-					//Dont even check if its the same enemy, just engage in rape, and also set our new target to this just in case.
+					//Dont even check if its the same enemy, just engage in killing, and also set our new target to this just in case.
 					if(IsValidEntity(Enemy_I_See) && IsValidEnemy(npc.index, Enemy_I_See))
 					{
 						npc.m_iTarget = Enemy_I_See;
@@ -648,7 +669,7 @@ public void EnemyFatherGrigori_ClotThink(int iNPC)
 								
 				Enemy_I_See = Can_I_See_Enemy(npc.index, npc.m_iTarget);
 				//Can i see This enemy, is something in the way of us?
-				//Dont even check if its the same enemy, just engage in rape, and also set our new target to this just in case.
+				//Dont even check if its the same enemy, just engage in killing, and also set our new target to this just in case.
 				if(IsValidEntity(Enemy_I_See) && IsValidEnemy(npc.index, Enemy_I_See))
 				{
 					npc.m_iTarget = Enemy_I_See;
@@ -733,7 +754,7 @@ public void EnemyFatherGrigori_ClotThink(int iNPC)
 		}
 		npc.m_flNextThinkTime = gameTime + 1.0;
 		//re-enable rage.
-		if((GetEntProp(npc.index, Prop_Data, "m_iMaxHealth")) <= GetEntProp(npc.index, Prop_Data, "m_iHealth")) //Anger after half hp/400 hp
+		if((ReturnEntityMaxHealth(npc.index)) <= GetEntProp(npc.index, Prop_Data, "m_iHealth")) //Anger after half hp/400 hp
 		{
 			if(npc.flXenoInfectedSpecialHurtTime > (gameTime - 3.0))
 			{
@@ -788,7 +809,7 @@ public void EnemyFatherGrigori_OnTakeDamagePost(int victim, int attacker, int in
 {
 	EnemyFatherGrigori npc = view_as<EnemyFatherGrigori>(victim);
 
-	int maxHealth = GetEntProp(npc.index, Prop_Data, "m_iMaxHealth");
+	int maxHealth = ReturnEntityMaxHealth(npc.index);
 	int Health = GetEntProp(npc.index, Prop_Data, "m_iHealth");
 
 	if(maxHealth/4 >= Health && !npc.Anger) //Anger after half hp/400 hp
@@ -799,7 +820,6 @@ public void EnemyFatherGrigori_OnTakeDamagePost(int victim, int attacker, int in
 		npc.PlayAngerSound();
 		npc.m_flAttackHappens_bullshit = GetGameTime(npc.index) + 30.0;
 		npc.m_flJumpCooldown = GetGameTime(npc.index) + 5.0; //Take way less damage for 5 seconds.
-		SetEntityRenderMode(npc.index, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(npc.index, 255, 100, 100, 255);
 		npc.DispatchParticleEffect(npc.index, "hightower_explosion", NULL_VECTOR, NULL_VECTOR, NULL_VECTOR, npc.FindAttachment("eyes"), PATTACH_POINT_FOLLOW, true);
 	}
@@ -824,8 +844,6 @@ public void EnemyFatherGrigori_NPCDeath(int entity)
 	{
 		npc.PlayDeathSound();
 	}
-	SDKUnhook(entity, SDKHook_OnTakeDamage, EnemyFatherGrigori_OnTakeDamage);
-	SDKUnhook(entity, SDKHook_Think, EnemyFatherGrigori_ClotThink);
 
 	if(IsValidEntity(npc.m_iWearable1))
 		RemoveEntity(npc.m_iWearable1);
@@ -897,10 +915,12 @@ public void FatherGrigori_IonAttack(Handle &data)
 	int Iondamage = ReadPackCell(data);
 	int client = EntRefToEntIndex(ReadPackCell(data));
 		
-	if(!IsValidEntity(client))
+	if(!IsValidEntity(client) || b_NpcHasDied[client])
 	{
+		delete data;
 		return;
 	}
+	spawnRing_Vectors(startPosition, Ionrange * 2.0, 0.0, 0.0, 5.0, "materials/sprites/laserbeam.vmt", 0, 150, 255, 255, 1, 0.2, 12.0, 4.0, 3);	
 		
 	if (Iondistance > 0)
 	{
@@ -978,6 +998,8 @@ public void FatherGrigori_IonAttack(Handle &data)
 			nphi += 5.0;
 	}
 	Iondistance -= 5;
+
+	delete data;
 		
 	Handle nData = CreateDataPack();
 	WritePackFloat(nData, startPosition[0]);
@@ -991,14 +1013,15 @@ public void FatherGrigori_IonAttack(Handle &data)
 	ResetPack(nData);
 		
 	if (Iondistance > -50)
-	CreateTimer(0.1, FatherGrigori_DrawIon, nData, TIMER_FLAG_NO_MAPCHANGE|TIMER_DATA_HNDL_CLOSE);
+	CreateTimer(0.1, FatherGrigori_DrawIon, nData, TIMER_FLAG_NO_MAPCHANGE);
 	else
 	{
 		startPosition[2] += 25.0;
-		makeexplosion(client, client, startPosition, "", 150, 175);
+		makeexplosion(client, startPosition, 40000/*damage*/, 175/*Range */);
 		startPosition[2] -= 25.0;
 		TE_SetupExplosion(startPosition, gExplosive1, 10.0, 1, 0, 0, 0);
 		TE_SendToAll();
+		spawnRing_Vectors(startPosition, 0.0, 0.0, 0.0, 5.0, "materials/sprites/laserbeam.vmt", 255, 255, 255, 255, 1, 0.5, 20.0, 10.0, 3, Ionrange * 2.0);	
 		position[0] = startPosition[0];
 		position[1] = startPosition[1];
 		position[2] += startPosition[2] + 900.0;

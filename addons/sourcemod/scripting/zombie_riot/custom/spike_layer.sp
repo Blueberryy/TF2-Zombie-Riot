@@ -54,43 +54,50 @@ public bool Spike_ShouldCollide(int client, int collisiongroup, int contentsmask
 //static int Spike_Owner[MAXENTITIES]={0, ...};
 
 
-#define MAXSPIKESALLOWED 120
+#define MAXSPIKESALLOWED 60
 
 static int Spike_Health[MAXENTITIES]={0, ...};
 static int Spikes_Alive[MAXPLAYERS+1]={0, ...};
 static int Spikes_AliveCap[MAXPLAYERS+1]={30, ...};
 static int Spike_MaxHealth[MAXENTITIES]={0, ...};
-static bool Is_Spike[MAXENTITIES]={false, ...};
+static int Is_Spike[MAXENTITIES]={false, ...};
 static int Spikes_AliveGlobal;
-Handle h_TimerSpikeLayerManagement[MAXPLAYERS+1] = {INVALID_HANDLE, ...};
-static float f_SpikeLayerHudDelay[MAXTF2PLAYERS];
-static float f_DeleteAllSpikesDelay[MAXTF2PLAYERS];
+Handle h_TimerSpikeLayerManagement[MAXPLAYERS+1] = {null, ...};
+static float f_SpikeLayerHudDelay[MAXPLAYERS];
+static float f_DeleteAllSpikesDelay[MAXPLAYERS];
 
 
 bool IsEntitySpike(int entity)
 {
+	if(Is_Spike[entity] > 0)
+		return true;
+	
+	return false;
+}
+int IsEntitySpikeValue(int entity)
+{
 	return Is_Spike[entity];
 }
 
-void SetEntitySpike(int entity, bool set)
+void SetEntitySpike(int entity, int set)
 {
 	Is_Spike[entity] = set;
 }
 
 void Reset_stats_SpikeLayer_Singular(int client) //This is on disconnect/connect
 {
-	if (h_TimerSpikeLayerManagement[client] != INVALID_HANDLE)
+	if (h_TimerSpikeLayerManagement[client] != null)
 	{
-		KillTimer(h_TimerSpikeLayerManagement[client]);
+		delete h_TimerSpikeLayerManagement[client];
 	}	
-	h_TimerSpikeLayerManagement[client] = INVALID_HANDLE;
+	h_TimerSpikeLayerManagement[client] = null;
 	f_SpikeLayerHudDelay[client] = 0.0;
 	f_DeleteAllSpikesDelay[client] = 0.0;
 }
 
-public void Weapon_Spike_Layer(int client, int weapon, const char[] classname, bool &result)
+public void Weapon_Spike_Layer(int client, int weapon, bool crit, int slot)
 {
-	Spikes_AliveCap[client] = 30;
+	Spikes_AliveCap[client] = 15;
 	if(Spikes_AliveGlobal >= MAXSPIKESALLOWED)
 	{
 		SetDefaultHudPosition(client);
@@ -100,10 +107,10 @@ public void Weapon_Spike_Layer(int client, int weapon, const char[] classname, b
 	}
 	if(weapon >= MaxClients)
 	{
-		if(30 <= Spikes_Alive[client])
+		if(15 <= Spikes_Alive[client])
 		{
 			//ONLY give back ammo IF the Spike has full health.
-			int Ammo_type = GetEntProp(weapon, Prop_Send, "m_iPrimaryAmmoType");
+			int Ammo_type = GetAmmoType_WeaponPrimary(weapon);
 			//	ClientCommand(client, "playgamesound items/ammo_pickup.wav");
 			//	ClientCommand(client, "playgamesound items/ammo_pickup.wav");
 			SetAmmo(client, Ammo_type, GetAmmo(client, Ammo_type)+1); //Give ammo back that they just spend like an idiot
@@ -117,7 +124,9 @@ public void Weapon_Spike_Layer(int client, int weapon, const char[] classname, b
 			return;
 		}
 		
-		float Calculate_HP_Spikes = 90.0; 
+		float Calculate_HP_Spikes = 45.0; 
+		Calculate_HP_Spikes *= 2.0;
+		Calculate_HP_Spikes *= 0.7;
 		
 		float Bonus_damage;
 			
@@ -125,7 +134,9 @@ public void Weapon_Spike_Layer(int client, int weapon, const char[] classname, b
 		
 		attack_speed = 1.0 / Attributes_GetOnPlayer(client, 343, true, true); //Sentry attack speed bonus
 				
-		Bonus_damage = attack_speed * Attributes_GetOnPlayer(client, 287, true, true);			//Sentry damage bonus
+		Bonus_damage = attack_speed * Attributes_GetOnPlayer(client, 287, true, !Merchant_IsAMerchant(client));			//Sentry damage bonus
+
+		Bonus_damage *= BuildingWeaponDamageModif(1);
 		
 		if (Bonus_damage <= 1.0)
 			Bonus_damage = 1.0;
@@ -146,9 +157,10 @@ public void Weapon_Spike_Layer(int client, int weapon, const char[] classname, b
 		int entity = CreateEntityByName("tf_projectile_pipe_remote");
 		if(IsValidEntity(entity))
 		{
+			b_ExpertTrapper[entity] = b_ExpertTrapper[client];
 			b_StickyIsSticking[entity] = true; //Make them not stick to npcs.
 			SetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity", client);
-			SetEntProp(entity, Prop_Send, "m_iTeamNum", team);
+			SetTeam(entity, team);
 			SetEntProp(entity, Prop_Send, "m_bCritical", false); 	//No crits, causes particles which cause FPS DEATH!! Crits in tf2 cause immensive lag from what i know from ff2.
 																	//Might also just be cosmetics, eitherways, dont use this, litterally no reason to!
 			SetEntProp(entity, Prop_Send, "m_iType", 1);
@@ -168,7 +180,7 @@ public void Weapon_Spike_Layer(int client, int weapon, const char[] classname, b
 			TeleportEntity(entity, pos, ang, NULL_VECTOR);
 			DispatchSpawn(entity);
 			TeleportEntity(entity, NULL_VECTOR, NULL_VECTOR, vel);
-			Is_Spike[entity] = true;
+			SetEntitySpike(entity, 1);
 		//	Spike_Owner[entity] = client;
 
 		//	HasSentry[client] = EntIndexToEntRef(entity);
@@ -182,9 +194,9 @@ public void Weapon_Spike_Layer(int client, int weapon, const char[] classname, b
 }
 
 
-public void Weapon_Spike_Layer_PAP(int client, int weapon, const char[] classname, bool &result)
+public void Weapon_Spike_Layer_PAP(int client, int weapon, bool crit, int slot)
 {
-	Spikes_AliveCap[client] = 40;
+	Spikes_AliveCap[client] = 20;
 	if(Spikes_AliveGlobal >= MAXSPIKESALLOWED)
 	{
 		SetDefaultHudPosition(client);
@@ -194,10 +206,10 @@ public void Weapon_Spike_Layer_PAP(int client, int weapon, const char[] classnam
 	}
 	if(weapon >= MaxClients)
 	{
-		if(40 <= Spikes_Alive[client])
+		if(20 <= Spikes_Alive[client])
 		{
 			//ONLY give back ammo IF the Spike has full health.
-			int Ammo_type = GetEntProp(weapon, Prop_Send, "m_iPrimaryAmmoType");
+			int Ammo_type = GetAmmoType_WeaponPrimary(weapon);
 			//	ClientCommand(client, "playgamesound items/ammo_pickup.wav");
 			//	ClientCommand(client, "playgamesound items/ammo_pickup.wav");
 			SetAmmo(client, Ammo_type, GetAmmo(client, Ammo_type)+1); //Give ammo back that they just spend like an idiot
@@ -211,7 +223,9 @@ public void Weapon_Spike_Layer_PAP(int client, int weapon, const char[] classnam
 			return;
 		}
 		
-		float Calculate_HP_Spikes = 110.0; 
+		float Calculate_HP_Spikes = 55.0; 
+		Calculate_HP_Spikes *= 2.0;
+		Calculate_HP_Spikes *= 0.7;
 		
 		float Bonus_damage;
 			
@@ -219,12 +233,15 @@ public void Weapon_Spike_Layer_PAP(int client, int weapon, const char[] classnam
 		
 		attack_speed = 1.0 / Attributes_GetOnPlayer(client, 343, true, true); //Sentry attack speed bonus
 				
-		Bonus_damage = attack_speed * Attributes_GetOnPlayer(client, 287, true, true);			//Sentry damage bonus
+		Bonus_damage = attack_speed * Attributes_GetOnPlayer(client, 287, true, !Merchant_IsAMerchant(client));			//Sentry damage bonus
+
+		Bonus_damage *= BuildingWeaponDamageModif(1);
 		
 		if (Bonus_damage <= 1.0)
 			Bonus_damage = 1.0;
 			
 		Calculate_HP_Spikes *= Bonus_damage;
+
 		
 		static float ang[3], pos[3], vel[3];
 		int team = GetClientTeam(client);
@@ -240,16 +257,17 @@ public void Weapon_Spike_Layer_PAP(int client, int weapon, const char[] classnam
 		int entity = CreateEntityByName("tf_projectile_pipe_remote");
 		if(IsValidEntity(entity))
 		{
+			b_ExpertTrapper[entity] = b_ExpertTrapper[client];
 			b_StickyIsSticking[entity] = true; //Make them not stick to npcs.
 			SetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity", client);
-			SetEntProp(entity, Prop_Send, "m_iTeamNum", team);
+			SetTeam(entity, team);
 			SetEntProp(entity, Prop_Send, "m_bCritical", false); 	//No crits, causes particles which cause FPS DEATH!! Crits in tf2 cause immensive lag from what i know from ff2.
 																	//Might also just be cosmetics, eitherways, dont use this, litterally no reason to!
 			SetEntProp(entity, Prop_Send, "m_iType", 1);
 			SetEntPropFloat(entity, Prop_Send, "m_flModelScale", 0.75);
 			Spike_Health[entity] = RoundToCeil(Calculate_HP_Spikes);
 			Spike_MaxHealth[entity] = RoundToCeil(Calculate_HP_Spikes);
-			Is_Spike[entity] = true;
+			SetEntitySpike(entity, 1);
 		//	SetEntPropEnt(entity, Prop_Send, "m_hOriginalLauncher", weapon);
 		//	SetEntPropEnt(entity, Prop_Send, "m_hLauncher", weapon);
 		/*
@@ -283,7 +301,7 @@ public Action Detect_Spike_Still(Handle timer, int ref)
 	//	int client = GetEntPropEnt(entity, Prop_Send, "m_hLauncher"); //Doesnt save this shit for some reason. use array as usual!
 	//	int client = Spike_Owner[entity];
 		int client = GetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity");
-		if(IsClientInGame(client))
+		if(IsValidClient(client))
 		{
 			if(entity>MaxClients && IsValidEntity(entity))
 			{
@@ -312,7 +330,7 @@ public Action Detect_Spike_Still(Handle timer, int ref)
 			if(entity>MaxClients && IsValidEntity(entity))
 			{
 			//	Spikes_Alive[client] -= 1;
-				Is_Spike[entity] = false;
+				SetEntitySpike(entity, 0);
 				RemoveEntity(entity);
 			}
 				
@@ -343,10 +361,10 @@ public Action Did_Enemy_Step_On_Spike(Handle timer, DataPack pack)
 				float targPos[3];
 				float Spikepos[3];
 				
-				for(int entitycount; entitycount<i_MaxcountNpc; entitycount++)
+				for(int entitycount; entitycount<i_MaxcountNpcTotal; entitycount++)
 				{
-					int baseboss_index = EntRefToEntIndex(i_ObjectsNpcs[entitycount]);
-					if (IsValidEntity(baseboss_index))
+					int baseboss_index = EntRefToEntIndexFast(i_ObjectsNpcsTotal[entitycount]);
+					if (IsValidEntity(baseboss_index) && GetTeam(baseboss_index) != TFTeam_Red)
 					{
 						if(!b_NpcHasDied[baseboss_index])
 						{
@@ -361,10 +379,14 @@ public Action Did_Enemy_Step_On_Spike(Handle timer, DataPack pack)
 									continue;
 								
 								//Just do full damage.
-								SDKHooks_TakeDamage(baseboss_index, client, client, float(Spike_Health[entity]), DMG_BULLET, -1, NULL_VECTOR, Spikepos);
+								float DamageTrap = float(Spike_Health[entity]);
+								if(b_ExpertTrapper[client] && b_ExpertTrapper[entity])
+									DamageTrap *= 4.5;
+
+								SDKHooks_TakeDamage(baseboss_index, client, client, DamageTrap, DMG_BULLET, -1, NULL_VECTOR, Spikepos);
 
 								RemoveEntity(entity);
-								Is_Spike[entity] = false;
+								SetEntitySpike(entity, 0);
 								Spikes_Alive[client] -= 1;
 								Spikes_AliveGlobal -= 1;
 
@@ -382,7 +404,7 @@ public Action Did_Enemy_Step_On_Spike(Handle timer, DataPack pack)
 			{
 				Spikes_AliveGlobal -= 1;
 				Spikes_Alive[original_client] -= 1; // I dont knowhow this happend or how to delete you off it, im sorry. Youre lost. Edit: Actually, this is fine to do! Arrays dont care if its a valid entity or not, luckly.
-				Is_Spike[entity] = false;
+				SetEntitySpike(entity, 0);
 				RemoveEntity(entity);
 				return Plugin_Stop;
 			}
@@ -393,13 +415,13 @@ public Action Did_Enemy_Step_On_Spike(Handle timer, DataPack pack)
 	{
 		Spikes_AliveGlobal -= 1;
 		Spikes_Alive[original_client] -= 1; // I dont knowhow this happend or how to delete you off it, im sorry. Youre lost. Edit: Actually, this is fine to do! Arrays dont care if its a valid entity or not, luckly.
-		Is_Spike[original_entity] = false;
+		SetEntitySpike(original_entity, 0);
 		return Plugin_Stop;
 	}
 	return Plugin_Continue;
 }
 
-public void Spike_Pick_Back_up(int client, int weapon, const char[] classname, bool &result)
+public void Spike_Pick_Back_up(int client, int weapon, bool crit, int slot)
 {
 	static float angles[3];
 	GetClientEyeAngles(client, angles);
@@ -414,16 +436,16 @@ public void Spike_Pick_Back_up(int client, int weapon, const char[] classname, b
 				{
 					static char buffer[64];
 					GetEntityClassname(entity, buffer, sizeof(buffer));
-					if(Is_Spike[entity] && !StrContains(buffer, "tf_projectile_pipe_remote"))
+					if(Is_Spike[entity] == 1 && !StrContains(buffer, "tf_projectile_pipe_remote"))
 					{
 						int owner = GetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity");
 						if(owner == client) //Hardcode to this index.
 						{
-							Is_Spike[entity] = false;
+							Is_Spike[entity] = 0;
 							if(Spike_Health[entity] == Spike_MaxHealth[entity])
 							{
 								//ONLY give back ammo IF the Spike has full health.
-								int Ammo_type = GetEntProp(weapon, Prop_Send, "m_iPrimaryAmmoType");
+								int Ammo_type = GetAmmoType_WeaponPrimary(weapon);
 								PlaySound = true;
 								SetAmmo(client, Ammo_type, GetAmmo(client, Ammo_type)+1);
 								for(int i; i<Ammo_MAX; i++)
@@ -465,7 +487,7 @@ public void Spike_Pick_Back_up(int client, int weapon, const char[] classname, b
 		static char buffer[64];
 		if(GetEntityClassname(entity, buffer, sizeof(buffer)))
 		{
-			if(Is_Spike[entity] && !StrContains(buffer, "tf_projectile_pipe_remote"))
+			if(Is_Spike[entity] == 1 && !StrContains(buffer, "tf_projectile_pipe_remote"))
 			{
 				if(IsValidEntity(weapon))
 				{
@@ -478,7 +500,7 @@ public void Spike_Pick_Back_up(int client, int weapon, const char[] classname, b
 						if(Spike_Health[entity] == Spike_MaxHealth[entity])
 						{
 							//ONLY give back ammo IF the Spike has full health.
-							int Ammo_type = GetEntProp(weapon, Prop_Send, "m_iPrimaryAmmoType");
+							int Ammo_type = GetAmmoType_WeaponPrimary(weapon);
 							ClientCommand(client, "playgamesound items/ammo_pickup.wav");
 							ClientCommand(client, "playgamesound items/ammo_pickup.wav");
 							SetAmmo(client, Ammo_type, GetAmmo(client, Ammo_type)+1);
@@ -495,19 +517,20 @@ public void Spike_Pick_Back_up(int client, int weapon, const char[] classname, b
 	}
 }
 
+
 public void Enable_SpikeLayer(int client, int weapon) 
 {
-	if (h_TimerSpikeLayerManagement[client] != INVALID_HANDLE)
+	if (h_TimerSpikeLayerManagement[client] != null)
 	{
 		//This timer already exists.
 		if(i_CustomWeaponEquipLogic[weapon] == WEAPON_SPIKELAYER) 
 		{
 			//Is the weapon it again?
 			//Yes?
-			KillTimer(h_TimerSpikeLayerManagement[client]);
-			h_TimerSpikeLayerManagement[client] = INVALID_HANDLE;
+			delete h_TimerSpikeLayerManagement[client];
+			h_TimerSpikeLayerManagement[client] = null;
 			DataPack pack;
-			h_TimerSpikeLayerManagement[client] = CreateDataTimer(0.1, Timer_Management_SpikeLayer, pack, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
+			h_TimerSpikeLayerManagement[client] = CreateDataTimer(0.1, Timer_Management_SpikeLayer, pack, TIMER_REPEAT);
 			pack.WriteCell(client);
 			pack.WriteCell(EntIndexToEntRef(weapon));
 		}
@@ -517,7 +540,7 @@ public void Enable_SpikeLayer(int client, int weapon)
 	if(i_CustomWeaponEquipLogic[weapon] == WEAPON_SPIKELAYER)
 	{
 		DataPack pack;
-		h_TimerSpikeLayerManagement[client] = CreateDataTimer(0.1, Timer_Management_SpikeLayer, pack, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
+		h_TimerSpikeLayerManagement[client] = CreateDataTimer(0.1, Timer_Management_SpikeLayer, pack, TIMER_REPEAT);
 		pack.WriteCell(client);
 		pack.WriteCell(EntIndexToEntRef(weapon));
 	}
@@ -526,41 +549,21 @@ public Action Timer_Management_SpikeLayer(Handle timer, DataPack pack)
 {
 	pack.Reset();
 	int client = pack.ReadCell();
-	if(IsValidClient(client))
+	int weapon = EntRefToEntIndex(pack.ReadCell());
+	if(!IsValidClient(client) || !IsClientInGame(client) || !IsPlayerAlive(client) || !IsValidEntity(weapon))
 	{
-		if (IsClientInGame(client))
-		{
-			if (IsPlayerAlive(client))
-			{
-				SpikeLayer_Cooldown_Logic(client, EntRefToEntIndex(pack.ReadCell()));
-			}
-			else
-				Kill_Timer_SpikeLayer(client);
-		}
-		else
-			Kill_Timer_SpikeLayer(client);
-	}
-	else
-		Kill_Timer_SpikeLayer(client);
-		
+		h_TimerSpikeLayerManagement[client] = null;
+		return Plugin_Stop;
+	}	
+	SpikeLayer_Cooldown_Logic(client, weapon);
+
 	return Plugin_Continue;
 }
 
-public void Kill_Timer_SpikeLayer(int client)
-{
-	if (h_TimerSpikeLayerManagement[client] != INVALID_HANDLE)
-	{
-		KillTimer(h_TimerSpikeLayerManagement[client]);
-		h_TimerSpikeLayerManagement[client] = INVALID_HANDLE;
-	}
-}
 
 
 public void SpikeLayer_Cooldown_Logic(int client, int weapon)
 {
-	if (!IsValidMulti(client))
-		return;
-		
 	if(IsValidEntity(weapon))
 	{
 		if(i_CustomWeaponEquipLogic[weapon] == WEAPON_SPIKELAYER)
@@ -571,7 +574,7 @@ public void SpikeLayer_Cooldown_Logic(int client, int weapon)
 				if(f_SpikeLayerHudDelay[client] < GetGameTime())
 				{
 					PrintHintText(client,"Spikes Layed [%i/%i]\nSpike Global Limit[%i/%i]",Spikes_Alive[client],Spikes_AliveCap[client],Spikes_AliveGlobal,MAXSPIKESALLOWED);	
-					StopSound(client, SNDCHAN_STATIC, "UI/hint.wav");
+					
 					f_SpikeLayerHudDelay[client] = GetGameTime() + 0.5;
 				}
 			}

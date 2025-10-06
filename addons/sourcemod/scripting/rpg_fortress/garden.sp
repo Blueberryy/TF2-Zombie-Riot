@@ -6,15 +6,15 @@ enum struct GardenEnum
 	char Zone[32];
 	float Pos[3];
 	
-	int Store[MAXTF2PLAYERS];
-	float StartAt[MAXTF2PLAYERS];
-	float ReadyIn[MAXTF2PLAYERS];
+	int Store[MAXPLAYERS];
+	float StartAt[MAXPLAYERS];
+	float ReadyIn[MAXPLAYERS];
 }
 
 static ArrayList GardenList;
-static char InGarden[MAXTF2PLAYERS][32];
-static float UpdateTrace[MAXTF2PLAYERS];
-static int InMenu[MAXTF2PLAYERS] = {-1, ...};
+static char InGarden[MAXPLAYERS][32];
+static float UpdateTrace[MAXPLAYERS];
+static int InMenu[MAXPLAYERS] = {-1, ...};
 
 void Garden_ResetAll()
 {
@@ -31,23 +31,12 @@ void Garden_ResetAll()
 	}
 }
 
-void Garden_ConfigSetup(KeyValues map)
+void Garden_ConfigSetup()
 {
-	KeyValues kv = map;
-	if(kv)
-	{
-		kv.Rewind();
-		if(!kv.JumpToKey("Garden"))
-			kv = null;
-	}
-	
 	char buffer[PLATFORM_MAX_PATH];
-	if(!kv)
-	{
-		BuildPath(Path_SM, buffer, sizeof(buffer), CONFIG_CFG, "garden");
-		kv = new KeyValues("Garden");
-		kv.ImportFromFile(buffer);
-	}
+	RPG_BuildPath(buffer, sizeof(buffer), "garden");
+	KeyValues kv = new KeyValues("Garden");
+	kv.ImportFromFile(buffer);
 	
 	delete GardenList;
 	GardenList = new ArrayList(sizeof(GardenEnum));
@@ -75,8 +64,7 @@ void Garden_ConfigSetup(KeyValues map)
 		while(kv.GotoNextKey());
 	}
 
-	if(kv != map)
-		delete kv;
+	delete kv;
 }
 
 static int GetNearestGarden(const char[] zone, const float pos[3])
@@ -139,6 +127,12 @@ void Garden_Interact(int client, const float pos[3])
 		int index = GetNearestGarden(InGarden[client], pos);
 		if(index != -1)
 		{
+			if(Editor_MenuFunc(client) != INVALID_FUNCTION)
+			{
+				OpenEditorFrom(client);
+				return;
+			}
+
 			InMenu[client] = index;
 			ShowMenu(client, true);
 		}
@@ -155,6 +149,7 @@ void Garden_PlayerRunCmd(int client)
 			UpdateTrace[client] = gameTime + 3.0;
 			
 			int length = GardenList.Length;
+			int DelayFrameDo = 0;
 			for(int i; i < length; i++)
 			{
 				static GardenEnum garden;
@@ -169,7 +164,15 @@ void Garden_PlayerRunCmd(int client)
 						if(stage > 4)
 							stage = 4;
 						
-						PlantHasBeenPlanted(client, garden.Pos, stage);
+						DelayFrameDo += 2;
+						
+						DataPack pack = new DataPack();
+						pack.WriteCell(EntIndexToEntRef(client));
+						pack.WriteFloat(garden.Pos[0]);
+						pack.WriteFloat(garden.Pos[1]);
+						pack.WriteFloat(garden.Pos[2]);
+						pack.WriteCell(stage);
+						RequestFrames(PlantHasBeenPlanted, DelayFrameDo, pack);
 					}
 					else
 					{
@@ -187,15 +190,34 @@ void Garden_PlayerRunCmd(int client)
 
 stock void NoPlantPlanted(int client, float pos[3])
 {
+	/*
 	static float m_vecMaxs[3];
 	static float m_vecMins[3];
 	m_vecMaxs = view_as<float>( { 10.0, 10.0, -5.0 } );
 	m_vecMins = view_as<float>( { -10.0, -10.0, 5.0 } );	
 	TE_DrawBox(client, pos, m_vecMins, m_vecMaxs, 3.5, view_as<int>({255, 0, 0, 255}));
+	*/
+	float temp[3];
+	temp = pos;
+	temp[2] += 5.0;
+	TE_SendBeam(client, pos, temp, 3.5, {255, 255, 255, 255}); //it grew abit, make it abit more yellow.
 }
-
-stock void PlantHasBeenPlanted(int client, float pos[3], int stage)
+stock void PlantHasBeenPlanted(DataPack pack)
 {
+	pack.Reset();
+	int client = EntRefToEntIndex(pack.ReadCell());
+	if(!IsValidEntity(client))
+	{
+		delete pack;
+		return;
+	}
+	float pos[3];
+	pos[0] = pack.ReadFloat();
+	pos[1] = pack.ReadFloat();
+	pos[2] = pack.ReadFloat();
+	int stage = pack.ReadCell();
+	delete pack;
+
 	float temp[3];
 	static float m_vecMaxs[3];
 	static float m_vecMins[3];	
@@ -267,16 +289,31 @@ static void ShowMenu(int client, bool first)
 		
 		TextStore_GetItemName(garden.Store[client], buffer, sizeof(buffer));
 		menu.SetTitle("RPG Fortress\n \nGarden:\n%s\n ", buffer);
+		int totalInt = Stats_Intelligence(client);
 		
 		int timeleft = RoundToCeil(garden.ReadyIn[client] - GetGameTime());
 		if(timeleft > 0)
 		{
-			Format(buffer, sizeof(buffer), "%d:%02d", timeleft / 60, timeleft % 60);
+			Format(buffer, sizeof(buffer), "%d:%02d\n ", timeleft / 60, timeleft % 60);
 			menu.AddItem(num, buffer, ITEMDRAW_DISABLED);
+
+			menu.AddItem(num, buffer, ITEMDRAW_SPACER);
 		}
 		else
 		{
-			menu.AddItem(num, "Extract");
+			if(totalInt >= 600)
+			{
+				menu.AddItem(num, "Clean Extract");
+			}
+			else
+			{
+				menu.AddItem(num, "Extract");
+			}
+			
+			int count;
+			TextStore_GetInv(client, garden.Store[client], count);
+			Format(buffer, sizeof(buffer), "And Replant (%d)\n ", count);
+			menu.AddItem(num, buffer, count > 0 ? ITEMDRAW_DEFAULT : ITEMDRAW_DISABLED);
 		}
 		
 		menu.AddItem(num, "Cancel");
@@ -339,33 +376,41 @@ public int Garden_PlantHandle(Menu menu, MenuAction action, int client, int choi
 			
 			int index = StringToInt(buffer);
 			
-			KeyValues kv = TextStore_GetItemKv(index);
-			if(kv)
-			{
-				kv.GetString("seed_result", buffer, sizeof(buffer));
-				if(buffer[0])
-				{
-					int amount;
-					TextStore_GetInv(client, index, amount);
-					if(amount > 0)
-					{
-						static GardenEnum garden;
-						GardenList.GetArray(InMenu[client], garden);
-						garden.Store[client] = index;
-						garden.StartAt[client] = GetGameTime();
-						garden.ReadyIn[client] = kv.GetFloat("seed_time", -0.1) + garden.StartAt[client];
-						GardenList.SetArray(InMenu[client], garden);
-						
-						TextStore_SetInv(client, index, amount - 1);
-						UpdateTrace[client] = 0.0;
-					}
-				}
-			}
+			PlantGarden(client, index);
 			
 			ShowMenu(client, false);
 		}
 	}
 	return 0;
+}
+
+static void PlantGarden(int client, int index)
+{
+	KeyValues kv = TextStore_GetItemKv(index);
+	if(kv)
+	{
+		static char buffer[48];
+		kv.GetString("seed_result", buffer, sizeof(buffer));
+		if(buffer[0])
+		{
+			int amount;
+			TextStore_GetInv(client, index, amount);
+			if(amount > 0)
+			{
+				static GardenEnum garden;
+				GardenList.GetArray(InMenu[client], garden);
+				garden.Store[client] = index;
+				garden.StartAt[client] = GetGameTime();
+				garden.ReadyIn[client] = kv.GetFloat("seed_time", -0.1) + garden.StartAt[client];
+				GardenList.SetArray(InMenu[client], garden);
+				
+				TextStore_SetInv(client, index, amount - 1);
+				UpdateTrace[client] = 0.0;
+
+				ClientCommand(client, "playgamesound ui/item_soda_can_drop.wav");
+			}
+		}
+	}
 }
 
 public int Garden_GrowthHandle(Menu menu, MenuAction action, int client, int choice)
@@ -385,34 +430,41 @@ public int Garden_GrowthHandle(Menu menu, MenuAction action, int client, int cho
 			static GardenEnum garden;
 			GardenList.GetArray(InMenu[client], garden);
 			
-			if(!choice)
+			if(choice < 2)
 			{
 				KeyValues kv = TextStore_GetItemKv(garden.Store[client]);
 				if(kv)
 				{
 					float luck = float(Stats_Luck(client));
-					
-					static char buffer[48];
-					kv.GetString("seed_result", buffer, sizeof(buffer));
-					if(buffer[0])
+					int totalInt = Stats_Intelligence(client);
+					int loopmax = 1;
+					if(totalInt >= 600)
+						loopmax = 2;
+
+					for(int loop = 0 ; loop < loopmax; loop++)
 					{
-						float low = kv.GetFloat("seed_min", 1.0);
-						float high = kv.GetFloat("seed_max", 1.0);
-						float rand = GetURandomFloat() * (1.0 + (luck / 50.0));
-						if(rand > 1.0)
-							rand = 1.0;
-						
-						TextStore_AddItemCount(client, buffer, RoundFloat(low + ((high - low) * rand)));
-					}
-					
-					float rand = kv.GetFloat("seed_return");
-					if(rand > 0.0)
-					{
-						rand *= 1.0 + (luck / 100.0);
-						if(rand > GetURandomFloat())
+						static char buffer[48];
+						kv.GetString("seed_result", buffer, sizeof(buffer));
+						if(buffer[0])
 						{
-							kv.GetSectionName(buffer, sizeof(buffer));
-							TextStore_AddItemCount(client, buffer, 1);
+							float low = kv.GetFloat("seed_min", 1.0);
+							float high = kv.GetFloat("seed_max", 1.0);
+							float rand = GetURandomFloat() * (1.0 + (luck / 50.0));
+							if(rand > 1.0)
+								rand = 1.0;
+							
+							TextStore_AddItemCount(client, buffer, RoundFloat(low + ((high - low) * rand)));
+						}
+						
+						float rand = kv.GetFloat("seed_return");
+						if(rand > 0.0)
+						{
+							rand *= 1.0 + (luck / 100.0);
+							if(rand > GetURandomFloat())
+							{
+								kv.GetSectionName(buffer, sizeof(buffer));
+								TextStore_AddItemCount(client, buffer, 1);
+							}
 						}
 					}
 				}
@@ -421,9 +473,144 @@ public int Garden_GrowthHandle(Menu menu, MenuAction action, int client, int cho
 			garden.ReadyIn[client] = 0.0;
 			GardenList.SetArray(InMenu[client], garden);
 			UpdateTrace[client] = 0.0;
-			
+
+			if(choice == 1)
+			{
+				PlantGarden(client, garden.Store[client]);
+				ShowMenu(client, false);
+				return 0;
+			}
+
+			ClientCommand(client, "playgamesound ui/item_soda_can_pickup.wav");
 			ShowMenu(client, true);
 		}
 	}
 	return 0;
+}
+
+static Handle TimerZoneEditing[MAXPLAYERS];
+static char CurrentZoneEditing[MAXPLAYERS][64];
+
+static void OpenEditorFrom(int client)
+{
+	GardenEnum garden;
+	GardenList.GetArray(InMenu[client], garden);
+
+	strcopy(CurrentZoneEditing[client], sizeof(CurrentZoneEditing[]), garden.Zone);
+	Garden_EditorMenu(client);
+}
+
+void Garden_EditorMenu(int client)
+{
+	char buffer[PLATFORM_MAX_PATH];
+
+	EditMenu menu = new EditMenu();
+
+	if(CurrentZoneEditing[client][0])
+	{
+		RPG_BuildPath(buffer, sizeof(buffer), "garden");
+		KeyValues kv = new KeyValues("Garden");
+		kv.ImportFromFile(buffer);
+		bool missing = !kv.JumpToKey(CurrentZoneEditing[client]);
+
+		menu.SetTitle("Gardens\n%s\n ", CurrentZoneEditing[client]);
+		
+		menu.AddItem("new", "Add Planter Box");
+
+		if(!missing && kv.GotoFirstSubKey(false))
+		{
+			do
+			{
+				kv.GetSectionName(buffer, sizeof(buffer));
+				menu.AddItem(buffer, buffer);
+			}
+			while(kv.GotoNextKey(false));
+		}
+
+		menu.AddItem("delete", "Delete (Type \"delete\")", ITEMDRAW_DISABLED);
+
+		menu.ExitBackButton = true;
+		menu.Display(client, AdjustGarden);
+		
+		delete kv;
+
+		Zones_RenderZone(client, CurrentZoneEditing[client]);
+
+		delete TimerZoneEditing[client];
+		TimerZoneEditing[client] = CreateTimer(1.0, Timer_RefreshHud, client);
+	}
+	else
+	{
+		menu.SetTitle("Gardens\nSelect a zone:\n ");
+
+		Zones_GenerateZoneList(client, menu);
+
+		menu.ExitBackButton = true;
+		menu.Display(client, ZonePicker);
+	}
+}
+
+static Action Timer_RefreshHud(Handle timer, int client)
+{
+	TimerZoneEditing[client] = null;
+	Function func = Editor_MenuFunc(client);
+	if(func != AdjustGarden)
+		return Plugin_Stop;
+	
+	Garden_EditorMenu(client);
+	return Plugin_Continue;
+}
+
+static void ZonePicker(int client, const char[] key)
+{
+	if(StrEqual(key, "back"))
+	{
+		Editor_MainMenu(client);
+		return;
+	}
+
+	strcopy(CurrentZoneEditing[client], sizeof(CurrentZoneEditing[]), key);
+	Garden_EditorMenu(client);
+}
+
+static void AdjustGarden(int client, const char[] key)
+{
+	if(StrEqual(key, "back"))
+	{
+		CurrentZoneEditing[client][0] = 0;
+		Garden_EditorMenu(client);
+		return;
+	}
+
+	char filepath[PLATFORM_MAX_PATH];
+	RPG_BuildPath(filepath, sizeof(filepath), "garden");
+	KeyValues kv = new KeyValues("Garden");
+	kv.ImportFromFile(filepath);
+	kv.JumpToKey(CurrentZoneEditing[client], true);
+
+	if(StrEqual(key, "new"))
+	{
+		char buffer[64];
+		float pos[3];
+		GetClientAbsOrigin(client, pos);
+		FormatEx(buffer, sizeof(buffer), "%.0f %.0f %.0f", pos[0], pos[1], pos[2]);
+		kv.SetString(buffer, "1");
+	}
+	else if(StrEqual(key, "delete"))
+	{
+		kv.DeleteThis();
+		CurrentZoneEditing[client][0] = 0;
+	}
+	else
+	{
+		kv.DeleteKey(key);
+	}
+
+	kv.Rewind();
+	kv.ExportToFile(filepath);
+	delete kv;
+	
+	Garden_ConfigSetup();
+	Zones_Rebuild();
+	Garden_EditorMenu(client);
 }

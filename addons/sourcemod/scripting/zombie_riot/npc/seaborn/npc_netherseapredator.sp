@@ -33,7 +33,25 @@ static const char g_MeleeHitSounds[][] =
 	"npc/fast_zombie/claw_strike3.wav"
 };
 
-methodmap SeaPredator < CClotBody
+void SeaPredator_Precache()
+{
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Nethersea Predator");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_netherseapredator");
+	strcopy(data.Icon, sizeof(data.Icon), "sea_predator");
+	data.IconCustom = true;
+	data.Flags = 0;
+	data.Category = Type_Seaborn;
+	data.Func = ClotSummon;
+	NPC_Add(data);
+}
+
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team, const char[] data)
+{
+	return SeaPredator(vecPos, vecAng, team, data);
+}
+
+methodmap SeaPredator < CSeaBody
 {
 	public void PlayIdleSound()
 	{
@@ -56,20 +74,20 @@ methodmap SeaPredator < CClotBody
 		EmitSoundToAll(g_MeleeHitSounds[GetRandomInt(0, sizeof(g_MeleeHitSounds) - 1)], this.index, SNDCHAN_AUTO, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME);	
 	}
 	
-	public SeaPredator(int client, float vecPos[3], float vecAng[3], bool ally, const char[] data)
+	public SeaPredator(float vecPos[3], float vecAng[3], int ally, const char[] data)
 	{
 		bool carrier = data[0] == 'R';
 		bool elite = !carrier && data[0];
 
-		SeaPredator npc = view_as<SeaPredator>(CClotBody(vecPos, vecAng, COMBINE_CUSTOM_MODEL, "1.15", carrier ? "1350" : (elite ? "1500" : "1200"), ally, false));
-		// 4000 x 0.3
-		// 5000 x 0.3
-		// 4500 x 0.3
+		SeaPredator npc = view_as<SeaPredator>(CClotBody(vecPos, vecAng, COMBINE_CUSTOM_MODEL, "1.15", carrier ? "4500" : (elite ? "5000" : "4000"), ally, false));
+		// 4000 x 1.0
+		// 5000 x 1.0
+		// 4500 x 1.0
 
 		SetVariantInt(4);
 		AcceptEntityInput(npc.index, "SetBodyGroup");
 		
-		i_NpcInternalId[npc.index] = carrier ? SEAPREDATOR_CARRIER : (elite ? SEAPREDATOR_ALT : SEAPREDATOR);
+		npc.SetElite(elite, carrier);
 		i_NpcWeight[npc.index] = 1;
 		npc.SetActivity("ACT_SEABORN_WALK_TOOL_2");
 		KillFeed_SetKillIcon(npc.index, "fists");
@@ -78,8 +96,9 @@ methodmap SeaPredator < CClotBody
 		npc.m_iStepNoiseType = STEPSOUND_NORMAL;
 		npc.m_iNpcStepVariation = STEPTYPE_SEABORN;
 		
-		
-		SDKHook(npc.index, SDKHook_Think, SeaPredator_ClotThink);
+		func_NPCDeath[npc.index] = SeaPredator_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = SeaPredator_OnTakeDamage;
+		func_NPCThink[npc.index] = SeaPredator_ClotThink;
 		
 		npc.m_flSpeed = 250.0;	// 1.0 x 250
 		npc.m_flGetClosestTargetTime = 0.0;
@@ -87,12 +106,11 @@ methodmap SeaPredator < CClotBody
 		npc.m_flAttackHappens = 0.0;
 		npc.Anger = false;
 		
-		SetEntityRenderMode(npc.index, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(npc.index, 155, 155, 255, 255);
 
 		if(carrier)
 		{
-			float vecMe[3]; vecMe = WorldSpaceCenter(npc.index);
+			float vecMe[3]; WorldSpaceCenter(npc.index, vecMe);
 			vecMe[2] += 100.0;
 
 			npc.m_iWearable1 = ParticleEffectAt(vecMe, "powerup_icon_reflect", -1.0);
@@ -103,7 +121,6 @@ methodmap SeaPredator < CClotBody
 		SetVariantString("1.25");
 		AcceptEntityInput(npc.m_iWearable2, "SetModelScale");
 
-		SetEntityRenderMode(npc.m_iWearable2, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(npc.m_iWearable2, 200, elite ? 0 : 255, elite ? 0 : 155, 255);
 
 		return npc;
@@ -143,13 +160,11 @@ public void SeaPredator_ClotThink(int iNPC)
 			if(!SeaFounder_TouchingNethersea(npc.index))
 			{
 				npc.Anger = false;
-				Change_Npc_Collision(npc.index, VIPBuilding_Active() ? num_ShouldCollideEnemyTD : num_ShouldCollideEnemy);
 			}
 		}
 		else if(SeaFounder_TouchingNethersea(npc.index))
 		{
 			npc.Anger = true;
-			Change_Npc_Collision(npc.index, VIPBuilding_Active() ? num_ShouldCollideEnemyTDIgnoreBuilding : num_ShouldCollideEnemyIngoreBuilding);
 		}
 
 		npc.m_iTarget = GetClosestTarget(npc.index, npc.Anger);
@@ -158,17 +173,18 @@ public void SeaPredator_ClotThink(int iNPC)
 	
 	if(npc.m_iTarget > 0)
 	{
-		float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
-		float distance = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);		
+		float vecTarget[3]; WorldSpaceCenter(npc.m_iTarget, vecTarget );
+		float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+		float distance = GetVectorDistance(vecTarget, VecSelfNpc, true);	
 		
 		if(distance < npc.GetLeadRadius())
 		{
-			float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, npc.m_iTarget);
-			NPC_SetGoalVector(npc.index, vPredictedPos);
+			float vPredictedPos[3]; PredictSubjectPosition(npc, npc.m_iTarget,_,_, vPredictedPos);
+			npc.SetGoalVector(vPredictedPos);
 		}
 		else 
 		{
-			NPC_SetGoalEntity(npc.index, npc.m_iTarget);
+			npc.SetGoalEntity(npc.m_iTarget);
 		}
 
 		npc.StartPathing();
@@ -190,7 +206,7 @@ public void SeaPredator_ClotThink(int iNPC)
 
 					if(target > 0) 
 					{
-						float attack = i_NpcInternalId[npc.index] == SEAPREDATOR_ALT ? 82.5 : 67.5;
+						float attack = npc.m_bElite ? 82.5 : 67.5;
 						// 450 x 0.15
 						// 550 x 0.15
 
@@ -200,7 +216,7 @@ public void SeaPredator_ClotThink(int iNPC)
 						npc.PlayMeleeHitSound();
 						SDKHooks_TakeDamage(target, npc.index, npc.index, attack, DMG_CLUB);
 
-						SeaSlider_AddNeuralDamage(target, npc.index, RoundToCeil(attack * 0.1));
+						Elemental_AddNervousDamage(target, npc.index, RoundToCeil(attack * 0.1));
 						// 450 x 0.1 x 0.15
 						// 550 x 0.1 x 0.15
 					}
@@ -242,7 +258,7 @@ public Action SeaPredator_OnTakeDamage(int victim, int &attacker, int &inflictor
 	float gameTime = GetGameTime(npc.index);
 
 	static int Pity;
-	if(Pity < 30 && npc.m_flNextDelayTime <= (gameTime + DEFAULT_UPDATE_DELAY_FLOAT) && !NpcStats_IsEnemySilenced(npc.index) && (GetURandomInt() % (i_NpcInternalId[npc.index] == SEAPREDATOR_ALT ? 5 : 3)))
+	if(Pity < 99 && SeaFounder_TouchingNethersea(npc.index) && npc.m_flNextDelayTime <= (gameTime + DEFAULT_UPDATE_DELAY_FLOAT) && !NpcStats_IsEnemySilenced(npc.index) && (GetURandomInt() % (npc.m_bElite ? 19 : 9)))
 	{
 		if(attacker <= MaxClients && attacker > 0)
 		{
@@ -261,7 +277,7 @@ public Action SeaPredator_OnTakeDamage(int victim, int &attacker, int &inflictor
 		}
 	
 		damage = 0.0;
-		Pity += i_NpcInternalId[npc.index] == SEAPREDATOR_ALT ? 1 : 2;
+		Pity += npc.m_bElite ? 1 : 2;
 	}
 	else if(npc.m_flHeadshotCooldown < gameTime)
 	{
@@ -278,16 +294,13 @@ void SeaPredator_NPCDeath(int entity)
 	if(!npc.m_bGib)
 		npc.PlayDeathSound();
 	
-	if(i_NpcInternalId[npc.index] == SEAPREDATOR_CARRIER)
+	if(npc.m_bCarrier)
 	{
 		float pos[3];
 		GetEntPropVector(npc.index, Prop_Send, "m_vecOrigin", pos);
 		Remains_SpawnDrop(pos, Buff_Predator);
 	}
 	
-	
-	SDKUnhook(npc.index, SDKHook_Think, SeaPredator_ClotThink);
-
 	if(IsValidEntity(npc.m_iWearable1))
 		RemoveEntity(npc.m_iWearable1);
 

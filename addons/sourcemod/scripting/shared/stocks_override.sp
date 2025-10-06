@@ -6,6 +6,8 @@
 void Stock_TakeDamage(int entity = 0, int inflictor = 0, int attacker = 0, float damage = 0.0, int damageType=DMG_GENERIC, int weapon=-1,const float damageForce[3]=NULL_VECTOR, const float damagePosition[3]=NULL_VECTOR, bool bypassHooks = false, int Zr_damage_custom = 0)
 {
 	i_HexCustomDamageTypes[entity] = Zr_damage_custom;
+	bypassHooks = false;
+	//NEVER bypass hooks. EVER. EVER EVER EVER.
 	SDKHooks_TakeDamage(entity, inflictor, attacker, damage, damageType, IsValidEntity(weapon) ? weapon : -1, damageForce, damagePosition, bypassHooks);
 
 }
@@ -16,7 +18,7 @@ void Stock_TakeDamage(int entity = 0, int inflictor = 0, int attacker = 0, float
 
 bool Stock_IsValidEntity(int entity)
 {
-	if(entity == 0)
+	if(entity == 0 || entity == -1)
 	{
 		return false;
 	}
@@ -28,167 +30,71 @@ bool Stock_IsValidEntity(int entity)
 }
 
 #define IsValidEntity Stock_IsValidEntity
-/*
-TODO:
-	Instead of setting the colour, try to get the average so gold and blue becomes a fusion of both,
-	instead of just hard cold blue in the case of the wand. This would also make any 0 in ALPHA not seeable.
 
-	Also how the fuck do i for loop this? This looks like shit
-
-*/
-
-//Override normal one to add our own logic for our own needs so we dont need to make a whole new thing.
-
-/*
-Always check if any of the wearables has this netprop. HasEntProp(WearableEntityIndex, Prop_Send, "m_nRenderMode"), this is needed cus what if
-an npc uses a particle effect for example? (fusion warrior)
-*/
-
-stock void Stock_SetEntityRenderMode(int entity, RenderMode mode, bool TrueEntityColour = true, int SetOverride = 0, bool ingore_wearables = true, bool dontchangewearablecolour = true)
+stock void Stock_SetEntityMoveType(int entity, MoveType mt)
 {
-	if(TrueEntityColour || SetOverride != 0)
+	if(b_ThisWasAnNpc[entity] && mt != MOVETYPE_CUSTOM)
 	{
-		if(!ingore_wearables && !dontchangewearablecolour)
-		{
-			//clean... er... :)
-			for(int WearableSlot=0; WearableSlot<=5; WearableSlot++)
-			{
-				int WearableEntityIndex = EntRefToEntIndex(i_Wearable[entity][WearableSlot]);
-				if(IsValidEntity(WearableEntityIndex) && HasEntProp(WearableEntityIndex, Prop_Send, "m_nRenderMode"))
-				{	
-					if(i_EntityRenderColour4[WearableEntityIndex] != 0)
-					{
-						if(SetOverride == 1)
-						{
-							i_EntityRenderOverride[WearableEntityIndex] = true;
-						}
-						else if (SetOverride == 2)
-						{
-							i_EntityRenderOverride[WearableEntityIndex] = false;
-						}
-						i_EntityRenderMode[WearableEntityIndex] = mode;		
-					}
-				}
-			}
-		}
-		if(i_EntityRenderColour4[entity] != 0) //If it has NO colour, then do NOT recolour.
-		{
-			if(SetOverride == 1)
-			{
-				i_EntityRenderOverride[entity] = true;
-			}
-			else if (SetOverride == 2)
-			{
-				i_EntityRenderOverride[entity] = false;
-			}
-			i_EntityRenderMode[entity] = mode;
-		}
+		ThrowError("Do not dare! Dont set SetEntityMoveType on an NPC that isnt MOVECUSTOM.");
+		return;
 	}
-		
-	if(!i_EntityRenderOverride[entity] || !TrueEntityColour)
+
+#if defined ZR
+	if(entity > 0 && entity <= MaxClients && Vehicle_Driver(entity) != -1)
 	{
-		if(!ingore_wearables)
-		{
-			//clean... er... :)
-			for(int WearableSlot=0; WearableSlot<=5; WearableSlot++)
-			{
-				int WearableEntityIndex = EntRefToEntIndex(i_Wearable[entity][WearableSlot]);
-				if(IsValidEntity(WearableEntityIndex) && HasEntProp(WearableEntityIndex, Prop_Send, "m_nRenderMode"))
-				{	
-					if(i_EntityRenderColour4[WearableEntityIndex] != 0)
-					{					
-						if(!TrueEntityColour)
-						{
-							SetEntityRenderMode(WearableEntityIndex, mode);		
-						}
-						else
-						{
-							SetEntityRenderMode(WearableEntityIndex, i_EntityRenderMode[WearableEntityIndex]);		
-						}	
-					}
-				}
-			}
-		}
-		if(i_EntityRenderColour4[entity] != 0 && !i_EntityRenderOverride[entity] || (!TrueEntityColour && i_EntityRenderColour4[entity] != 0)) //If it has NO colour, then do NOT recolour.
-		{
-			SetEntityRenderMode(entity, mode);
-		}
+		// Nuh uh, we're driving
+		mt = MOVETYPE_NONE;
 	}
+#endif
+	
+	SetEntityMoveType(entity, mt);
 }
 
-#define SetEntityRenderMode Stock_SetEntityRenderMode
+#define SetEntityMoveType Stock_SetEntityMoveType
 
+
+#define KillTimer KILLTIMER_DONOTUSE_USE_DELETE
 
 //Override normal one to add our own logic for our own needs so we dont need to make a whole new thing.
-stock void Stock_SetEntityRenderColor(int entity, int r=255, int g=255, int b=255, int a=255, bool TrueEntityColour = true, bool ingore_wearables = true, bool dontchangewearablecolour = true)
+stock void Stock_SetEntityRenderColor(int entity, int r=255, int g=255, int b=255, int a=255, bool AllowWritingSave = true)
 {	
-	bool ColorWasSet = false;
-	if(TrueEntityColour)
-	{
-		if(!ingore_wearables && !dontchangewearablecolour)
-		{
-			//clean... er... :)
-			for(int WearableSlot=0; WearableSlot<=5; WearableSlot++)
-			{
-				int WearableEntityIndex = EntRefToEntIndex(i_Wearable[entity][WearableSlot]);
-				if(IsValidEntity(WearableEntityIndex) && HasEntProp(WearableEntityIndex, Prop_Send, "m_nRenderMode"))
-				{	
-					if(i_EntityRenderColour4[WearableEntityIndex] != 0)
-					{
-						i_EntityRenderColour1[WearableEntityIndex] = r;
-						i_EntityRenderColour2[WearableEntityIndex] = g;
-						i_EntityRenderColour3[WearableEntityIndex] = b;
-						i_EntityRenderColour4[WearableEntityIndex] = a;
-					}
-				}
-			}
-		}
-		if(i_EntityRenderColour4[entity] != 0) //If it has NO colour, then do NOT recolour.
-		{
-			i_EntityRenderColour1[entity] = r;
-			i_EntityRenderColour2[entity] = g;
-			i_EntityRenderColour3[entity] = b;
-			i_EntityRenderColour4[entity] = a;
-			ColorWasSet = true;
-		}
-	}
+	int Override_r,Override_g,Override_b;
 	
-	if(!i_EntityRenderOverride[entity] || !TrueEntityColour)
+	if(AllowWritingSave)
 	{
-		if(!ingore_wearables)
-		{
-			//clean... er... :)
-			for(int WearableSlot=0; WearableSlot<=5; WearableSlot++)
-			{
-				int WearableEntityIndex = EntRefToEntIndex(i_Wearable[entity][WearableSlot]);
-				if(IsValidEntity(WearableEntityIndex) && HasEntProp(WearableEntityIndex, Prop_Send, "m_nRenderMode"))
-				{	
-					if(i_EntityRenderColour4[WearableEntityIndex] != 0)
-					{
-						if(!TrueEntityColour)
-						{
-							SetEntityRenderColor(WearableEntityIndex, r, g, b, a);
-						}
-						else
-						{
-							SetEntityRenderColor(WearableEntityIndex,
-							i_EntityRenderColour1[WearableEntityIndex],
-							i_EntityRenderColour2[WearableEntityIndex],
-							i_EntityRenderColour3[WearableEntityIndex],
-							i_EntityRenderColour4[WearableEntityIndex]);
-						}	
-					}						
-				}
-			}
-		}
-		if((i_EntityRenderColour4[entity] != 0 && !i_EntityRenderOverride[entity]) || (ColorWasSet && !i_EntityRenderOverride[entity]) || (!TrueEntityColour && i_EntityRenderColour4[entity] != 0)) //If it has NO colour, then do NOT recolour.
-		{
-			SetEntityRenderColor(entity, r, g, b, a);
-		}
+		i_EntityRenderColourSave[entity][0] = r;
+		i_EntityRenderColourSave[entity][1] = g;
+		i_EntityRenderColourSave[entity][2] = b;
 	}
+	Override_r = i_EntityRenderColourSave[entity][0];
+	Override_g = i_EntityRenderColourSave[entity][1];
+	Override_b = i_EntityRenderColourSave[entity][2];
+
+	Override_r = RoundToNearest(float(Override_r) * f_EntityRenderColour[entity][0]);
+	Override_g = RoundToNearest(float(Override_g) * f_EntityRenderColour[entity][1]);
+	Override_b = RoundToNearest(float(Override_b) * f_EntityRenderColour[entity][2]);
+
+	SetEntityRenderColor(entity, Override_r, Override_g, Override_b, a);
 }
 
 #define SetEntityRenderColor Stock_SetEntityRenderColor
+
+stock void Update_SetEntityRenderColor(int entity)
+{
+	int Override_r,Override_g,Override_b;
+	
+	Override_r = i_EntityRenderColourSave[entity][0];
+	Override_g = i_EntityRenderColourSave[entity][1];
+	Override_b = i_EntityRenderColourSave[entity][2];
+
+	Override_r = RoundToNearest(float(Override_r) * f_EntityRenderColour[entity][0]);
+	Override_g = RoundToNearest(float(Override_g) * f_EntityRenderColour[entity][1]);
+	Override_b = RoundToNearest(float(Override_b) * f_EntityRenderColour[entity][2]);
+
+	int r, g, b, a;
+	GetEntityRenderColor(entity, r, g, b, a);
+	SetEntityRenderColor(entity, Override_r, Override_g, Override_b, a, false);
+}
 
 //In this case i never need the world ever.
 
@@ -198,6 +104,30 @@ void Stock_SetHudTextParams(float x, float y, float holdTime, int r, int g, int 
 }
 
 #define SetHudTextParams Stock_SetHudTextParams
+
+int Stock_ShowSyncHudText(int client, Handle sync, const char[] message, any ...)
+{
+	int ReturnFlags = GetEntProp(client, Prop_Send, "m_iHideHUD");
+	if(ReturnFlags & HIDEHUD_ALL) //hide.
+		return 0;
+
+	char buffer[512];
+	VFormat(buffer, sizeof(buffer), message, 4);
+	return ShowSyncHudText(client, sync, buffer);
+}
+#define ShowSyncHudText Stock_ShowSyncHudText
+
+void Stock_PrintHintText(int client, const char[] format, any ...)
+{
+	int ReturnFlags = GetEntProp(client, Prop_Send, "m_iHideHUD");
+	if(ReturnFlags & HIDEHUD_ALL) //hide.
+		return;
+
+	char buffer[512];
+	VFormat(buffer, sizeof(buffer), format, 3);
+	PrintHintText(client, buffer);
+}
+#define PrintHintText Stock_PrintHintText
 
 stock void ResetToZero(any[] array, int length)
 {
@@ -237,7 +167,7 @@ stock void RemoveSlotWeapons(int client, int slot)
 		while(TF2_GetItem(client, entity, i))
 		{
 			GetEntityClassname(entity, buffer, sizeof(buffer));
-			if(TF2_GetClassnameSlot(buffer) == slot)
+			if(TF2_GetClassnameSlot(buffer, entity) == slot)
 			{
 				TF2_RemoveItem(client, entity);
 				found = true;
@@ -250,6 +180,7 @@ stock void RemoveSlotWeapons(int client, int slot)
 
 stock void RemoveAllWeapons(int client)
 {
+	PreMedigunCheckAntiCrash(client);
 	int entity;
 	bool found;
 	do
@@ -273,9 +204,20 @@ stock float ZR_GetGameTime(int entity = 0)
 	{
 		return GetGameTime();
 	}
-	else	
+	else
 	{
-		return (GetGameTime() - f_StunExtraGametimeDuration[entity]);
+		float gameTime = GetGameTime();
+
+#if defined RTS
+		float speed = RTS_GameSpeed();
+		if(speed != 1.0)
+		{
+			float lifetime = gameTime - flNpcCreationTime[entity];
+			gameTime += lifetime * (speed - 1.0);
+		}
+#endif
+
+		return gameTime - f_StunExtraGametimeDuration[entity];
 		//This will allow for stuns and other stuff like that. Mainly used for tank and other stuns.
 		//We will treat the tank stun as such.
 	}
@@ -289,16 +231,21 @@ stock void Custom_TeleportEntity(int entity, const float origin[3] = NULL_VECTOR
 {
 	if(!do_original && entity <= MaxClients)
 	{
-		if(origin[1] != NULL_VECTOR[1])
+		if(origin[1] != NULL_VECTOR[1] || origin[0] != NULL_VECTOR[0] || origin[2] != NULL_VECTOR[2])
 		{
+			if(origin[0] == 0.0 && origin[1] == 0.0 && origin[2] == 0.0)
+				LogStackTrace("Possible unintended 0 0 0 teleport");
+			
 			Custom_SDKCall_SetLocalOrigin(entity, origin);
 		}
 
-		if(angles[1] != NULL_VECTOR[1])
+		if(angles[1] != NULL_VECTOR[1] || angles[0] != NULL_VECTOR[0] || angles[2] != NULL_VECTOR[2])
 		{
 			if(entity <= MaxClients)
 			{
-				Custom_SetAbsVelocity(entity, angles);
+				float angles2[3];
+				angles2 = angles;
+				SnapEyeAngles(entity, angles2);
 			}
 			else
 			{
@@ -306,7 +253,7 @@ stock void Custom_TeleportEntity(int entity, const float origin[3] = NULL_VECTOR
 			}
 		}
 
-		if(velocity[1] != NULL_VECTOR[1])
+		if(velocity[0] != NULL_VECTOR[0] || velocity[1] != NULL_VECTOR[1] || velocity[2] != NULL_VECTOR[2])
 		{
 			Custom_SetAbsVelocity(entity, velocity);
 		}
@@ -339,34 +286,41 @@ stock void Custom_SetAbsVelocity(int client, const float viewAngles[3])
 
 void Edited_TF2_RegeneratePlayer(int client)
 {
-	TF2_SetPlayerClass(client, CurrentClass[client], false, false);
+#if defined ZR
+	PreMedigunCheckAntiCrash(client);
+	TransferDispenserBackToOtherEntity(client, true);
+	TF2_SetPlayerClass_ZR(client, CurrentClass[client], false, false);
+#endif
 #if defined ZR
 	KillDyingGlowEffect(client);
 #endif
+	ForcePlayerCrouch(client, false);
 	//delete at all times, they have no purpose here, you respawn.
 	TF2_RegeneratePlayer(client);
 
+	SDKCall_GiveCorrectAmmoCount(client);
 	//player needs to be fully nowmally visible.
-	SetEntityRenderMode(client, RENDER_NORMAL);
-	SetEntityRenderColor(client, 255, 255, 255, 255);
+	Stocks_ColourPlayernormal(client);
 }
 
 #define TF2_RegeneratePlayer Edited_TF2_RegeneratePlayer
 
 
-void Edited_TF2_RespawnPlayer(int client)
+stock void Edited_TF2_RespawnPlayer(int client)
 {
-	TF2_SetPlayerClass(client, CurrentClass[client], false, false);
-
 #if defined ZR
+	PreMedigunCheckAntiCrash(client);
+	TransferDispenserBackToOtherEntity(client, true);
+	TF2_SetPlayerClass_ZR(client, CurrentClass[client], false, false);
+
 	KillDyingGlowEffect(client);
 #endif
+	ForcePlayerCrouch(client, false);
 	//delete at all times, they have no purpose here, you respawn.
 	TF2_RespawnPlayer(client);
 
 	//player needs to be fully nowmally visible.
-	SetEntityRenderMode(client, RENDER_NORMAL);
-	SetEntityRenderColor(client, 255, 255, 255, 255);
+	Stocks_ColourPlayernormal(client);
 }
 
 #define TF2_RespawnPlayer Edited_TF2_RespawnPlayer
@@ -390,13 +344,11 @@ void SetPlayerClass(int client, TFClassType classType, bool weapons = false, boo
 		LogStackTrace("%f - Set to %d %d", GetEngineTime(), classType, persistent);
 	}
 
-	TF2_SetPlayerClass(client, classType, weapons, persistent);
+	TF2_SetPlayerClass_ZR(client, classType, weapons, persistent);
 }
 
-#define TF2_SetPlayerClass SetPlayerClass*/
-#if !defined UseDownloadTable
-#define AddFileToDownloadsTable UseDownloadsCfgPlzThanks
-#endif
+#define TF2_SetPlayerClass_ZR SetPlayerClass*/
+
 stock void PrecacheSoundList(const char[][] array, int length)
 {
     for(int i; i < length; i++)
@@ -430,32 +382,45 @@ void Edited_EmitSoundToAll(const char[] sample,
 	*/
 	if(sample[0] != '#')
 	{
-
-		for(int client=1; client<=MaxClients; client++)
+		if(entity > 0 && b_ThisWasAnNpc[entity])
 		{
-			if(IsClientInGame(client) && !IsFakeClient(client))
+			for(int client=1; client<=MaxClients; client++)
 			{
-				float volumeedited = volume;
-				if(entity > 0 && !b_NpcHasDied[entity])
+				if((f_ZombieVolumeSetting[client] + 1.0) != 0.0 && IsClientInGame(client) && (!IsFakeClient(client) || IsClientSourceTV(client)))
 				{
+					float volumeedited = volume;
+					if(EnableSilentMode && !b_thisNpcIsARaid[entity])
+					{
+						if(RecentSoundList[client].FindString(sample) != -1)
+							continue;
+						
+						RecentSoundList[client].PushString(sample);
+						CreateTimer(0.1, Timer_RecentSoundRemove, client);	
+						volumeedited *= 0.7; //Silent-er.
+						//	level = RoundToCeil(float(level) * 0.85);
+						//dont change level
+					}
 					volumeedited *= (f_ZombieVolumeSetting[client] + 1.0);
+					if(volumeedited > 0.0 && !AprilFoolsSoundDo(volumeedited, client,entity,channel,level,flags,pitch,speakerentity,origin,dir,updatePos,soundtime))
+						EmitSoundToClient(client, sample,entity,channel,level,flags,volumeedited,pitch,speakerentity,origin,dir,updatePos,soundtime);
 				}
-				if(volumeedited > 0.0)
-					EmitSoundToClient(client, sample,entity,channel,level,flags,volumeedited,pitch,speakerentity,origin,dir,updatePos,soundtime);
-			}
-		}		
+			}	
+		}	
+		else
+		{
+			EmitSoundToAll(sample,entity,channel,level,flags,volume,pitch,speakerentity,origin,dir,updatePos,soundtime);
+		}
 	}
 	else
 	{
 		for(int client=1; client<=MaxClients; client++)
 		{
-			if(IsClientInGame(client) && !IsFakeClient(client) && f_ClientMusicVolume[client] > 0.05)
+			if(IsClientInGame(client) && !IsFakeClient(client) && (f_ClientMusicVolume[client] > 0.05 || IsClientSourceTV(client)))
 			{
 				EmitSoundToClient(client, sample,entity,channel,level,flags,volume,pitch,speakerentity,origin,dir,updatePos,soundtime);
 			}
 		}
 	}
-		
 }
 
 #define EmitSoundToAll Edited_EmitSoundToAll
@@ -463,3 +428,126 @@ void Edited_EmitSoundToAll(const char[] sample,
 
 #define TF2Attrib_GetByDefIndex OLD_CODE_FIX_IT
 #define TF2Items_SetAttribute OLD_CODE_FIX_IT
+
+int MaxInfractionsAcceptEntityInput;
+float f_TimeSinceLastInfraction;
+
+bool Stock_AcceptEntityInput(int dest, const char[] input, int activator=-1, int caller=-1, int outputid=0)
+{
+	if(!IsValidEntity(dest) && dest != 0)
+	{
+		if(f_TimeSinceLastInfraction > GetEngineTime())
+		{
+			MaxInfractionsAcceptEntityInput++;
+		}
+		else
+		{
+			MaxInfractionsAcceptEntityInput = 0;
+		}
+		f_TimeSinceLastInfraction = GetEngineTime() + 0.5;
+
+		if(MaxInfractionsAcceptEntityInput > 10)
+		{		
+			/*
+				too many infractions. slay all npcs no matter what, but do not grant bonuses if it was a raid.
+				this is an emergency, it might actually spam this very very often. In this case, we nuke all npcs immediently.
+				There is a rare bug where it sometimes just doesnt spawn the entity. such as NPC wearables.
+				too many infractions. slay all npcs no matter what, but do not grant bonuses if it was a raid.
+			*/
+			int entity = -1;
+			while((entity=FindEntityByClassname(entity, "zr_base_boss")) != -1)
+			{
+#if defined ZR
+				if(IsValidEntity(entity) && GetTeam(entity) != TFTeam_Red)
+#else
+				if(IsValidEntity(entity))
+#endif
+				{
+					if(entity != 0)
+					{
+						i_RaidGrantExtra[entity] = 0;
+						b_DissapearOnDeath[entity] = true;
+						b_DoGibThisNpc[entity] = true;
+						SmiteNpcToDeath(entity);
+						SmiteNpcToDeath(entity);
+						SmiteNpcToDeath(entity);
+						SmiteNpcToDeath(entity);
+					}
+				}
+			}
+			LogStackTrace("We failed, man! Please look into this eventually!");
+			CPrintToChatAll("{crimson}[Zombie-Riot] UN-RECOVEABLE ERROR!!! All Enemies have been slain to prevent major issues, Raids will not give rewards!");
+			CPrintToChatAll("{crimson}[Zombie-Riot] UN-RECOVEABLE ERROR!!! All Enemies have been slain to prevent major issues, Raids will not give rewards!");
+			CPrintToChatAll("{crimson}[Zombie-Riot] UN-RECOVEABLE ERROR!!! All Enemies have been slain to prevent major issues, Raids will not give rewards!");
+			CPrintToChatAll("{crimson}[Zombie-Riot] UN-RECOVEABLE ERROR!!! All Enemies have been slain to prevent major issues, Raids will not give rewards!");
+			MaxInfractionsAcceptEntityInput = 0;
+		}
+		return false;
+	}
+	return AcceptEntityInput(dest, input, activator, caller, outputid);
+}
+
+#define AcceptEntityInput Stock_AcceptEntityInput
+
+stock void Stock_RemoveEntity(int entity)
+{
+	if(entity >= 0 && entity <= MaxClients)
+	{
+		ThrowError("Unintended RemoveEntity on entity %d.", entity);
+		return;
+	}
+
+	if(entity > MaxClients && entity < MAXENTITIES && ViewChange_IsViewmodelRef(EntIndexToEntRef(entity)))
+	{
+		LogStackTrace("Possible unintended RemoveEntity entity index leaking.");
+	}
+
+	RemoveEntity(entity);
+}
+
+#define RemoveEntity Stock_RemoveEntity
+
+stock int EntRefToEntIndexFast(int &ref)
+{
+	if(ref == -1)
+		return ref;
+	
+	int entity = EntRefToEntIndex(ref);
+	if(entity == -1)
+		ref = -1;
+	
+	return entity;
+}
+
+//#define EntRefToEntIndex EntRefToEntIndexFast
+/*
+int GameruleEntity()
+{
+	int Gamerules = FindEntityByClassname(-1, "tf_gamerules");
+	return Gamerules;
+}
+
+void GameRules_SetPropFloat_Replace(const char[] prop, any value, int element=0, bool changeState=false)
+{
+	SetEntPropFloat(GameruleEntity(), Prop_Send, prop, value, element);
+}
+void GameRules_SetProp_Replace(const char[] prop, any value, int size = 4, int element=0, bool changeState=false)
+{
+	SetEntProp(GameruleEntity(), Prop_Send, prop, value, size, element);
+}
+float GameRules_GetPropFloat_Replace(const char[] prop, int element=0)
+{
+	return GetEntPropFloat(GameruleEntity(), Prop_Send, prop, element);
+}
+int GameRules_GetProp_Replace(const char[] prop, int size = 4, int element=0)
+{
+	return GetEntProp(GameruleEntity(), Prop_Send, prop, size, element);
+}
+	
+RoundState GameRules_GetRoundState_Replace()
+{
+	return view_as<RoundState>(GameRules_GetProp("m_iRoundState"));
+}
+
+#define GameRules_GetRoundState GameRules_GetRoundState_Replace
+*/

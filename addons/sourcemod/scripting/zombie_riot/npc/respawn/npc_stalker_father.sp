@@ -1,35 +1,45 @@
 #pragma semicolon 1
 #pragma newdecls required
 
-static float fl_AlreadyStrippedMusic[MAXTF2PLAYERS];
-static int i_PlayMusicSound;
-
 void StalkerFather_MapStart()
 {
 	PrecacheSound("#music/radio1.mp3");
 	PrecacheModel("models/zombie/monk_combine.mdl");
+
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Corrupted Father Grigori");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_stalker_father");
+	strcopy(data.Icon, sizeof(data.Icon), "");
+	data.IconCustom = false;
+	data.Flags = 0;
+	data.Category = Type_Special;
+	data.Func = ClotSummon;
+	NPC_Add(data);
+}
+
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team, const char[] data)
+{
+	return StalkerFather(vecPos, vecAng, team, data);
 }
 
 methodmap StalkerFather < StalkerShared
 {
 	public void PlayMusicSound()
 	{
-		if(i_PlayMusicSound > GetTime())
+		if(i_PlayMusicSound[this.index] > GetTime())
 			return;
 		
 		EmitSoundToAll("#music/radio1.mp3", this.index, SNDCHAN_STATIC, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME, 100);
 		EmitSoundToAll("#music/radio1.mp3", this.index, SNDCHAN_STATIC, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME, 100);
-		i_PlayMusicSound = GetTime() + 39;
+		i_PlayMusicSound[this.index] = GetTime() + 39;
 	}
 	
-	public StalkerFather(int client, float vecPos[3], float vecAng[3], bool ally)
+	public StalkerFather(float vecPos[3], float vecAng[3], int ally, const char[] data)
 	{
 		StalkerFather npc = view_as<StalkerFather>(CClotBody(vecPos, vecAng, "models/zombie/monk_combine.mdl", "1.15", "66666", ally));
 		
-		i_NpcInternalId[npc.index] = STALKER_FATHER;
 		i_NpcWeight[npc.index] = 5;
 		fl_GetClosestTargetTimeTouch[npc.index] = 99999.9;
-		b_DoNotChangeTargetTouchNpc[npc.index] = true;
 		
 		FormatEx(c_HeadPlaceAttachmentGibName[npc.index], sizeof(c_HeadPlaceAttachmentGibName[]), "head");
 		
@@ -42,25 +52,29 @@ methodmap StalkerFather < StalkerShared
 		npc.m_iNpcStepVariation = STEPTYPE_NORMAL;
 		
 		
-		SDKHook(npc.index, SDKHook_Think, StalkerFather_ClotThink);
+		func_NPCDeath[npc.index] = StalkerFather_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = StalkerFather_OnTakeDamage;
+		func_NPCThink[npc.index] = StalkerFather_ClotThink;
 
 		b_ThisNpcIsImmuneToNuke[npc.index] = true;
 		Is_a_Medic[npc.index] = true;
 		npc.m_bStaticNPC = true;
+		AddNpcToAliveList(npc.index, 1);
 
 		GiveNpcOutLineLastOrBoss(npc.index, false);
 		b_thisNpcHasAnOutline[npc.index] = true; //Makes it so they never have an outline
-		b_NpcIsInvulnerable[npc.index] = true; //Special huds for invul targets
+		//b_NpcIsInvulnerable[npc.index] = true; //Special huds for invul targets
 
 		Zero(fl_AlreadyStrippedMusic);
 
 		npc.m_iState = -1;
 		npc.m_flSpeed = 92.0;	// 80 Run Speed * 1.15 Model Size
 
-		i_PlayMusicSound = 0;
+		i_PlayMusicSound[npc.index] = 0;
 		npc.m_iChaseAnger = 0;
 		npc.m_bChaseAnger = false;
 		npc.m_iChaseVisable = 0;
+		npc.Anger = view_as<bool>(StringToInt(data));
 		return npc;
 	}
 }
@@ -73,19 +87,19 @@ public void StalkerFather_ClotThink(int iNPC)
 	if(npc.m_flNextDelayTime > gameTime)
 		return;
 	
-	if(!Waves_InSetup() && Waves_GetRound() > 29)
+	if(!Waves_InSetup() && !npc.Anger && Waves_GetRoundScale() > 19)
 	{
-		if(b_NpcIsInvulnerable[npc.index])
+		if(b_thisNpcHasAnOutline[npc.index])
 		{
 			// Vulnerable pass Wave 30
 			GiveNpcOutLineLastOrBoss(npc.index, true);
-			b_NpcIsInvulnerable[npc.index] = false; //Special huds for invul targets
+			//b_NpcIsInvulnerable[npc.index] = false; //Special huds for invul targets
 		}
 	}
-	else if(!b_NpcIsInvulnerable[npc.index])
+	else if(!b_thisNpcHasAnOutline[npc.index])
 	{
 		GiveNpcOutLineLastOrBoss(npc.index, false);
-		b_NpcIsInvulnerable[npc.index] = true; //Special huds for invul targets
+		//b_NpcIsInvulnerable[npc.index] = true; //Special huds for invul targets
 	}
 
 	if(Waves_InSetup())
@@ -95,7 +109,7 @@ public void StalkerFather_ClotThink(int iNPC)
 			StopSound(npc.index, SNDCHAN_STATIC, "#music/radio1.mp3");
 		}
 
-		i_PlayMusicSound = 0;
+		i_PlayMusicSound[npc.index] = 0;
 		FreezeNpcInTime(npc.index, 0.5);
 		return;
 	}
@@ -139,10 +153,10 @@ public void StalkerFather_ClotThink(int iNPC)
 		}
 	}
 	
-	float vecMe[3]; vecMe = WorldSpaceCenter(npc.index);
+	float vecMe[3]; WorldSpaceCenter(npc.index, vecMe);
 	if(npc.m_bChaseAnger && npc.CanSeeEnemy())
 	{
-		LastKnownPos = WorldSpaceCenter(npc.m_iTarget);
+		WorldSpaceCenter(npc.m_iTarget, LastKnownPos);
 		float distance = GetVectorDistance(LastKnownPos, vecMe, true);
 		
 		int state;
@@ -173,12 +187,12 @@ public void StalkerFather_ClotThink(int iNPC)
 				npc.StartPathing();
 				if(distance < npc.GetLeadRadius()) 
 				{
-					LastKnownPos = PredictSubjectPosition(npc, npc.m_iTarget);
-					NPC_SetGoalVector(npc.index, LastKnownPos);
+					PredictSubjectPosition(npc, npc.m_iTarget,_,_,LastKnownPos);
+					npc.SetGoalVector(LastKnownPos);
 				}
 				else
 				{
-					NPC_SetGoalEntity(npc.index, npc.m_iTarget);
+					npc.SetGoalEntity(npc.m_iTarget);
 				}
 			}
 			case 1:
@@ -236,7 +250,7 @@ public void StalkerFather_ClotThink(int iNPC)
 					npc.PickRandomPos(LastKnownPos);
 
 				npc.StartPathing();
-				NPC_SetGoalVector(npc.index, LastKnownPos);
+				npc.SetGoalVector(LastKnownPos);
 			}
 			case 1:
 			{
@@ -284,10 +298,10 @@ public Action StalkerFather_OnTakeDamage(int victim, int &attacker, int &inflict
 		return Plugin_Handled;
 	}
 	
-	if(damage > 999999.9)
+	if(damage > 9999999.9)
 		return Plugin_Continue;
 	
-	if(damagetype & DMG_DROWN)
+	if(damagetype & DMG_OUTOFBOUNDS)
 	{
 		for(int client = 1; client <= MaxClients; client++)
 		{
@@ -322,7 +336,7 @@ public Action StalkerFather_OnTakeDamage(int victim, int &attacker, int &inflict
 
 	damage *= 15.0 / float(PlayersInGame);
 
-	if(!Waves_InSetup() && Waves_GetRound() > 29)
+	if(!Waves_InSetup() && Waves_GetRoundScale() > 19)
 		return Plugin_Changed;
 	
 	damage = 0.0;
@@ -332,28 +346,28 @@ public Action StalkerFather_OnTakeDamage(int victim, int &attacker, int &inflict
 void StalkerFather_NPCDeath(int entity)
 {
 	StalkerFather npc = view_as<StalkerFather>(entity);
-	
-	
-	SDKUnhook(npc.index, SDKHook_Think, StalkerFather_ClotThink);
 
 	for(int i; i < 9; i++)
 	{
 		StopSound(npc.index, SNDCHAN_STATIC, "#music/radio1.mp3");
 	}
 
-	for(int client_Grigori=1; client_Grigori<=MaxClients; client_Grigori++)
+	if(!npc.Anger)
 	{
-		if(IsClientInGame(client_Grigori) && GetClientTeam(client_Grigori)==2)
+		for(int client_Grigori=1; client_Grigori<=MaxClients; client_Grigori++)
 		{
-			ClientCommand(client_Grigori, "playgamesound vo/ravenholm/yard_greetings.wav");
-			SetHudTextParams(-1.0, -1.0, 3.01, 34, 139, 34, 255);
-			SetGlobalTransTarget(client_Grigori);
-			ShowSyncHudText(client_Grigori,  SyncHud_Notifaction, "%t", "Father Grigori Spawn");
+			if(IsClientInGame(client_Grigori) && GetClientTeam(client_Grigori)==2)
+			{
+				ClientCommand(client_Grigori, "playgamesound vo/ravenholm/yard_greetings.wav");
+				SetHudTextParams(-1.0, -1.0, 3.01, 34, 139, 34, 255);
+				SetGlobalTransTarget(client_Grigori);
+				ShowSyncHudText(client_Grigori,  SyncHud_Notifaction, "%t", "Father Grigori Spawn");
+			}
 		}
-	}
-	Spawn_Cured_Grigori();
+		Spawn_Cured_Grigori();
 
-	CreateTimer(70.0, StalkerFather_Timer, _, TIMER_FLAG_NO_MAPCHANGE|TIMER_REPEAT);
+		CreateTimer(70.0, StalkerFather_Timer, _, TIMER_FLAG_NO_MAPCHANGE|TIMER_REPEAT);
+	}
 }
 
 public Action StalkerFather_Timer(Handle timer)
@@ -362,7 +376,7 @@ public Action StalkerFather_Timer(Handle timer)
 		return Plugin_Continue;
 	
 	Enemy enemy;
-	enemy.Index = STALKER_GOGGLES;
+	enemy.Index = NPC_GetByPlugin("npc_stalker_googgles");
 	enemy.Health = 66666666;
 	enemy.Is_Immune_To_Nuke = true;
 	enemy.Is_Static = true;
@@ -370,6 +384,8 @@ public Action StalkerFather_Timer(Handle timer)
 	enemy.ExtraRangedRes = 1.0;
 	enemy.ExtraSpeed = 1.0;
 	enemy.ExtraDamage = 1.0;	
+	enemy.ExtraSize = 1.0;	
+	enemy.Team = TFTeam_Blue;	
 	Waves_AddNextEnemy(enemy);
 	return Plugin_Stop;
 }

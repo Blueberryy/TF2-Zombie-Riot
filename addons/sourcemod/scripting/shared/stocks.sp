@@ -1,7 +1,4 @@
 #pragma semicolon 1
-#pragma newdecls required
-//#pragma dynamic    131072
-//Allah This plugin has so much we need to do this.
 
 enum ParticleAttachment_t {
 	PATTACH_ABSORIGIN = 0,
@@ -60,9 +57,17 @@ stock float fmax(float n1, float n2)
 	return n1 > n2 ? n1 : n2;
 }
 
-stock Function ValToFunc(any val)
+stock float fClamp(float fValue, float fMin, float fMax)
 {
-	return val;
+	if (fValue < fMin) {
+		return fMin;
+	}
+
+	if (fValue > fMax) {
+		return fMax;
+	}
+
+	return fValue;
 }
 
 stock int GetSpellbook(int client)
@@ -100,14 +105,41 @@ stock int GivePropAttachment(int entity, const char[] model)
 	return prop;
 }
 
+stock int InfoTargetParentAt(float position[3], const char[] todo_remove_massreplace_fix, float duration = 0.1)
+{
+	int info = CreateEntityByName("info_teleport_destination");
+	if (info != -1)
+	{
+		if(todo_remove_massreplace_fix[0])
+		{
+			PrintToChatAll("an info target had a name, please report this to admins!!!!");
+			ThrowError("shouldnt have a name, but does, fix it!");
+		}
+		TeleportEntity(info, position, NULL_VECTOR, NULL_VECTOR);
+		SetEntPropFloat(info, Prop_Data, "m_flSimulationTime", GetGameTime());
+		
+		DispatchSpawn(info);
+
+		//if it has no effect name, then it should always display, as its for other reasons.
+		if (duration > 0.0)
+			CreateTimer(duration, Timer_RemoveEntity, EntIndexToEntRef(info), TIMER_FLAG_NO_MAPCHANGE);
+	}
+	return info;
+}
+
 stock int ParticleEffectAt(float position[3], const char[] effectName, float duration = 0.1)
 {
 	int particle = CreateEntityByName("info_particle_system");
 	if (particle != -1)
 	{
 		TeleportEntity(particle, position, NULL_VECTOR, NULL_VECTOR);
+		SetEntPropFloat(particle, Prop_Data, "m_flSimulationTime", GetGameTime());
 		DispatchKeyValue(particle, "targetname", "rpg_fortress");
-		DispatchKeyValue(particle, "effect_name", effectName);
+		if(effectName[0])
+			DispatchKeyValue(particle, "effect_name", effectName);
+		else
+			DispatchKeyValue(particle, "effect_name", "3rd_trail");
+
 		DispatchSpawn(particle);
 		if(effectName[0])
 		{
@@ -115,6 +147,7 @@ stock int ParticleEffectAt(float position[3], const char[] effectName, float dur
 			AcceptEntityInput(particle, "start");
 		}
 		SetEdictFlags(particle, (GetEdictFlags(particle) & ~FL_EDICT_ALWAYS));	
+		//if it has no effect name, then it should always display, as its for other reasons.
 		if (duration > 0.0)
 			CreateTimer(duration, Timer_RemoveEntity, EntIndexToEntRef(particle), TIMER_FLAG_NO_MAPCHANGE);
 	}
@@ -128,9 +161,15 @@ stock int ParticleEffectAt_Parent(float position[3], char[] effectName, int iPar
 	if (particle != -1)
 	{
 		TeleportEntity(particle, position, NULL_VECTOR, NULL_VECTOR);
+		SetEntPropFloat(particle, Prop_Data, "m_flSimulationTime", GetGameTime());
+
 		DispatchKeyValue(particle, "targetname", "rpg_fortress");
-		DispatchKeyValue(particle, "effect_name", effectName);
-		if(iParent > MAXTF2PLAYERS) //Exclude base_bosses from this, or any entity, then it has to always be rendered.
+		if(effectName[0])
+			DispatchKeyValue(particle, "effect_name", effectName);
+		else
+			DispatchKeyValue(particle, "effect_name", "3rd_trail");
+			
+		if(iParent > MAXPLAYERS) //Exclude base_bosses from this, or any entity, then it has to always be rendered.
 		{
 			b_IsEntityAlwaysTranmitted[particle] = true;
 		}
@@ -157,7 +196,10 @@ stock int ParticleEffectAtWithRotation(float position[3], float rotation[3], cha
 		TeleportEntity(particle, position, NULL_VECTOR, NULL_VECTOR);
 		SetEntPropVector(particle, Prop_Data, "m_angRotation", rotation);
 		DispatchKeyValue(particle, "targetname", "rpg_fortress");
-		DispatchKeyValue(particle, "effect_name", effectName);
+		if(effectName[0])
+			DispatchKeyValue(particle, "effect_name", effectName);
+		else
+			DispatchKeyValue(particle, "effect_name", "3rd_trail");
 		DispatchSpawn(particle);
 		if(effectName[0])
 		{
@@ -185,6 +227,19 @@ stock bool FindInfoTarget(const char[] name)
 	return false;
 }
 
+stock int FindInfoTargetInt(const char[] name)
+{
+	int entity = -1;
+	while((entity=FindEntityByClassname(entity, "info_target")) != -1)
+	{
+		static char buffer[32];
+		GetEntPropString(entity, Prop_Data, "m_iName", buffer, sizeof(buffer));
+		if(StrEqual(buffer, name, false))
+			return entity;
+	}
+	return 0;
+}
+
 stock bool ExcuteRelay(const char[] name, const char[] input="Trigger")
 {
 	bool found;
@@ -200,6 +255,17 @@ stock bool ExcuteRelay(const char[] name, const char[] input="Trigger")
 		}
 	}
 	return found;
+}
+
+void ResetReplications()
+{
+	for(int client=1; client<=MaxClients; client++)
+	{
+		ReplicateClient_Svairaccelerate[client] = -1.0;
+		ReplicateClient_BackwardsWalk[client] = -1.0;
+		ReplicateClient_Tfsolidobjects[client] = -1;
+		ReplicateClient_RollAngle[client] = -1;
+	}
 }
 
 stock void CreateAttachedAnnotation(int client, int entity, float time, const char[] buffer)
@@ -300,19 +366,33 @@ stock int ExplodeStringFloat(const char[] text, const char[] split, float[] buff
 	return total;
 }
 
-stock bool KvJumpToKeySymbol2(KeyValues kv, int id)
+stock void KvGetTranslation(KeyValues kv, const char[] string, char[] buffer, int length, const char[] defaul = "")
 {
-	if(kv.GotoFirstSubKey())
+	kv.GetString(string, buffer, length, defaul);
+	if(buffer[0] && !TranslationPhraseExists(buffer))
 	{
-		do
-		{
-			if(kv.JumpToKeySymbol(id))
-				return true;
-		} while(kv.GotoNextKey());
+		LogError("[Config] Missing translation '%s'", buffer);
+		strcopy(buffer, length, defaul);
 	}
-	return false;
 }
 
+stock Function KvGetFunction(KeyValues kv, const char[] string, Function defaul = INVALID_FUNCTION)
+{
+	char buffer[64];
+	kv.GetString(string, buffer, sizeof(buffer));
+	if(buffer[0])
+		return GetFunctionByName(null, buffer);
+
+	return defaul;
+}
+
+static bool i_PreviousInteractedEntityDo[MAXENTITIES];
+static float f_PreviousInteractedEntityDo[MAXENTITIES];
+
+void ResetIgnorePointVisible()
+{
+	Zero(f_PreviousInteractedEntityDo);
+}
 stock int GetClientPointVisible(int iClient, float flDistance = 100.0, bool ignore_allied_npc = false, bool mask_shot = false, float vecEndOrigin[3] = {0.0, 0.0, 0.0}, int repeatsretry = 2)
 {
 	float vecOrigin[3], vecAngles[3];
@@ -323,6 +403,8 @@ stock int GetClientPointVisible(int iClient, float flDistance = 100.0, bool igno
 
 	//Mask shot here, reasoning being that it should be easiser to interact with buildings and npcs if they are very close to eachother or inside (This wont fully fix it, but i see not other way.)
 	//This is client compensated anyways, and reviving is still via hull and not hitboxes.
+
+	//
 	int flags = CONTENTS_SOLID;
 
 	if(!mask_shot)
@@ -331,7 +413,9 @@ stock int GetClientPointVisible(int iClient, float flDistance = 100.0, bool igno
 	}
 	else
 	{
-		flags |= MASK_SHOT;
+		flags |= MASK_SOLID;
+		//Mask shot is entirely unnececarry, as it doesnt work and with the ignore entity method its unnececcary
+	//	flags |= MASK_SHOT;
 	}
 
 	int iReturn = -1;
@@ -346,8 +430,19 @@ stock int GetClientPointVisible(int iClient, float flDistance = 100.0, bool igno
 		i_PreviousInteractedEntityDo[iClient] = true;
 	}
 
+	if(repeatsretry >= 2)
+	{
+		if(f_PreviousInteractedEntityDo[iClient] < GetGameTime())
+		{
+			//Our last interaction was a second ago, dont try to phase throguh the previous ignored one.
+			i_PreviousInteractedEntity[iClient] = -1; //didnt find any
+		}
+		f_PreviousInteractedEntityDo[iClient] = GetGameTime() + 1.0;
+	}
+
 	for(int repeat; repeat < repeatsretry; repeat++)
 	{
+		delete hTrace;
 		if(!ignore_allied_npc)
 		{
 			hTrace = TR_TraceRayFilterEx(vecOrigin, vecAngles, ( flags ), RayType_Infinite, Trace_DontHitEntityOrPlayer, iClient);
@@ -365,54 +460,55 @@ stock int GetClientPointVisible(int iClient, float flDistance = 100.0, bool igno
 		}
 		if(repeat == 0)
 		{
-			delete hTrace;
-			i_PreviousInteractedEntity[iClient] = 0; //didnt find any
+			if(repeatsretry >= 2)
+				i_PreviousInteractedEntity[iClient] = -1; //didnt find any
 		}
 	}
-	i_PreviousInteractedEntity[iClient] = iHit;
-	if (TR_DidHit(hTrace) && iHit != iClient && GetVectorDistance(vecOrigin, vecEndOrigin, true) < (flDistance * flDistance))
-		iReturn = iHit;
-	
-	delete hTrace;
-	return iReturn;
-}
 
-stock int GetClientPointVisibleRevive(int iClient, float flDistance = 100.0)
-{
-	float vecOrigin[3], vecAngles[3], vecEndOrigin[3];
-	GetClientEyePosition(iClient, vecOrigin);
-	GetClientEyeAngles(iClient, vecAngles);
-	
-	i_PreviousInteractedEntity[iClient] = 0; //didnt find any
 
-	Handle hTrace = TR_TraceRayFilterEx(vecOrigin, vecAngles, ( MASK_SOLID | CONTENTS_SOLID ), RayType_Infinite, Trace_DontHitAlivePlayer, iClient);
-	TR_GetEndPosition(vecEndOrigin, hTrace);
-	
-	int iReturn = -1;
-	int iHit = TR_GetEntityIndex(hTrace);
-	
-	if (TR_DidHit(hTrace) && iHit != iClient && GetVectorDistance(vecOrigin, vecEndOrigin, true) < (flDistance * flDistance))
-		iReturn = iHit;
-	
-	delete hTrace;
-	return iReturn;
-}
+	if(repeatsretry >= 2)
+		i_PreviousInteractedEntity[iClient] = iHit;
 
-stock int GetClientPointVisibleOnlyClient(int iClient, float flDistance = 100.0)
-{
-	float vecOrigin[3], vecAngles[3], vecEndOrigin[3];
-	GetClientEyePosition(iClient, vecOrigin);
-	GetClientEyeAngles(iClient, vecAngles);
+	bool DoAlternativeCheck = false;
+	if(IsValidEntity(iHit) && i_IsABuilding[iHit])
+	{
+#if defined ZR
+		//if a building is mounted, we grant extra range.
+		int Building_Index = EntRefToEntIndex(Building_Mounted[iHit]);
+		if(IsValidClient(Building_Index))
+		{
+			//intercted with a player
+			DoAlternativeCheck = true;
+		}
+#endif
+	}
+	else if(IsValidClient(iHit))
+	{
+		//intercted with a player
+		DoAlternativeCheck = true;
+	}
 	
-
-	Handle hTrace = TR_TraceRayFilterEx(vecOrigin, vecAngles, ( MASK_SOLID | CONTENTS_SOLID ), RayType_Infinite, Trace_OnlyPlayer, iClient);
-	TR_GetEndPosition(vecEndOrigin, hTrace);
+	if (!TR_DidHit(hTrace) || iHit == iClient || !IsValidEntity(iHit))
+	{
+		delete hTrace;
+		return iReturn;
+	}
 	
-	int iReturn = -1;
-	int iHit = TR_GetEntityIndex(hTrace);
-	
-	if (TR_DidHit(hTrace) && iHit != iClient && GetVectorDistance(vecOrigin, vecEndOrigin, true) < (flDistance * flDistance))
-		iReturn = iHit;
+	if(DoAlternativeCheck)
+	{
+		float VecAbsClient[3];
+		float VecAbsEntity[3];
+		GetEntPropVector(iClient, Prop_Data, "m_vecAbsOrigin", VecAbsClient);
+		GetEntPropVector(iHit, Prop_Data, "m_vecAbsOrigin", VecAbsEntity);
+		flDistance *= 2.0;
+		if(GetVectorDistance(VecAbsClient, VecAbsEntity, true) < ((flDistance) * (flDistance)))
+			iReturn = iHit;
+	}
+	else
+	{
+		if (GetVectorDistance(vecOrigin, vecEndOrigin, true) < (flDistance * flDistance))
+			iReturn = iHit;
+	}
 	
 	delete hTrace;
 	return iReturn;
@@ -453,6 +549,7 @@ stock void CreateExplosion(int owner, const float origin[3], float damage, int m
 	}
 }
 
+#if defined __tf_econ_data_included
 stock TFClassType TF2_GetWeaponClass(int index, TFClassType defaul=TFClass_Unknown, int checkSlot=-1)
 {
 	switch(index)
@@ -504,6 +601,7 @@ stock TFClassType TF2_GetWeaponClass(int index, TFClassType defaul=TFClass_Unkno
 	
 	return defaul;
 }
+#endif
 
 stock bool TF2_GetItem(int client, int &weapon, int &pos)
 {
@@ -531,8 +629,23 @@ stock bool TF2_GetWearable(int client, int &entity)
 	}
 	return false;
 }
+stock int TF2_GetClassnameSlot(const char[] classname, int entity = -1)
+{
+	//if we already got the slot, dont bother.
+	if(entity != -1 && i_SavedActualWeaponSlot[entity] != -1)
+	{
+		return i_SavedActualWeaponSlot[entity];
+	}
+	//This is a bandaid fix.
+	int Index = TF2_GetClassnameSlotInternal(classname, false);
+	if(entity != -1)
+	{
+		i_SavedActualWeaponSlot[entity] = Index;
+	}
+	return Index;
+}
 
-stock int TF2_GetClassnameSlot(const char[] classname, bool econ=false)
+stock int TF2_GetClassnameSlotInternal(const char[] classname, bool econ=false)
 {
 	if(StrEqual(classname, "tf_weapon_scattergun") ||
 	   StrEqual(classname, "tf_weapon_handgun_scout_primary") ||
@@ -600,9 +713,14 @@ stock int TF2_GetClassnameSlot(const char[] classname, bool econ=false)
 	}
 	return TFWeaponSlot_Melee;
 }
-
 stock int GetAmmo(int client, int type)
 {
+	/*
+	if(type == Ammo_Metal_Sub)
+	{
+		type = Ammo_Metal;
+	}
+	*/
 	int ammo = GetEntProp(client, Prop_Data, "m_iAmmo", _, type);
 	if(ammo < 0)
 		ammo = 0;
@@ -612,22 +730,32 @@ stock int GetAmmo(int client, int type)
 
 stock void SetAmmo(int client, int type, int ammo)
 {
+	if(type == Ammo_Metal)
+	{
+		if(ammo < 10)
+			ammo = 10;
+		//Never ever set lower then 1!!!
+		SetEntProp(client, Prop_Data, "m_iAmmo", ammo, _, Ammo_Metal_Sub);
+	}
 	SetEntProp(client, Prop_Data, "m_iAmmo", ammo, _, type);
 }
 
-stock int SpawnWeapon(int client, char[] name, int index, int level, int qual, const int[] attrib, const float[] value, int count)
+#if defined _tf2items_included
+stock int SpawnWeapon(int client, char[] name, int index, int level, int qual, const int[] attrib, const float[] value, int count, int custom_classSetting = 0)
 {
-	// TODO: THIS IS BAD PERFORMANCE
-	// We spawn a weapon, give attributes, remove attributes, give attributes
-	int weapon = SpawnWeaponBase(client, name, index, level, qual, attrib, value, count);
-	if(IsValidEntity(weapon))
+	if(custom_classSetting == 11)
 	{
-		HandleAttributes(weapon, attrib, value, count, index, client); //Thanks suza! i love my min models
+		custom_classSetting = 0;
+	}
+	int weapon = SpawnWeaponBase(client, name, index, level, qual, custom_classSetting);
+	if(weapon != -1)
+	{
+		HandleAttributes(weapon, attrib, value, count); //Thanks suza! i love my min models
 	}
 	return weapon;
 }
 
-stock int SpawnWeaponBase(int client, char[] name, int index, int level, int qual, const int[] attrib, const float[] value, int count)
+static int SpawnWeaponBase(int client, char[] name, int index, int level, int qual, int custom_classSetting = 0)
 {
 	Handle weapon = TF2Items_CreateItem(OVERRIDE_ALL|FORCE_GENERATION|PRESERVE_ATTRIBUTES);
 	if(weapon == INVALID_HANDLE)
@@ -639,27 +767,30 @@ stock int SpawnWeaponBase(int client, char[] name, int index, int level, int qua
 	TF2Items_SetQuality(weapon, qual);
 	TF2Items_SetNumAttributes(weapon, 0);
 
-	TF2_SetPlayerClass(client, TF2_GetWeaponClass(index, CurrentClass[client], TF2_GetClassnameSlot(name, true)), _, false);
+#if defined ZR || defined RPG
+
+	TFClassType class = TF2_GetWeaponClass(index, CurrentClass[client], TF2_GetClassnameSlot(name, true));
+	if(custom_classSetting != 0)
+	{
+		class = view_as<TFClassType>(custom_classSetting);
+	}
+	TF2_SetPlayerClass_ZR(client, class, _, false);
+#endif
 	
 	int entity = TF2Items_GiveNamedItem(client, weapon);
 	delete weapon;
 	if(entity > MaxClients)
 	{
+#if defined ZR
+		f_TimeSinceLastGiveWeapon[entity] = 0.0;
+#endif
+
 		Attributes_EntityDestroyed(entity);
 
-		for(int i; i < count; i++)
-		{
-#if defined RPG
-			if(attrib[i] < 0)
-			{
-				Stats_GetCustomStats(entity, attrib[i], value[i]);
-			}
-			else
-#endif
-			{
-				Attributes_Set(entity, attrib[i], value[i]);
-			}
-		}
+		//for(int i; i < count; i++)
+		//{
+		//	Attributes_Set(entity, attrib[i], value[i]);
+		//}
 		
 		if(StrEqual(name, "tf_weapon_sapper"))
 		{
@@ -678,18 +809,22 @@ stock int SpawnWeaponBase(int client, char[] name, int index, int level, int qua
 			SetEntProp(entity, Prop_Send, "m_aBuildableObjectTypes", false, _, 3);
 		}
 
-		EquipPlayerWeapon(client, entity);
 		SetEntProp(entity, Prop_Send, "m_bValidatedAttachedEntity", true);
 		SetEntProp(entity, Prop_Send, "m_iAccountID", GetSteamAccountID(client, false));
+
+		EquipPlayerWeapon(client, entity);
 	}
 
-	TF2_SetPlayerClass(client, CurrentClass[client], _, false);
+#if defined ZR || defined RPG
+	TF2_SetPlayerClass_ZR(client, CurrentClass[client], _, false);
+#endif
 	return entity;
 }
+
 //										 info.Attribs, info.Value, info.Attribs);
-public void HandleAttributes(int weapon, const int[] attributes, const float[] values, int count, int index, int client)
+public void HandleAttributes(int weapon, const int[] attributes, const float[] values, int count)
 {
-	RemoveAllDefaultAttribsExceptStrings(weapon, index, client);
+	RemoveAllDefaultAttribsExceptStrings(weapon);
 	
 	for(int i = 0; i < count; i++) 
 	{
@@ -697,7 +832,7 @@ public void HandleAttributes(int weapon, const int[] attributes, const float[] v
 	}
 }
 
-void RemoveAllDefaultAttribsExceptStrings(int entity, int index, int client)
+void RemoveAllDefaultAttribsExceptStrings(int entity)
 {
 	Attributes_RemoveAll(entity);
 	
@@ -709,7 +844,7 @@ void RemoveAllDefaultAttribsExceptStrings(int entity, int index, int client)
 	ArrayList staticAttribs = TF2Econ_GetItemStaticAttributes(GetEntProp(entity, Prop_Send, "m_iItemDefinitionIndex"));
 	char Weaponname[64];
 	GetEntityClassname(entity, Weaponname, sizeof(Weaponname));
-	TF2Items_OnGiveNamedItem_Post_SDK(client, Weaponname, index, 5, 6, entity);
+	DHook_HookStripWeapon(entity);
 	
 	for(int i = 0; i < staticAttribs.Length; i++)
 	{
@@ -733,16 +868,16 @@ void RemoveAllDefaultAttribsExceptStrings(int entity, int index, int client)
 		
 		if(valueFormat[9] == 'a' && valueFormat[10] == 'd') // value_is_additive & value_is_additive_percentage
 		{
-			Attributes_Set(entity, currentAttrib, 0.0);
+			Attributes_Set(entity, currentAttrib, 0.0, true);
 		}
 		else if((valueFormat[9] == 'i' && valueFormat[18] == 'p')
 			|| (valueFormat[9] == 'p' && valueFormat[10] == 'e')) // value_is_percentage & value_is_inverted_percentage
 		{
-			Attributes_Set(entity, currentAttrib, 1.0);
+			Attributes_Set(entity, currentAttrib, 1.0, true);
 		}
 		else if(valueFormat[9] == 'o' && valueFormat[10] == 'r') // value_is_or
 		{
-			Attributes_Set(entity, currentAttrib, 0.0);
+			Attributes_Set(entity, currentAttrib, 0.0, true);
 		}
 		
 		NullifySpecificAttributes(entity,currentAttrib);
@@ -764,8 +899,8 @@ stock void NullifySpecificAttributes(int entity, int attribute)
 			Attributes_Set(entity, attribute, 0.0);	
 		}
 	}
-	
 }
+#endif
 
 stock void TF2_RemoveItem(int client, int weapon)
 {
@@ -847,6 +982,7 @@ stock float RemoveExtraSpeed(TFClassType class, float value)
 
 void RequestFrames(RequestFrameCallback func, int frames, any data=0)
 {
+	frames = RoundToNearest(TickrateModify * float(frames));
 	DataPack pack = new DataPack();
 	pack.WriteCell(frames);
 	pack.WriteFunction(func);
@@ -877,39 +1013,8 @@ public void RequestFramesCallback(DataPack pack)
 	}
 }
 
-/*
-int TF2_CreateGlow(int entity, const char[] model, int owner, int color[4])
-{
-	int prop = CreateEntityByName("tf_taunt_prop");
-	if(IsValidEntity(prop))
-	{
-		DispatchSpawn(prop);
 
-		SetEntityModel(prop, model);
-		SetEntPropEnt(prop, Prop_Data, "m_hEffectEntity", owner);
-		SetEntProp(prop, Prop_Send, "m_bGlowEnabled", true);
-		SetEntProp(prop, Prop_Send, "m_fEffects", GetEntProp(prop, Prop_Send, "m_fEffects")|EF_BONEMERGE|EF_NOSHADOW|EF_NOINTERP);
-
-		SetVariantString("!activator");
-		AcceptEntityInput(prop, "SetParent", entity);
-
-		SetEntityRenderMode(prop, RENDER_TRANSCOLOR);
-		SetEntityRenderColor(prop, color[0], color[1], color[2], color[3]);
-		SDKHook(prop, SDKHook_SetTransmit, GlowTransmit);
-	}
-	return prop;
-}
-
-public Action GlowTransmit(int entity, int target)
-{
-	if(GetEntPropEnt(entity, Prop_Data, "m_hEffectEntity") == target)
-		return Plugin_Continue;
-
-	return Plugin_Handled;
-}
-*/
-
-stock int TF2_CreateGlow(int iEnt)
+stock int TF2_CreateGlow(int iEnt, bool RenderModeAllow = false)
 {
 	char oldEntName[64];
 	GetEntPropString(iEnt, Prop_Data, "m_iName", oldEntName, sizeof(oldEntName));
@@ -922,10 +1027,16 @@ stock int TF2_CreateGlow(int iEnt)
 	int ent = CreateEntityByName("tf_glow");
 	DispatchKeyValue(ent, "targetname", "RainbowGlow");
 	DispatchKeyValue(ent, "target", strName);
-	DispatchKeyValue(ent, "Mode", "2");
+	DispatchKeyValue(ent, "Mode", "0");
+
 	DispatchSpawn(ent);
-	
 	AcceptEntityInput(ent, "Enable");
+	
+	if(RenderModeAllow)
+		SetEdictFlags(ent, (GetEdictFlags(ent) & ~FL_EDICT_ALWAYS));	
+
+	if(RenderModeAllow)
+		Hook_DHook_UpdateTransmitState(ent);
 	
 	//Change name back to old name because we don't need it anymore.
 	SetEntPropString(iEnt, Prop_Data, "m_iName", oldEntName);
@@ -933,32 +1044,30 @@ stock int TF2_CreateGlow(int iEnt)
 	return ent;
 }
 
-stock int TF2_CreateGlow_White(int iEnt, const char[] model, int parentTo, float modelsize)
+int TF2_CreateGlow_White(const char[] model, int victim, float modelsize)
 {
 	int entity = CreateEntityByName("tf_taunt_prop");
 	if(IsValidEntity(entity))
 	{
+	//	SetEntProp(entity, Prop_Data, "m_iInitialTeamNum", 2);
+	//	SetEntProp(entity, Prop_Send, "m_iTeamNum", 2);
+
 		DispatchSpawn(entity);
+
 		SetEntityModel(entity, model);
-
-		ActivateEntity(entity);
-
-		SetEntProp(entity, Prop_Send, "m_iTeamNum", GetEntProp(parentTo, Prop_Send, "m_iTeamNum"));
-
-		SetEntPropFloat(entity, Prop_Send, "m_flModelScale", modelsize);
-		SetEntPropEnt(entity, Prop_Data, "m_hEffectEntity", parentTo);
-		SetEntPropEnt(entity, Prop_Data, "m_hOwnerEntity", parentTo);
+		SetEntPropEnt(entity, Prop_Data, "m_hEffectEntity", victim);
+		SetEntPropEnt(entity, Prop_Data, "m_hOwnerEntity", victim);
 		SetEntProp(entity, Prop_Send, "m_bGlowEnabled", true);
-		int iFlags = GetEntProp(entity, Prop_Send, "m_fEffects");
-			
-		SetEntProp(entity, Prop_Send, "m_fEffects",
-				iFlags |EF_BONEMERGE|EF_NOSHADOW|EF_NORECEIVESHADOW);
+		SetEntProp(entity, Prop_Send, "m_fEffects", GetEntProp(victim, Prop_Send, "m_fEffects")|EF_BONEMERGE|EF_NOSHADOW|EF_NOINTERP);
 
-		SetVariantString("!activator");
-		AcceptEntityInput(entity, "SetParent", parentTo);
-
-		SetEntityRenderMode(entity, RENDER_TRANSCOLOR);
-		SetEntityRenderColor(entity, 255, 255, 255, 255);
+	//	SetEntPropFloat(entity, Prop_Send, "m_fadeMinDist", 990.0);
+	//	SetEntPropFloat(entity, Prop_Send, "m_fadeMaxDist", 1000.0);	
+		SetEntPropFloat(entity, Prop_Send, "m_flModelScale", modelsize);
+		//we gotta copy several things.......
+		SetEntProp(entity, Prop_Send, "m_nSkin", GetEntProp(victim, Prop_Send, "m_nSkin"));
+		SetEntProp(entity, Prop_Send, "m_nBody", GetEntProp(victim, Prop_Send, "m_nBody"));
+		
+		SetParent(victim, entity);
 	}
 	return entity;
 }
@@ -1006,6 +1115,7 @@ stock int GiveWearable(int client, int index)
 		SetEntProp(entity, Prop_Send, "m_iEntityQuality", 1);
 		SetEntProp(entity, Prop_Send, "m_iEntityLevel", 1);
 		SetEntProp(entity, Prop_Send, "m_bValidatedAttachedEntity", true);
+		SetEntProp(entity, Prop_Send, "m_iAccountID", GetSteamAccountID(client, false));
 		
 		DispatchSpawn(entity);
 		SDKCall_EquipWearable(client, entity);
@@ -1020,12 +1130,38 @@ stock bool AreVectorsEqual(const float vVec1[3], const float vVec2[3])
 	return (vVec1[0] == vVec2[0] && vVec1[1] == vVec2[1] && vVec1[2] == vVec2[2]);
 } 
 
+stock bool AreVectorsEqualAprox(const float vVec1[3], const float vVec2[3])
+{
+	return (vVec1[0] == vVec2[0] && vVec1[1] == vVec2[1] && vVec1[2] == vVec2[2]);
+} 
+
 public Action Timer_RemoveEntity(Handle timer, any entid)
 {
 	int entity = EntRefToEntIndex(entid);
 	if(IsValidEntity(entity))
 	{
 		RemoveEntity(entity);
+	}
+	return Plugin_Stop;
+}
+public Action Timer_RemoveEntityFancy(Handle timer, any entid)
+{
+	int entity = EntRefToEntIndex(entid);
+	if(IsValidEntity(entity))
+	{
+		SetEntityRenderFx(entity, RENDERFX_FADE_FAST);
+		CreateTimer(1.5, Timer_RemoveEntity, entid, TIMER_FLAG_NO_MAPCHANGE);
+	}
+	return Plugin_Stop;
+}
+public Action Timer_RemoveEntityParticle(Handle timer, any entid)
+{
+	int entity = EntRefToEntIndex(entid);
+	if(IsValidEntity(entity))
+	{
+		AcceptEntityInput(entid, "ClearParent");
+		TeleportEntity(entid, {16000.0,16000.0,16000.0});
+		CreateTimer(0.1, Timer_RemoveEntity, entid, TIMER_FLAG_NO_MAPCHANGE);
 	}
 	return Plugin_Stop;
 }
@@ -1059,64 +1195,41 @@ public Action Timer_DisableMotion(Handle timer, any entid)
 	return Plugin_Stop;
 }
 
-void StartBleedingTimer_Against_Client(int client, int entity, float damage, int amount)
+
+stock void StartBleedingTimer(int victim, int attacker, float damage, int amount, int weapon, int damagetype, int customtype = 0, int effectoverride = 0)
 {
-	BleedAmountCountStack[client] += 1;
-	DataPack pack;
-	CreateDataTimer(0.5, Timer_Bleeding_Against_Client, pack, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
-	pack.WriteCell(EntIndexToEntRef(client));
-	pack.WriteCell(client);
-	pack.WriteCell(EntIndexToEntRef(entity));
-	pack.WriteFloat(damage);
-	pack.WriteCell(amount);
-}
-
-public Action Timer_Bleeding_Against_Client(Handle timer, DataPack pack)
-{
-	pack.Reset();
-	int client = EntRefToEntIndex(pack.ReadCell());
-	int OriginalIndex = pack.ReadCell();
-	if(!IsValidClient(client))
+	if(IsValidEntity(victim) && IsValidEntity(attacker))
 	{
-		BleedAmountCountStack[OriginalIndex] -= 1;
-		return Plugin_Stop;
-	}
-		
-	int entity = EntRefToEntIndex(pack.ReadCell());
-	if(entity == -1)
-		entity = 0;
+		if(HasSpecificBuff(victim, "Hardened Aura"))
+			return;
 
-	float pos[3], ang[3];
-	
-	pos = WorldSpaceCenter(client);
-	
-	GetClientEyeAngles(client, ang);
-	SDKHooks_TakeDamage(client, entity, entity, pack.ReadFloat(), DMG_SLASH | DMG_PREVENT_PHYSICS_FORCE, _, _, pos, false, ZR_DAMAGE_DO_NOT_APPLY_BURN_OR_BLEED);
+		if(HasSpecificBuff(victim, "Thick Blood") && effectoverride != 1)
+			return;
 
-	int bleed_count = pack.ReadCell();
-	if(bleed_count < 1)
-	{
-		BleedAmountCountStack[OriginalIndex] -= 1;
-		return Plugin_Stop;
-	}
+		if(damagetype & DMG_TRUEDAMAGE)
+		{
+			StatusEffect_OnTakeDamage_DealNegative(victim, attacker, damage, DMG_CLUB);
+		}
 
-	pack.Position--;
-	pack.WriteCell(bleed_count-1, false);
-	return Plugin_Continue;
-}
+		if(attacker > 0 && attacker <= MaxClients)
+			Force_ExplainBuffToClient(attacker, "Bleed");
+		else if(victim > 0 && victim <= MaxClients)
+			Force_ExplainBuffToClient(victim, "Bleed");
 
-void StartBleedingTimer(int entity, int client, float damage, int amount, int weapon, int damagetype)
-{
-	if(IsValidEntity(entity) && IsValidEntity(weapon) && IsValidEntity(client))
-	{
-		BleedAmountCountStack[entity] += 1;
+		BleedAmountCountStack[victim] += 1;
 		DataPack pack;
 		CreateDataTimer(0.5, Timer_Bleeding, pack, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
-		pack.WriteCell(EntIndexToEntRef(entity));
-		pack.WriteCell(entity);
-		pack.WriteCell(EntIndexToEntRef(weapon));
-		pack.WriteCell(GetClientUserId(client));
+		pack.WriteCell(EntIndexToEntRef(victim));
+		pack.WriteCell(victim);
+		pack.WriteFloat(GetGameTime());
+		if(IsValidEntity(weapon))
+			pack.WriteCell(EntIndexToEntRef(weapon));
+		else
+			pack.WriteCell(-1);
+		pack.WriteCell(EntIndexToEntRef(attacker));
+		pack.WriteCell(effectoverride);
 		pack.WriteCell(damagetype);
+		pack.WriteCell(customtype);
 		pack.WriteFloat(damage);
 		pack.WriteCell(amount);
 	}
@@ -1125,75 +1238,246 @@ void StartBleedingTimer(int entity, int client, float damage, int amount, int we
 public Action Timer_Bleeding(Handle timer, DataPack pack)
 {
 	pack.Reset();
-	int entity = EntRefToEntIndex(pack.ReadCell());
+	int victim = EntRefToEntIndex(pack.ReadCell());
 	int OriginalIndex = pack.ReadCell();
-	if(entity<=MaxClients || !IsValidEntity(entity) || b_NpcHasDied[entity])
+	float GameTimeClense = pack.ReadFloat();
+	if(!IsValidEntity(victim))
 	{
 		BleedAmountCountStack[OriginalIndex] -= 1;
+		if(BleedAmountCountStack[OriginalIndex] < 0)
+			BleedAmountCountStack[OriginalIndex] = 0;
 		return Plugin_Stop;
 	}
 		
 	int weapon = EntRefToEntIndex(pack.ReadCell());
 	if(weapon<=MaxClients || !IsValidEntity(weapon))
 	{
-		BleedAmountCountStack[OriginalIndex] -= 1;
-		return Plugin_Stop;
+		//if weapon isnt valid, just do -1
+		//dont remove the bleed
+		weapon = -1;
 	}
 
-	int client = GetClientOfUserId(pack.ReadCell());
-	if(!client || !IsClientInGame(client) || !IsPlayerAlive(client))
+	int attacker = EntRefToEntIndex(pack.ReadCell());
+	if(attacker > 0 && attacker <= MaxClients)
+	{
+		if(!attacker || !IsClientInGame(attacker))
+		{
+			BleedAmountCountStack[OriginalIndex] -= 1;
+			if(BleedAmountCountStack[OriginalIndex] < 0)
+				BleedAmountCountStack[OriginalIndex] = 0;
+			return Plugin_Stop;
+		}
+	}
+	else
+	{
+		if(!IsValidEntity(attacker))
+			attacker = 0; //Make it the world that attacks them?
+	}
+
+	int effectoverride = pack.ReadCell();
+	if(StatusEffects_RapidSuturingCheck(victim, GameTimeClense))
+	{
+		return Plugin_Stop;
+	}
+	if(HasSpecificBuff(victim, "Hardened Aura"))
 	{
 		BleedAmountCountStack[OriginalIndex] -= 1;
+		if(BleedAmountCountStack[OriginalIndex] < 0)
+			BleedAmountCountStack[OriginalIndex] = 0;
 		return Plugin_Stop;
 	}
-
-	if(f_NpcImmuneToBleed[entity] > GetGameTime())
+	if(HasSpecificBuff(victim, "Thick Blood"))
 	{
-		BleedAmountCountStack[OriginalIndex] -= 1;
-		return Plugin_Stop;
+		if(effectoverride != 1)
+		{
+			BleedAmountCountStack[OriginalIndex] -= 1;
+			if(BleedAmountCountStack[OriginalIndex] < 0)
+				BleedAmountCountStack[OriginalIndex] = 0;
+			return Plugin_Stop;
+		}
 	}
-
-	float pos[3], ang[3];
+	float pos[3];
 	
-	pos = WorldSpaceCenter(entity);
+	WorldSpaceCenter(victim, pos);
 	int damagetype = pack.ReadCell(); //Same damagetype as the weapon.
-	
-	GetClientEyeAngles(client, ang);
-	SDKHooks_TakeDamage(entity, client, client, pack.ReadFloat(), damagetype, weapon, _, pos, false, ZR_DAMAGE_DO_NOT_APPLY_BURN_OR_BLEED);
+	int customtype = pack.ReadCell() | ZR_DAMAGE_DO_NOT_APPLY_BURN_OR_BLEED;
+	float DamageDeal = pack.ReadFloat();
+	if(NpcStats_ElementalAmp(victim))
+	{
+		DamageDeal *= 1.15;
+	}
+	SDKHooks_TakeDamage(victim, attacker, attacker, DamageDeal, damagetype | DMG_PREVENT_PHYSICS_FORCE, weapon, _, pos, false, customtype);
 
-	entity = pack.ReadCell();
-	if(entity < 1)
+	victim = pack.ReadCell();
+	if(victim < 1)
 	{
 		BleedAmountCountStack[OriginalIndex] -= 1;
 		return Plugin_Stop;
 	}
 
 	pack.Position--;
-	pack.WriteCell(entity-1, false);
+	pack.WriteCell(victim-1, false);
 	return Plugin_Continue;
 }
+/*
+#define HEAL_NO_RULES	            0     	 
+//Nothing special.
+#define HEAL_SELFHEAL				(1 << 1) 
+//Most healing debuffs shouldnt work with this.
+#define HEAL_ABSOLUTE				(1 << 2) 
+//Any and all healing changes or buffs or debuffs dont work that dont affect the weapon directly.
+#define HEAL_SILENCEABLE			(1 << 3) 
+//Silence Entirely nukes this heal
+#define HEAL_PASSIVE_NO_NOTIF		(1 << 4) 
+//Heals but doesnt notify anyone
+*/
+//this will return the amount of healing it actually did.
 
-void StartHealingTimer(int entity, float delay, float health, int amount=0, bool maxhealth=true)
+stock void DealTruedamageToEnemy(int attacker, int victim, float truedamagedeal)
 {
-	DataPack pack;
-	CreateDataTimer(delay, Timer_Healing, pack, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
-	pack.WriteCell(EntIndexToEntRef(entity));
-#if defined ZR
-	if(b_HealthyEssence) //see rouge.sp
+	SDKHooks_TakeDamage(victim, attacker, attacker, truedamagedeal, DMG_TRUEDAMAGE, -1);
+}
+stock int HealEntityGlobal(int healer, int receiver, float HealTotal, float Maxhealth = 1.0, float HealOverThisDuration = 0.0, int flag_extrarules = HEAL_NO_RULES, int MaxHealPermitted = 99999999)
+{
+	/*
+		MaxHealPermitted is used for HealEntityViaFloat
+		Good for ammo based healing.
+	*/
+	if(HasSpecificBuff(receiver, "Anti-Waves"))
 	{
-		health *= 1.25;
+		//Ignore all healing that isnt absolute
+		if(!(flag_extrarules & (HEAL_ABSOLUTE)))
+			return 0;
+	}
+	if(HealTotal < 0)
+	{
+		if(healer > 0)
+			HealTotal *= fl_Extra_Damage[healer];
+		//the heal total is negative, this means this is trated as true damage.
+	}
+#if defined ZR
+	if(receiver <= MaxClients)
+		if(isPlayerMad(receiver) && !(flag_extrarules & (HEAL_SELFHEAL)))
+			return 0;
+#endif
+
+	if(!(flag_extrarules & (HEAL_ABSOLUTE)))
+	{
+#if defined ZR
+		if(HasSpecificBuff(healer, "Dimensional Turbulence"))
+		{
+			HealTotal *= 1.5;
+		}
+		if(b_HealthyEssence && GetTeam(receiver) == TFTeam_Red)
+			HealTotal *= 1.25;
+			
+		if(HasSpecificBuff(receiver, "Growth Blocker"))
+		{
+			HealTotal *= 0.85;
+		}
+		if(HasSpecificBuff(receiver, "Burn"))
+			HealTotal *= 0.75;
+
+		if((CurrentModifOn() == 3|| CurrentModifOn() == 2) && GetTeam(healer) != TFTeam_Red && GetTeam(receiver) != TFTeam_Red)
+		{
+			HealTotal *= 1.5;
+		}
+
+		if(Classic_Mode() && GetTeam(receiver) == TFTeam_Red)
+			HealTotal *= 0.5;
+#endif
+
+#if !defined RTS
+		//Extra healing bonuses or penalty for all healing except absolute
+		if(receiver <= MaxClients)
+			HealTotal *= Attributes_GetOnPlayer(receiver, 526, true, false);
+
+		//healing bonus or penalty non self heal
+		if(!(flag_extrarules & (HEAL_SELFHEAL)))
+		{
+			if(receiver <= MaxClients)
+				HealTotal *= Attributes_GetOnPlayer(receiver, 734, true, false);
+		}
+#endif
+	}
+#if defined ZR
+	if(healer != receiver && HealOverThisDuration != 0.0)
+	{
+		Healing_done_in_total[healer] += RoundToNearest(HealTotal);
 	}
 #endif
-	pack.WriteFloat(health);
-	pack.WriteCell(maxhealth);
-	pack.WriteCell(amount);
+	if(HealOverThisDuration == 0.0)
+	{
+		int HealingDoneInt;
+		HealingDoneInt = HealEntityViaFloat(receiver, HealTotal, Maxhealth, MaxHealPermitted);
+		if(HealingDoneInt > 0)
+		{
+#if defined ZR
+			if(healer != receiver)
+			{
+				Healing_done_in_total[healer] += HealingDoneInt;
+				if(healer <= MaxClients)
+				{
+					//dont get it from healing buildings
+					if(!i_IsABuilding[receiver])
+					{
+						AddHealthToUbersaw(healer, HealingDoneInt, 0.0);
+						HealPointToReinforce(healer, HealingDoneInt, 0.0);
+						GiveRageOnDamage(healer, float(HealingDoneInt) * 2.0);
+					}
+				}
+			}
+#endif
+//only apply heal event if its not a passive self heal
+			if(!(flag_extrarules & (HEAL_PASSIVE_NO_NOTIF)))
+				ApplyHealEvent(receiver, HealingDoneInt, healer);
+		}
+		return HealingDoneInt;
+	}
+	else
+	{
+		float HealTotalTimer = HealOverThisDuration / 0.1;
+
+		DataPack pack;
+		CreateDataTimer(0.1, Timer_Healing, pack, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
+		if(healer > 0)
+			pack.WriteCell(EntIndexToEntRef(healer));
+		else
+			pack.WriteCell(0);
+		pack.WriteCell(EntIndexToEntRef(receiver));
+		pack.WriteFloat(HealTotal / HealTotalTimer);
+		pack.WriteCell(Maxhealth);
+		pack.WriteCell(RoundToNearest(HealTotalTimer));		
+		return 0; //this is a timer, we cant really quantify this.
+	}
 }
 
-static float f_IncrementalSmallHeal[MAXENTITIES];
+void DisplayHealParticleAbove(int entity)
+{
+	if(f_HealDelayParticle[entity] < GetGameTime())
+	{
+		f_HealDelayParticle[entity] = GetGameTime() + 0.5;
+		float ProjLoc[3];
+		float ProjLoc2[3];
+		GetEntPropVector(entity, Prop_Data, "m_vecAbsOrigin", ProjLoc);
+		ProjLoc2[2] += 70.0;
+		ProjLoc2[2] += f_ExtraOffsetNpcHudAbove[entity];
+		ProjLoc2[2] *= GetEntPropFloat(entity, Prop_Send, "m_flModelScale");
+		ProjLoc2[2] += 10.0;
+		ProjLoc[2] += ProjLoc2[2];
+		if(GetTeam(entity) != TFTeam_Red)
+			TE_Particle("healthgained_blu", ProjLoc, NULL_VECTOR, NULL_VECTOR, _, _, _, _, _, _, _, _, _, _, 0.0);
+		else
+			TE_Particle("healthgained_red", ProjLoc, NULL_VECTOR, NULL_VECTOR, _, _, _, _, _, _, _, _, _, _, 0.0);
+	}
+}
+
+float f_IncrementalSmallHeal[MAXENTITIES];
 
 public Action Timer_Healing(Handle timer, DataPack pack)
 {
 	pack.Reset();
+	int healer = EntRefToEntIndex(pack.ReadCell());
 	int entity = EntRefToEntIndex(pack.ReadCell());
 	if(entity <= MaxClients)
 	{
@@ -1212,111 +1496,29 @@ public Action Timer_Healing(Handle timer, DataPack pack)
 	{
 		return Plugin_Stop;
 	}
-
-	int lastHealth;
-	if(entity > MaxClients)
-	{
-		lastHealth = GetEntProp(entity, Prop_Data, "m_iHealth");
-	}
-	else
-	{
-		lastHealth = GetClientHealth(entity);
-	}
-
 	// Our Current Health + Leftover Float Health + New Health Gained
-	float newHealth = float(lastHealth) + f_IncrementalSmallHeal[entity] + pack.ReadFloat();
-	
-	if(pack.ReadCell() && newHealth > 0.0)	// Max Health Cap
+	float HealthToGive = pack.ReadFloat();
+	float HealthMaxPercentage = pack.ReadCell();
+	int HealthHealed = HealEntityViaFloat(entity, HealthToGive, HealthMaxPercentage);
+	if(HealthHealed > 0)
 	{
-		float maxHealth;
-		if(entity > MaxClients)
+		ApplyHealEvent(entity, HealthHealed, healer);	// Show healing number
+		if(healer > 0 && healer != entity)
 		{
-			maxHealth = float(GetEntProp(entity, Prop_Data, "m_iMaxHealth"));
-		}
-		else
-		{
-			maxHealth = float(SDKCall_GetMaxHealth(entity));
-		}
-		
-		if(newHealth > maxHealth)
-			newHealth = maxHealth;
-	}
-
-	if(newHealth >= 1.0)
-	{
-		float maxHealth;
-
-		if(entity > MaxClients)
-		{
-			maxHealth = float(GetEntProp(entity, Prop_Data, "m_iMaxHealth"));
-		}
-		else
-		{
-			maxHealth = float(SDKCall_GetMaxHealth(entity));
-		}
-		//TARGET HEAL
-		if(lastHealth < maxHealth)
-		{
-			if(newHealth >= maxHealth)
+			Healing_done_in_total[healer] += HealthHealed;
+#if defined ZR
+			if(healer <= MaxClients)
 			{
-				newHealth = maxHealth;
+				AddHealthToUbersaw(healer, HealthHealed, 0.0);
+				HealPointToReinforce(healer, HealthHealed, 0.0);
+				GiveRageOnDamage(healer, float(HealthHealed) * 2.0);
 			}
-
-			int setHealth = RoundToFloor(newHealth);	// Health to set
-
-			f_IncrementalSmallHeal[entity] = newHealth - float(setHealth);	// New extra health
-			
-			if(entity > MaxClients)
-			{
-				SetEntProp(entity, Prop_Data, "m_iHealth", setHealth);
-			}
-			else
-			{
-				SetEntityHealth(entity, setHealth);
-
-				int difference = setHealth - lastHealth;
-				if(difference != -1)
-					ApplyHealEvent(entity, difference);	// Show healing number
-			}
+#endif
 		}
 	}
-	else
-	{
-		SDKHooks_TakeDamage(entity, 0, 0, 100.0 - newHealth);
-	}
-	
-	/*
-	int i_TargetHealAmount;
-	//The healing is less then 1 ? Do own logic.
-					
-	if (healing_Amount <= 1.0)
-	{
-		f_IncrementalSmallHeal[healTarget] += healing_Amount;
-						
-		if(f_IncrementalSmallHeal[healTarget] >= 1.0)
-		{
-			f_IncrementalSmallHeal[healTarget] -= 1.0;
-			i_TargetHealAmount = 1;
-		}
-	}
-	else
-	{
-		i_TargetHealAmount = RoundToFloor(healing_Amount);
-						
-		float Decimal_healing = FloatFraction(healing_Amount);
-						
-		f_IncrementalSmallHeal[healTarget] += Decimal_healing;
-						
-		if(f_IncrementalSmallHeal[healTarget] >= 1.0)
-		{
-			f_IncrementalSmallHeal[healTarget] -= 1.0;
-			i_TargetHealAmount += 1;
-		}
-	}
-	*/
 
 	int current = pack.ReadCell();
-	if(current < 2)
+	if(current <= 1)
 		return Plugin_Stop;
 
 	pack.Position--;
@@ -1325,15 +1527,26 @@ public Action Timer_Healing(Handle timer, DataPack pack)
 }
 
 //doing this litterally every heal spams it, so we make a 0.5 second delay, and thus, will stack it, and then show it all at once.
-Handle h_Timer_HealEventApply[MAXPLAYERS+1] = {INVALID_HANDLE, ...};
+Handle h_Timer_HealEventApply[MAXPLAYERS+1] = {null, ...};
+Handle h_Timer_HealEventApply_Ally[MAXPLAYERS+1] = {null, ...};
+ArrayList h_Arraylist_HealEventAlly[MAXPLAYERS+1];
+
+enum struct HealEventSaveInfo
+{
+	int HealedTarget;
+	int HealAmount;
+	int ArmorAmount;
+}
+
 static int i_HealsDone_Event[MAXENTITIES]={0, ...};
 
-stock void ApplyHealEvent(int entindex, int amount)
+stock void ApplyHealEvent(int entindex, int amount, int ownerheal = 0)
 {
 	if(IsValidClient(entindex))
 	{
 		i_HealsDone_Event[entindex] += amount;
-		if (h_Timer_HealEventApply[entindex] == INVALID_HANDLE)
+			
+		if (h_Timer_HealEventApply[entindex] == null)
 		{
 			DataPack pack;
 			h_Timer_HealEventApply[entindex] = CreateDataTimer(0.5, Timer_HealEventApply, pack, _);
@@ -1341,7 +1554,139 @@ stock void ApplyHealEvent(int entindex, int amount)
 			pack.WriteCell(EntIndexToEntRef(entindex));
 		}
 	}
+	else
+	{
+		DisplayHealParticleAbove(entindex);
+	}
+	if(ownerheal <= MaxClients && ownerheal > 0 && ownerheal != entindex)
+	{
+		if(!h_Arraylist_HealEventAlly[ownerheal])
+			h_Arraylist_HealEventAlly[ownerheal] = new ArrayList(sizeof(HealEventSaveInfo));
+
+		HealEventSaveInfo data;
+		bool FoundTarget = false;
+		int length = h_Arraylist_HealEventAlly[ownerheal].Length;
+		for(int i; i < length; i++)
+		{
+			// Loop through the arraylist to find the Heal Target
+			h_Arraylist_HealEventAlly[ownerheal].GetArray(i, data);
+			
+			if(EntRefToEntIndex(data.HealedTarget) != entindex)
+				continue;
+
+			//we found a match
+			data.HealAmount += amount;
+			FoundTarget = true;
+			h_Arraylist_HealEventAlly[ownerheal].SetArray(i, data);
+		}
+		if(!FoundTarget)
+		{
+			// Create a new entry
+			data.HealedTarget = EntIndexToEntRef(entindex);
+			data.HealAmount = amount;
+			h_Arraylist_HealEventAlly[ownerheal].PushArray(data);
+		}
+
+		
+		if (h_Timer_HealEventApply_Ally[ownerheal] == null)
+		{
+			DataPack pack;
+			h_Timer_HealEventApply_Ally[ownerheal] = CreateDataTimer(1.0, Timer_HealEventApply_Ally, pack, _);
+			pack.WriteCell(ownerheal);
+			pack.WriteCell(EntIndexToEntRef(ownerheal));
+		}
+	}
 }
+stock void ApplyArmorEvent(int entindex, int amount, int ownerheal = 0)
+{
+	if(ownerheal <= MaxClients && ownerheal > 0 && ownerheal != entindex)
+	{
+		if(!h_Arraylist_HealEventAlly[ownerheal])
+			h_Arraylist_HealEventAlly[ownerheal] = new ArrayList(sizeof(HealEventSaveInfo));
+
+		HealEventSaveInfo data;
+		bool FoundTarget = false;
+		int length = h_Arraylist_HealEventAlly[ownerheal].Length;
+		for(int i; i < length; i++)
+		{
+			// Loop through the arraylist to find the Heal Target
+			h_Arraylist_HealEventAlly[ownerheal].GetArray(i, data);
+			
+			if(EntRefToEntIndex(data.HealedTarget) != entindex)
+				continue;
+
+			//we found a match
+			data.ArmorAmount += amount;
+			FoundTarget = true;
+			h_Arraylist_HealEventAlly[ownerheal].SetArray(i, data);
+		}
+		if(!FoundTarget)
+		{
+			// Create a new entry
+			data.HealedTarget = EntIndexToEntRef(entindex);
+			data.ArmorAmount = amount;
+			h_Arraylist_HealEventAlly[ownerheal].PushArray(data);
+		}
+		
+		if (h_Timer_HealEventApply_Ally[ownerheal] == null)
+		{
+			DataPack pack;
+			h_Timer_HealEventApply_Ally[ownerheal] = CreateDataTimer(1.0, Timer_HealEventApply_Ally, pack, _);
+			pack.WriteCell(ownerheal);
+			pack.WriteCell(EntIndexToEntRef(ownerheal));
+		}
+	}
+}
+
+
+public Action Timer_HealEventApply_Ally(Handle timer, DataPack pack)
+{
+	pack.Reset();
+	int clientOriginalIndex = pack.ReadCell();
+	int client = EntRefToEntIndex(pack.ReadCell());
+
+	if (!IsValidMulti(client))
+	{
+		h_Timer_HealEventApply_Ally[clientOriginalIndex] = null;
+		delete h_Arraylist_HealEventAlly[clientOriginalIndex];
+		return Plugin_Stop;
+	}
+	HealEventSaveInfo data;
+	int length = h_Arraylist_HealEventAlly[clientOriginalIndex].Length;
+	for(int i; i < length; i++)
+	{
+		// Loop through the arraylist to find the Heal Target
+		h_Arraylist_HealEventAlly[clientOriginalIndex].GetArray(i, data);
+		
+		if(!IsValidEntity(data.HealedTarget))
+			continue;
+	
+		if(data.HealAmount)
+		{
+			Event event = CreateEvent("building_healed", true);
+			event.SetInt("priority", 1);
+			event.SetInt("building", EntRefToEntIndex(data.HealedTarget));
+			event.SetInt("healer", clientOriginalIndex);
+			event.SetInt("amount", data.HealAmount);
+			event.FireToClient(clientOriginalIndex);
+			event.Cancel();
+		}
+		if(data.ArmorAmount)
+		{
+			Event event = CreateEvent("player_bonuspoints", true);
+			event.SetInt("priority", 1);
+			event.SetInt("source_entindex", EntRefToEntIndex(data.HealedTarget));
+			event.SetInt("player_entindex", clientOriginalIndex);
+			event.SetInt("points", data.ArmorAmount * 10);
+			event.FireToClient(clientOriginalIndex);
+			event.Cancel();
+		}
+	}
+	delete h_Arraylist_HealEventAlly[clientOriginalIndex];
+	h_Timer_HealEventApply_Ally[clientOriginalIndex] = null;
+	return Plugin_Stop;
+}
+
 
 public Action Timer_HealEventApply(Handle timer, DataPack pack)
 {
@@ -1351,29 +1696,27 @@ public Action Timer_HealEventApply(Handle timer, DataPack pack)
 
 	if (!IsValidMulti(client))
 	{
-		ApplyHealEvent_TimerDeleter(clientOriginalIndex);
-		return Plugin_Continue;
+		i_HealsDone_Event[clientOriginalIndex] = 0;
+		h_Timer_HealEventApply[clientOriginalIndex] = null;
+		return Plugin_Stop;
 	}
 
-	Event event = CreateEvent("player_healonhit", true);
-	event.SetInt("entindex", client);
-	event.SetInt("amount", i_HealsDone_Event[clientOriginalIndex]);
-	event.Fire();
-
-	ApplyHealEvent_TimerDeleter(clientOriginalIndex);
-	return Plugin_Continue;
-}
-
-void ApplyHealEvent_TimerDeleter(int client) //This is on disconnect/connect
-{
-	if (h_Timer_HealEventApply[client] != INVALID_HANDLE)
+	if(i_HealsDone_Event[clientOriginalIndex] > 0)
 	{
-		KillTimer(h_Timer_HealEventApply[client]);
-	}	
-	i_HealsDone_Event[client] = 0;
-	h_Timer_HealEventApply[client] = INVALID_HANDLE;
+		Event event = CreateEvent("player_healonhit", true);
+		event.SetInt("entindex", client);
+		event.SetInt("amount", i_HealsDone_Event[clientOriginalIndex]);
+		event.Fire();
+	}
+	i_HealsDone_Event[clientOriginalIndex] = 0;
+	h_Timer_HealEventApply[clientOriginalIndex] = null;
+	return Plugin_Stop;
 }
 
+public bool Trace_WorldOnly(int entity, int mask, any data)
+{
+	return entity == 0;
+}
 
 public bool Trace_DontHitEntity(int entity, int mask, any data)
 {
@@ -1431,10 +1774,29 @@ public bool Trace_DontHitEntityOrPlayerOrAlliedNpc(int entity, int mask, any dat
 #endif
 		
 	}
-	if(entity > MaxClients && b_IsAlliedNpc[entity])
+	
+#if defined ZR
+	if(entity > MaxClients && !b_NpcHasDied[entity] && GetTeam(entity) == TFTeam_Red)
 	{
 		return false;
 	}
+#endif
+
+	if(b_ThisEntityIgnored[entity] && i_IsABuilding[entity])
+	{
+		//if the building is ignored, prevent interaction with it.
+		//Edit: if its a barricade this is ignored so they can reclaim it.
+#if defined ZR
+		if(i_NpcInternalId[entity] != ObjectBarricade_ID())
+#endif	
+			return false;
+			
+		//dont allow interaction within itself, i.e. i as the player cant ray trace my own mounted building
+#if defined ZR
+		if(data == EntRefToEntIndex(Building_Mounted[entity]))
+			return false;
+#endif
+	}	
 	if(i_PreviousInteractedEntity[data] == entity && i_PreviousInteractedEntityDo[data])
 	{
 		return false;
@@ -1496,7 +1858,7 @@ public bool Trace_DontHitEntityOrPlayer(int entity, int mask, any data)
 				return entity!=data;
 			}
 		}
-		else if(b_IsAlliedNpc[entity])
+		else if(!b_NpcHasDied[entity] && GetTeam(entity) == TFTeam_Red)
 		{
 			if(i_PreviousInteractedEntity[data] != entity || !i_PreviousInteractedEntityDo[data])
 			{
@@ -1509,10 +1871,28 @@ public bool Trace_DontHitEntityOrPlayer(int entity, int mask, any data)
 		}
 	}
 #endif	
+
+	if(b_ThisEntityIgnored[entity] && i_IsABuilding[entity])
+	{
+		//if the building is ignored, prevent interaction with it.
+		//Edit: if its a barricade this is ignored so they can reclaim it.
+#if defined ZR
+		if(i_NpcInternalId[entity] != ObjectBarricade_ID())
+			return false;
+
+		//dont allow interaction within itself, i.e. i as the player cant ray trace my own mounted building
+		if(data == EntRefToEntIndex(Building_Mounted[entity]))
+			return false;
+#else
+		return false;
+#endif
+	}	
+	
 	if(i_PreviousInteractedEntity[data] == entity && i_PreviousInteractedEntityDo[data])
 	{
 		return false;
 	}
+
 	return entity!=data;
 }
 
@@ -1545,20 +1925,23 @@ public bool Trace_DontHitAlivePlayer(int entity, int mask, any data)
 	{
 		return false;
 	}
+
+#if defined ZR
+	if(f_Reviving_This_Client[data] > GetGameTime())
+	{
+		if(i_Reviving_This_Client[data] != entity)
+		{
+			return false;
+		}
+	}
+#endif
 	
 	return entity!=data;
 }
 
-stock float[] GetAbsOrigin(int client)
+stock void GetAbsOrigin(int client, float v[3])
 {
-	float v[3];
 	GetEntPropVector(client, Prop_Data, "m_vecAbsOrigin", v);
-	return v;
-}
-
-public void DeleteHandle(Handle handle)
-{
-	delete handle;
 }
 
 stock bool IsValidClient( int client)
@@ -1571,26 +1954,15 @@ stock bool IsValidClient( int client)
 	return true; 
 }
 
-stock float[] GetWorldSpaceCenter(int client)
+stock bool IsBehindAndFacingTarget(int owner, int target, int weapon = -1)
 {
-	float v[3]; v = GetAbsOrigin(client);
-	
-	float max_space[3];
-	GetEntPropVector(client, Prop_Data, "m_vecMaxs", max_space);
-	v[2] += max_space[2] / 2;
-	
-	return v;
-}
-
-bool IsBehindAndFacingTarget(int owner, int target)
-{
-	float vecToTarget[3];
-	SubtractVectors(GetWorldSpaceCenter(target), GetWorldSpaceCenter(owner), vecToTarget);
+	float vecToTarget[3], vecEyeAngles[3];
+	WorldSpaceCenter(target, vecToTarget);
+	WorldSpaceCenter(owner, vecEyeAngles);
+	SubtractVectors(vecToTarget, vecEyeAngles, vecToTarget);
 
 	vecToTarget[2] = 0.0;
 	NormalizeVector(vecToTarget, vecToTarget);
-	
-	float vecEyeAngles[3];
 	
 	if(owner <= MaxClients)
 		GetClientEyeAngles(owner, vecEyeAngles);
@@ -1615,7 +1987,28 @@ bool IsBehindAndFacingTarget(int owner, int target)
 	float flPosVsTargetViewDot = GetVectorDotProduct(vecToTarget, vecTargetForward);
 	float flPosVsOwnerViewDot = GetVectorDotProduct(vecToTarget, vecOwnerForward);
 	float flViewAnglesDot = GetVectorDotProduct(vecTargetForward, vecOwnerForward);
-	
+	if(weapon > 0)
+	{
+#if defined ZR
+		if(b_BackstabLaugh[weapon])
+		{
+			int AllCorrect = 0;
+			if(flPosVsTargetViewDot > -0.6)
+				AllCorrect++;
+
+			if(flPosVsOwnerViewDot > 0.5)
+				AllCorrect++;
+				
+			if(flViewAnglesDot > -0.8)
+				AllCorrect++;
+			
+			if(AllCorrect >= 3)
+				return true;
+			else
+				return false;
+		}
+#endif
+	}
 	return ( flPosVsTargetViewDot > 0.0 && flPosVsOwnerViewDot > 0.5 && flViewAnglesDot > -0.3 );
 }
 
@@ -1632,20 +2025,26 @@ stock float AngleNormalize(float angle)
 	return angle;
 }
 
-void DoOverlay(int client, const char[] overlay)
+stock void DoOverlay(int client, const char[] overlay, int Methods = 0)
 {
-	//int flags = GetCommandFlags("r_screenoverlay");
-	//SetCommandFlags("r_screenoverlay", flags & ~FCVAR_CHEAT);
-	//if(overlay[0])
-	//{
+	if(Methods == 1 || Methods == 2)
+	{
+		int flags = GetCommandFlags("r_screenoverlay");
+		SetCommandFlags("r_screenoverlay", flags & ~FCVAR_CHEAT);
+		if(overlay[0])
+		{
+			ClientCommand(client, "r_screenoverlay \"%s\"", overlay);
+		}
+		else
+		{
+			ClientCommand(client, "r_screenoverlay off");
+		}
+		SetCommandFlags("r_screenoverlay", flags);
+	}
+	if(Methods == 0 || Methods == 2)
+	{
 		SetEntPropString(client, Prop_Send, "m_szScriptOverlayMaterial", overlay);
-	//	ClientCommand(client, "r_screenoverlay \"%s\"", overlay);
-	//}
-	//else
-	//{
-	//	ClientCommand(client, "r_screenoverlay off");
-	//}
-	//SetCommandFlags("r_screenoverlay", flags);
+	}
 }
 
 public bool PlayersOnly(int entity, int contentsMask, any iExclude)
@@ -1655,18 +2054,18 @@ public bool PlayersOnly(int entity, int contentsMask, any iExclude)
 		return false;
 	}
 	
-	else if(GetEntProp(iExclude, Prop_Send, "m_iTeamNum") != GetEntProp(entity, Prop_Send, "m_iTeamNum"))
+	else if(GetTeam(iExclude) != GetTeam(entity))
 		return false;
 		
 	
 	return !(entity == iExclude);
 }
 
-stock bool Client_Shake(int client, int command=SHAKE_START, float amplitude=50.0, float frequency=150.0, float duration=3.0)
+stock bool Client_Shake(int client, int command=SHAKE_START, float amplitude=50.0, float frequency=150.0, float duration=3.0, bool respectSetting = true)
 {
 	//allow settings for the sick who cant handle screenshake.
 	//can cause headaches.
-	if(!b_HudScreenShake[client])
+	if(respectSetting && !b_HudScreenShake[client])
 	{
 		return false;
 	}
@@ -1702,7 +2101,6 @@ stock bool Client_Shake(int client, int command=SHAKE_START, float amplitude=50.
 
 	return true;
 }
-
 
 stock void PrintKeyHintText(int client, const char[] format, any ...)
 {
@@ -1741,19 +2139,48 @@ stock bool IsEven( int iNum )
 	return iNum % 2 == 0;
 } 
 
-stock bool IsInvuln(int client) //Borrowed from Batfoxkid
+stock bool IsInvuln(int client, bool IgnoreNormalUber = false) //Borrowed from Batfoxkid
 {
 	if(!IsValidClient(client))
-		return true;
+	{
+		if(!IsValidEntity(client))
+		{
+			return false;
+		}
+		if(HasSpecificBuff(client, "Unstoppable Force"))
+			return true;
 
-	return (TF2_IsPlayerInCondition(client, TFCond_Ubercharged) ||
-		TF2_IsPlayerInCondition(client, TFCond_UberchargedCanteen) ||
-		TF2_IsPlayerInCondition(client, TFCond_UberchargedHidden) ||
-		TF2_IsPlayerInCondition(client, TFCond_UberchargedOnTakeDamage) ||
-		TF2_IsPlayerInCondition(client, TFCond_Bonked) ||
-		TF2_IsPlayerInCondition(client, TFCond_HalloweenGhostMode) ||
-		//TF2_IsPlayerInCondition(client, TFCond_MegaHeal) ||
-		!GetEntProp(client, Prop_Data, "m_takedamage"));
+		if(b_NpcIsInvulnerable[client])
+			return true;
+		
+		return false;
+	}
+
+	if(!IgnoreNormalUber)
+	{
+		if(HasSpecificBuff(client, "UBERCHARGED"))
+			return true;
+		return (TF2_IsPlayerInCondition(client, TFCond_Ubercharged) ||
+			TF2_IsPlayerInCondition(client, TFCond_UberchargedCanteen) ||
+			TF2_IsPlayerInCondition(client, TFCond_UberchargedHidden) ||
+			TF2_IsPlayerInCondition(client, TFCond_UberchargedOnTakeDamage) ||
+			TF2_IsPlayerInCondition(client, TFCond_Bonked) ||
+			TF2_IsPlayerInCondition(client, TFCond_HalloweenGhostMode) ||
+			//TF2_IsPlayerInCondition(client, TFCond_MegaHeal) ||
+			!GetEntProp(client, Prop_Data, "m_takedamage"));
+
+	}
+	else
+	{
+
+		return (TF2_IsPlayerInCondition(client, TFCond_UberchargedCanteen) ||
+			TF2_IsPlayerInCondition(client, TFCond_UberchargedHidden) ||
+			TF2_IsPlayerInCondition(client, TFCond_UberchargedOnTakeDamage) ||
+			TF2_IsPlayerInCondition(client, TFCond_Bonked) ||
+			TF2_IsPlayerInCondition(client, TFCond_HalloweenGhostMode) ||
+			//TF2_IsPlayerInCondition(client, TFCond_MegaHeal) ||
+			!GetEntProp(client, Prop_Data, "m_takedamage"));		
+	}
 }
 
 stock void ModelIndexToString(int index, char[] model, int size)
@@ -1893,7 +2320,7 @@ public bool Base_Boss_Hit(int entity, int contentsMask, any iExclude)
 	
 	if(entity != iExclude && (StrEqual(class, "obj_dispenser") || StrEqual(class, "obj_teleporter") || StrEqual(class, "obj_sentrygun")))
 	{
-		if(GetEntProp(iExclude, Prop_Send, "m_iTeamNum") == GetEntProp(entity, Prop_Send, "m_iTeamNum"))
+		if(GetTeam(iExclude) == GetTeam(entity))
 		{
 			return true;
 		}
@@ -1912,47 +2339,19 @@ public bool Base_Boss_Hit(int entity, int contentsMask, any iExclude)
 	return !(entity == iExclude);
 }
 
-public bool IngorePlayersAndBuildings(int entity, int contentsMask, any iExclude)
-{
-	char class[64];
-	GetEntityClassname(entity, class, sizeof(class));
-	if(entity <= MaxClients) //just ignore players entirely, there will be no pvp.
-	{
-		return false;
-	}
-	if(StrEqual(class, "prop_physics") || StrEqual(class, "prop_physics_multiplayer"))
-	{
-		return false;
-	}
-	if(entity != iExclude && (StrEqual(class, "obj_dispenser") || StrEqual(class, "obj_teleporter") || StrEqual(class, "obj_sentrygun") || StrEqual(class, "zr_base_npc"))) //include baseboss so it goesthru
-	{
-		if(GetEntProp(iExclude, Prop_Send, "m_iTeamNum") == GetEntProp(entity, Prop_Send, "m_iTeamNum"))
-		{
-			return false;
-		}
-		else
-		{
-			return true;
-		}
-	}
-		
-	
-	return !(entity == iExclude);
-}
-
 public bool Detect_BaseBoss(int entity, int contentsMask, any iExclude)
 {
 	char class[64];
 	GetEntityClassname(entity, class, sizeof(class));
 	
-	if(!StrEqual(class, "zr_base_npc"))
+	if(!b_ThisWasAnNpc[entity])
 	{
 		return false;
 	}
 	
-	if(entity != iExclude && StrEqual(class, "zr_base_npc"))
+	if(entity != iExclude)
 	{
-		if(GetEntProp(iExclude, Prop_Send, "m_iTeamNum") == GetEntProp(entity, Prop_Send, "m_iTeamNum"))
+		if(GetTeam(iExclude) == GetTeam(entity))
 		{
 			return false;
 		}
@@ -1964,109 +2363,6 @@ public bool Detect_BaseBoss(int entity, int contentsMask, any iExclude)
 		
 	
 	return !(entity == iExclude);
-}
-
-stock int GetClosestTarget_BaseBoss(int entity)
-{
-	float TargetDistance = 0.0; 
-	int ClosestTarget = -1; 
-	int i = MaxClients + 1;
-	while ((i = FindEntityByClassname(i, "zr_base_npc")) != -1)
-	{
-		if (GetEntProp(entity, Prop_Send, "m_iTeamNum")!=GetEntProp(i, Prop_Send, "m_iTeamNum") && !b_NpcHasDied[i]) 
-		{
-			float EntityLocation[3], TargetLocation[3]; 
-			GetEntPropVector( entity, Prop_Data, "m_vecAbsOrigin", EntityLocation ); 
-			GetEntPropVector( i, Prop_Data, "m_vecAbsOrigin", TargetLocation ); 
-				
-				
-			float distance = GetVectorDistance( EntityLocation, TargetLocation, true ); 
-			if( TargetDistance ) 
-			{
-				if( distance < TargetDistance ) 
-				{
-					ClosestTarget = i; 
-					TargetDistance = distance;		  
-				}
-			} 
-			else 
-			{
-				ClosestTarget = i; 
-				TargetDistance = distance;
-			}				
-		}
-	}
-	return ClosestTarget; 
-}
-
-bool b_WasAlreadyCalculatedToBeClosest[MAXENTITIES]; //should be false by default...
-
-stock int GetClosestTarget_BaseBoss_Pos(float pos[3],int entity)
-{
-	float TargetDistance = 0.0; 
-	int ClosestTarget = -1; 
-	for(int entitycount; entitycount<i_MaxcountNpc; entitycount++)
-	{
-		int baseboss_index = EntRefToEntIndex(i_ObjectsNpcs[entitycount]);
-		if (IsValidEntity(baseboss_index) && !b_WasAlreadyCalculatedToBeClosest[baseboss_index])
-		{
-			if(!b_NpcHasDied[baseboss_index])
-			{
-				if (GetEntProp(entity, Prop_Send, "m_iTeamNum")!=GetEntProp(baseboss_index, Prop_Send, "m_iTeamNum")) 
-				{
-					float TargetLocation[3]; 
-					GetEntPropVector( baseboss_index, Prop_Data, "m_vecAbsOrigin", TargetLocation ); 
-					
-					float distance = GetVectorDistance( pos, TargetLocation, true ); 
-					if( TargetDistance ) 
-					{
-						if( distance < TargetDistance ) 
-						{
-							ClosestTarget = baseboss_index; 
-							TargetDistance = distance;		  
-						}
-					} 
-					else 
-					{
-						ClosestTarget = baseboss_index; 
-						TargetDistance = distance;
-					}				
-				}
-			}
-		}
-	}
-	for(int entitycount; entitycount<i_MaxcountBreakable; entitycount++)
-	{
-		int breakable_entity = EntRefToEntIndex(i_ObjectsBreakable[entitycount]);
-		if(IsValidEntity(breakable_entity))
-		{
-			if (GetEntProp(breakable_entity, Prop_Send, "m_iTeamNum")!=GetEntProp(breakable_entity, Prop_Send, "m_iTeamNum")) 
-			{
-				float TargetLocation[3]; 
-				GetEntPropVector( breakable_entity, Prop_Data, "m_vecAbsOrigin", TargetLocation ); 
-				
-				float distance = GetVectorDistance( pos, TargetLocation, true ); 
-				if( TargetDistance ) 
-				{
-					if( distance < TargetDistance ) 
-					{
-						ClosestTarget = breakable_entity; 
-						TargetDistance = distance;		  
-					}
-				} 
-				else 
-				{
-					ClosestTarget = breakable_entity; 
-					TargetDistance = distance;
-				}				
-			}
-		}
-	}
-	if(IsValidEntity(ClosestTarget))
-	{
-		b_WasAlreadyCalculatedToBeClosest[ClosestTarget] = true;
-	}
-	return ClosestTarget; 
 }
 
 stock void AnglesToVelocity(const float ang[3], float vel[3], float speed=1.0)
@@ -2117,7 +2413,7 @@ stock bool IsEntityStuck(int entity)
 	return (TR_DidHit());
 }
 
-
+#if defined _tf2items_included
 stock int SpawnWeapon_Special(int client, char[] name, int index, int level, int qual, const char[] att, bool visible=true)
 {
 	if(StrEqual(name, "saxxy", false))	// if "saxxy" is specified as the name, replace with appropiate name
@@ -2191,6 +2487,7 @@ stock int SpawnWeapon_Special(int client, char[] name, int index, int level, int
 	}
 	return entity;
 }
+#endif
 
 stock void GetRayAngles(float startPoint[3], float endPoint[3], float angle[3])
 {
@@ -2241,6 +2538,7 @@ stock float fixAngle(float angle)
 	return angle;
 }
 
+#if defined _tf2items_included
 stock int Spawn_Buildable(int client, int AllowBuilding = -1)
 {
 	int entity = SpawnWeapon(client, "tf_weapon_builder", 28, 1, 0, view_as<int>({148}), view_as<float>({1.0}), 1); 
@@ -2286,11 +2584,12 @@ stock int Spawn_Buildable(int client, int AllowBuilding = -1)
 		Attributes_Set(entity, 292, 3.0);
 		Attributes_Set(entity, 293, 59.0);
 		Attributes_Set(entity, 495, 60.0); //Kill eater score shit, i dont know.
-	//	TF2_SetPlayerClass(client, TFClass_Engineer);
+	//	TF2_SetPlayerClass_ZR(client, TFClass_Engineer);
 		return entity;
 	}	
 	return -1;
 }
+#endif
 
 public void CreateEarthquake(float position[3], float duration, float radius, float amplitude, float frequency)
 {
@@ -2315,8 +2614,7 @@ public void CreateEarthquake(float position[3], float duration, float radius, fl
 	}
 }
 
-
-bool TF2U_GetWearable(int client, int &entity, int &index, const char[] classname = "tf_wear*")
+stock bool TF2U_GetWearable(int client, int &entity, int &index, const char[] classname = "tf_wear*")
 {
 	/*#if defined __nosoop_tf2_utils_included
 	if(Loaded)
@@ -2362,7 +2660,7 @@ bool TF2U_GetWearable(int client, int &entity, int &index, const char[] classnam
 	return false;
 }
 
-stock void spawnRing(int client, float range, float modif_X, float modif_Y, float modif_Z, char sprite[255], int r, int g, int b, int alpha, int fps, float life, float width, float amp, int speed, float endRange = -69.0) //Spawns a TE beam ring at a client's/entity's location
+stock void spawnRing(int client, float range, float modif_X, float modif_Y, float modif_Z, char sprite[255], int r, int g, int b, int alpha, int fps, float life, float width, float amp, int speed, float endRange = -69.0, bool personal = false) //Spawns a TE beam ring at a client's/entity's location
 {
 	if (IsValidEntity(client))
 	{
@@ -2374,10 +2672,7 @@ stock void spawnRing(int client, float range, float modif_X, float modif_Y, floa
 		}
 		else if (client > MaxClients) //If our entity is just an entity, grab its m_vecOrigin
 		{
-			if (HasEntProp(client, Prop_Send, "m_vecOrigin"))
-			{
-				GetEntPropVector(client, Prop_Send, "m_vecOrigin", center);
-			}
+			GetEntPropVector(client, Prop_Data, "m_vecAbsOrigin", center);
 		}
 		
 		if (IsValidMulti(client, true, false, false)) //If the entity is a dead player, abort
@@ -2404,7 +2699,14 @@ stock void spawnRing(int client, float range, float modif_X, float modif_Y, floa
 		}
 		
 		TE_SetupBeamRingPoint(center, range, endRange, ICE_INT, ICE_INT, 0, fps, life, width, amp, color, speed, 0);
-		TE_SendToAll();
+		if(personal)
+		{
+			TE_SendToClient(client);
+		}
+		else
+		{
+			TE_SendToAll();
+		}
 	}
 }
 
@@ -2417,22 +2719,26 @@ stock bool IsSpaceOccupiedIgnorePlayersOnlyNpc(const float pos[3], const float m
 	return bHit;
 }
 
-public bool TraceEntityFilterPlayer(int entity, any contentsMask) //Borrowed from Apocalips
+public bool TraceEntityFilterPlayer(int entity, int contentsMask) //Borrowed from Apocalips
 {
 	return entity > MaxClients;
 }
 
-public bool TraceRayOnlyNpc(int entity, any contentsMask, any data)
+public bool TraceRayOnlyNpc(int entity, int contentsMask, any data)
 {
 	static char class[12];
 	GetEntityClassname(entity, class, sizeof(class));
 	
-	if(StrEqual(class, "zr_base_npc")) return true;
+	if(StrEqual(class, "zr_base_npc"))
+		return true;
+
+	if(StrEqual(class, "zr_base_stationary"))
+		return true;
 	
 	return !(entity == data);
 }
 
-stock bool IsValidMulti(int client, bool checkAlive=true, bool isAlive=true, bool checkTeam=false, TFTeam team=TFTeam_Red, bool send=false) //An extension of IsValidClient that also checks for boss status, alive-ness, and optionally a team. Send is used for debug purposes to inform the programmer when and why this stock returns false.
+stock bool IsValidMulti(int client, bool checkAlive=true, bool isAlive=true, bool checkTeam=false, int team=TFTeam_Red) //An extension of IsValidClient that also checks for boss status, alive-ness, and optionally a team. Send is used for debug purposes to inform the programmer when and why this stock returns false.
 {
 	if (!IsValidClient(client)) //Self-explanatory
 	{
@@ -2453,7 +2759,7 @@ stock bool IsValidMulti(int client, bool checkAlive=true, bool isAlive=true, boo
 	
 	if (checkTeam) //Do we want to check the client's team?
 	{
-		if (TF2_GetClientTeam(client) != team) //If they aren't on the desired team, return false.
+		if (GetTeam(client) != team) //If they aren't on the desired team, return false.
 		{
 			return false;
 		}
@@ -2474,9 +2780,9 @@ public bool AntiTraceEntityFilterPlayer(int entity, any contentsMask) //Borrowed
 public void SpawnSmallExplosion(float DetLoc[3])
 {
 	float pos[3];
-	pos[0] += DetLoc[0] + GetRandomFloat(-80.0, 80.0);
-	pos[1] += DetLoc[1] + GetRandomFloat(-80.0, 80.0);
-	pos[2] += DetLoc[2] + GetRandomFloat(0.0, 80.0);
+	pos[0] += DetLoc[0] + GetRandomFloat(-25.0, 25.0);
+	pos[1] += DetLoc[1] + GetRandomFloat(-25.0, 25.0);
+	pos[2] += DetLoc[2] + GetRandomFloat(0.0, 25.0);
 	
 	TE_Particle(EXPLOSION_PARTICLE_SMALL_1, pos, NULL_VECTOR, NULL_VECTOR, _, _, _, _, _, _, _, _, _, _, 0.0);
 }
@@ -2495,17 +2801,7 @@ stock void GetVectorAnglesTwoPoints(const float startPos[3], const float endPos[
 	GetVectorAngles(tmpVec, angles);
 }
 
-
-stock int TracePlayerHulls(const float pos[3], const float mins[3], const float maxs[3],int entity=-1,int &ref=-1)
-{
-	Handle hTrace = TR_TraceHullFilterEx(pos, pos, mins, maxs, MASK_ALL, IngorePlayersAndBuildings, entity);
-	bool bHit = TR_DidHit(hTrace);
-	ref = TR_GetEntityIndex(hTrace);
-	delete hTrace;
-	return bHit;
-}
-
-void TE_DrawBox(int client, float m_vecOrigin[3], float m_vecMins[3], float m_vecMaxs[3], float flDur = 0.1, const int color[4])
+stock void TE_DrawBox(int client = -1, float m_vecOrigin[3], float m_vecMins[3], float m_vecMaxs[3], float flDur = 0.1, const int color[4])
 {
 	//Trace top down
 	/*
@@ -2577,26 +2873,27 @@ void TE_DrawBox(int client, float m_vecOrigin[3], float m_vecMins[3], float m_ve
 //	return true;
 }
 
-void TE_SendBeam(int client, float m_vecMins[3], float m_vecMaxs[3], float flDur = 0.1, const int color[4])
+void TE_SendBeam(int client = -1, float m_vecMins[3], float m_vecMaxs[3], float flDur = 0.1, const int color[4])
 {
 	TE_SetupBeamPoints(m_vecMins, m_vecMaxs, g_iLaserMaterial_Trace, g_iHaloMaterial_Trace, 0, 0, flDur, 1.0, 1.0, 1, 0.0, color, 0);
-	TE_SendToClient(client);
+	if(client == -1)
+	{
+		TE_SendToAll();
+	}
+	else
+	{
+		TE_SendToClient(client);
+	}
 }
 
-/*
-float[] CalculateBulletDamageForce( const float vecBulletDir[3], float flScale )
-{
-	float vecForce[3]; vecForce = vecBulletDir;
-	NormalizeVector( vecForce, vecForce );
-	ScaleVector(vecForce, FindConVar("phys_pushscale").FloatValue);
-	ScaleVector(vecForce, flScale);
-	return vecForce;
-}
-*/
 
-int Target_Hit_Wand_Detection(int owner_projectile, int other_entity)
+stock int Target_Hit_Wand_Detection(int owner_projectile, int other_entity)
 {
 	if(owner_projectile < 1)
+	{
+		return -1; //I dont exist?
+	}
+	if(other_entity < 0)
 	{
 		return -1; //I dont exist?
 	}
@@ -2608,36 +2905,54 @@ int Target_Hit_Wand_Detection(int owner_projectile, int other_entity)
 	{
 		return -1;
 	}
-	else if(i_IsABuilding[other_entity])
+	//Re-use b_AllowCollideWithSelfTeam here
+	else if(!b_AllowCollideWithSelfTeam[owner_projectile] && i_IsABuilding[other_entity])
 	{
 		return -1;
 	}
-	else if(b_IsAlliedNpc[other_entity])
+#if defined ZR
+	else if(GetTeam(other_entity) == TFTeam_Red)
 	{
-		return -1;
+		if(b_NpcIsTeamkiller[owner_projectile])
+			return other_entity;
+		else
+			return -1;
 	}
+#endif
 	else if(other_entity <= MaxClients)
 	{
-		return -1;
+#if defined RPG
+		if(RPGCore_PlayerCanPVP(owner_projectile, other_entity))
+			return other_entity;
+		else
+			return -1;
+#else
+			return -1;
+#endif	
 	}
 //	else if(IsValidEnemy(owner_projectile, other_entity, true, true))
 	else if(!b_NpcHasDied[other_entity]) //way less cheap, lets see how that goes.
 	{
+#if defined RPG
+	int owner = GetEntPropEnt(owner_projectile, Prop_Send, "m_hOwnerEntity");
+	if(OnTakeDamageRpgPartyLogic(other_entity, owner, GetGameTime()))
+		return -1;
+#endif
 		return other_entity;
 	}
 	return 0;
 }
 
-float[] CalculateDamageForce( const float vecBulletDir[3], float flScale )
+
+stock void CalculateDamageForce( const float vecBulletDir[3], float flScale, float vecForce[3])
 {
-	float vecForce[3]; vecForce = vecBulletDir;
+	vecForce = vecBulletDir;
 	NormalizeVector( vecForce, vecForce );
 	ScaleVector(vecForce, FindConVar("phys_pushscale").FloatValue);
 	ScaleVector(vecForce, flScale);
-	return vecForce;
 }
 
-float[] CalculateDamageForceSelfCalculated(int client, float flScale )
+stock void CalculateDamageForceSelfCalculated(int client, float flScale, float vec[3])
 {
 	float vecSwingForward[3];
 	float ang[3];
@@ -2645,44 +2960,18 @@ float[] CalculateDamageForceSelfCalculated(int client, float flScale )
 	
 	GetAngleVectors(ang, vecSwingForward, NULL_VECTOR, NULL_VECTOR);
 	
-	return CalculateDamageForce(vecSwingForward, flScale);
+	CalculateDamageForce(vecSwingForward, flScale, vec);
 }
 
 float ImpulseScale( float flTargetMass, float flDesiredSpeed )
 {
 	return (flTargetMass * flDesiredSpeed);
 }
-/*
-float[] CalculateExplosiveDamageForce( const float vecForceOrigin[3],const float vecDir[3], float flScale )
-{
-	info->SetDamagePosition( vecForceOrigin );
 
-	float flClampForce = ImpulseScale( 75, 400 );
-
-	// Calculate an impulse large enough to push a 75kg man 4 in/sec per point of damage
-	float flForceScale = info->GetBaseDamage() * ImpulseScale( 75, 4 );
-
-	if( flForceScale > flClampForce )
-		flForceScale = flClampForce;
-
-	// Fudge blast forces a little bit, so that each
-	// victim gets a slightly different trajectory. 
-	// This simulates features that usually vary from
-	// person-to-person variables such as bodyweight,
-	// which are all indentical for characters using the same model.
-	flForceScale *= random->RandomFloat( 0.85, 1.15 );
-
-	// Calculate the vector and stuff it into the takedamageinfo
-	Vector vecForce = vecDir;
-	VectorNormalize( vecForce );
-	vecForce *= flForceScale;
-	vecForce *= phys_pushscale.GetFloat();
-	vecForce *= flScale;
-	info->SetDamageForce( vecForce );
-}*/
 #define INNER_RADIUS_FRACTION 0.25
 
-float[] CalculateExplosiveDamageForce(const float vec_Explosive[3], const float vecEndPosition[3], float damage_Radius)
+
+void CalculateExplosiveDamageForce(const float vec_Explosive[3], const float vecEndPosition[3], float damage_Radius, float vecForce[3])
 {
 	float flClampForce = ImpulseScale( 75.0, 400.0 );
 
@@ -2721,7 +3010,7 @@ float[] CalculateExplosiveDamageForce(const float vec_Explosive[3], const float 
 	}
 		
 	// Calculate the vector and stuff it into the takedamageinfo
-	float vecForce[3]; vecForce = vecSegment;
+	vecForce = vecSegment;
 	NormalizeVector( vecForce, vecForce );
 	ScaleVector(vecForce, flForceScale);
 	ScaleVector(vecForce, FindConVar("phys_pushscale").FloatValue);
@@ -2730,31 +3019,92 @@ float[] CalculateExplosiveDamageForce(const float vec_Explosive[3], const float 
 	vecForce[0] *= -1.0;
 	vecForce[1] *= -1.0;
 	vecForce[2] *= -1.0;
-	return vecForce;
 }
-
-public void Give_Assist_Points(int target, int assister)
+int SavedFromLastTimeCount = 0;
+int CountPlayersOnRed(int alive = 0, bool saved = false)
 {
-	i_assist_heal_player[target] = assister;
-	f_assist_heal_player_time[target] = GetGameTime() + 10.0;	
-}
+	if(saved)
+		return SavedFromLastTimeCount;
 
-int CountPlayersOnRed(bool alive = false)
-{
 	int amount;
 	for(int client=1; client<=MaxClients; client++)
 	{
 #if defined ZR
-		if(b_HasBeenHereSinceStartOfWave[client] && IsClientInGame(client) && GetClientTeam(client)==2 && TeutonType[client] != TEUTON_WAITING && (!alive || (TeutonType[client] != TEUTON_NONE && dieingstate[client] > 0)))
+		if(!b_IsPlayerABot[client] && b_HasBeenHereSinceStartOfWave[client] && IsClientInGame(client) && GetClientTeam(client)==2 && TeutonType[client] != TEUTON_WAITING)
 #else
-		if(IsClientInGame(client) && GetClientTeam(client) == 2 && (!alive || IsPlayerAlive(client)))
+		if(!b_IsPlayerABot[client] && IsClientInGame(client) && GetClientTeam(client)==2)
 #endif
-			amount++;
+		{
+			if(alive == 0)
+			{
+				amount++;
+				continue;
+			}
+#if defined ZR
+			else
+			{
+				if(alive == 1) //check if just not teuton
+				{
+					if(TeutonType[client] == TEUTON_NONE)
+					{
+						amount++;
+						continue;
+					}
+				}
+				else if(alive == 2) //check if downed too
+				{
+					if(TeutonType[client] == TEUTON_NONE && dieingstate[client] == 0)
+					{
+						amount++;
+						continue;
+					}
+				}
+			}
+#endif
+		}
 	}
-	
+	SavedFromLastTimeCount = amount;
 	return amount;
 	
 }
+#if defined ZR
+
+//alot is  borrowed from CountPlayersOnRed
+float ZRStocks_PlayerScalingDynamic(float rebels = 0.5, bool IgnoreMulti = false, bool IgnoreLevelLimit = false)
+{
+	//dont be 0
+	float ScaleReturn = 0.01;
+	for(int client=1; client<=MaxClients; client++)
+	{
+		if(!b_IsPlayerABot[client] && b_HasBeenHereSinceStartOfWave[client] && IsClientInGame(client) && GetClientTeam(client)==2 && TeutonType[client] != TEUTON_WAITING)
+		{ 
+			if(!IgnoreLevelLimit && Database_IsCached(client) && Level[client] <= 20)
+			{
+				float CurrentLevel = float(Level[client]);
+				CurrentLevel += 20.0;
+				//so lvl 0 is atleast resulting in 0.5 Scaling
+				ScaleReturn += (CurrentLevel / 40.0);
+			}
+			else
+			{
+				ScaleReturn += 1.0;
+			}
+		}
+	}
+	
+	//in construction mode, rebels are not THAT usefull toi warrant extra scaling, so it is blocked in this mode.
+	if(!Construction_Mode())
+		if(rebels)
+			ScaleReturn += Citizen_Count() * rebels;
+
+	if(!IgnoreMulti)
+		ScaleReturn *= zr_multi_scaling.FloatValue;
+	
+	return ScaleReturn;
+}
+
+#endif
+
 
 int CountPlayersOnServer()
 {
@@ -2772,12 +3122,34 @@ int CountPlayersOnServer()
 	
 }
 
-int HitEntitiesSphereExplosionTrace[MAXENTITIES][MAXENTITIES];
+void Projectile_DealElementalDamage(int victim, int attacker, float Scale = 1.0)
+{
+#if defined ZR
+	if(i_ChaosArrowAmount[attacker] > 0)
+	{
+		Elemental_AddChaosDamage(victim, attacker, RoundToCeil(float(i_ChaosArrowAmount[attacker]) * Scale));
+	}
+	if(i_VoidArrowAmount[attacker] > 0)
+	{
+		Elemental_AddVoidDamage(victim, attacker, RoundToCeil(float(i_VoidArrowAmount[attacker]) * Scale));
+	}
+#endif
+	if(i_NervousImpairmentArrowAmount[attacker] > 0)
+	{
+#if defined ZR
+		Elemental_AddNervousDamage(victim, attacker, RoundToCeil(float(i_NervousImpairmentArrowAmount[attacker]) * Scale));
+#elseif defined RPG
+		SeaShared_DealCorrosion(victim, attacker, RoundToCeil(float(i_NervousImpairmentArrowAmount[attacker]) * Scale));
+#endif
+	}
+}
 
 stock void Explode_Logic_Custom(float damage,
-int client,
-int entity,
-int weapon,
+int client, //To get attributes from and to see what is my enemy!
+int entity,	//Entity that gets forwarded or traced from/Distance checked.
+int weapon,	//What to get attributes from aswell, if its from an npc, always -1
+//Idealy: entity is projectile if its a projectile weapon
+//If its happening from an NPC or player itself, set both client and entity to the same thing.
 float spawnLoc[3] = {0.0,0.0,0.0},
 float explosionRadius = EXPLOSION_RADIUS,
 float ExplosionDmgMultihitFalloff = EXPLOSION_AOE_DAMAGE_FALLOFF,
@@ -2792,47 +3164,75 @@ int inflictor = 0)
 {
 
 	float damage_reduction = 1.0;
+
+#if defined ZR || defined RPG
 	if(IsValidEntity(weapon))
 	{
-		float value = Attributes_FindOnWeapon(client, weapon, 99, true, 1.0);//increaced blast radius attribute (Check weapon only)
+		float value = Attributes_Get(weapon, 99, 1.0);//increased blast radius attribute (Check weapon only)
 		explosionRadius *= value;
+		if(maxtargetshit == 10)
+			maxtargetshit = RoundToNearest(Attributes_Get(weapon, 4011, 10.0));
+
+		if(ExplosionDmgMultihitFalloff == EXPLOSION_AOE_DAMAGE_FALLOFF)
+			ExplosionDmgMultihitFalloff = Attributes_Get(weapon, 4013, EXPLOSION_AOE_DAMAGE_FALLOFF);
+
+		if(explosion_range_dmg_falloff == EXPLOSION_RANGE_FALLOFF)
+			explosion_range_dmg_falloff = Attributes_Get(weapon, Attrib_OverrideExplodeDmgRadiusFalloff, EXPLOSION_RANGE_FALLOFF);
 	}
+#endif
+
 	//this should make explosives during raids more usefull.
 	if(!FromBlueNpc) //make sure that there even is any valid npc before we do these huge calcs.
 	{ 
-		if(spawnLoc[0] == 0.0)
+		if(entity > 0 && spawnLoc[0] == 0.0)
 		{
-			GetEntPropVector(entity, Prop_Data, "m_vecAbsOrigin", spawnLoc);
+			if(b_ThisWasAnNpc[entity])
+			{
+				WorldSpaceCenter(entity, spawnLoc);
+			}
+			else
+			{	
+				GetEntPropVector(entity, Prop_Data, "m_vecAbsOrigin", spawnLoc);
+				spawnLoc[2] += 5.0;
+			}
 		}
 	}
 	else //only nerf blue npc radius!
 	{
-		explosionRadius *= 0.75;
-		if(spawnLoc[0] == 0.0) //only get position if thhey got notin
+		explosionRadius *= 0.90;
+		if(explosion_range_dmg_falloff != EXPLOSION_RANGE_FALLOFF)
 		{
-			GetEntPropVector(entity, Prop_Data, "m_vecAbsOrigin", spawnLoc);
+			explosion_range_dmg_falloff = 0.8;
+		}
+		if(entity > 0 && spawnLoc[0] == 0.0) //only get position if thhey got notin
+		{
+			if(b_ThisWasAnNpc[entity])
+			{
+				WorldSpaceCenter(entity, spawnLoc);
+			}
+			else
+			{	
+				GetEntPropVector(entity, Prop_Data, "m_vecAbsOrigin", spawnLoc);
+				spawnLoc[2] += 5.0;
+			}
 		} 
 	}
 	
 	int damage_flags = 0;
 	int custom_flags = 0;
-	if((i_ExplosiveProjectileHexArray[entity] & EP_DEALS_SLASH_DAMAGE))
-	{
-		damage_flags |= DMG_SLASH;
-	}
-	else if((i_ExplosiveProjectileHexArray[entity] & EP_DEALS_CLUB_DAMAGE))
+	if((i_ExplosiveProjectileHexArray[entity] & EP_DEALS_CLUB_DAMAGE))
 	{
 		damage_flags |= DMG_CLUB;
 	}
-	else if((i_ExplosiveProjectileHexArray[entity] & EP_DEALS_PLASMA_DAMAGE))
+	if((i_ExplosiveProjectileHexArray[entity] & EP_DEALS_PLASMA_DAMAGE))
 	{
 		damage_flags |= DMG_PLASMA;
 	}
-	else if((i_ExplosiveProjectileHexArray[entity] & EP_DEALS_DROWN_DAMAGE))
+	if((i_ExplosiveProjectileHexArray[entity] & EP_DEALS_TRUE_DAMAGE))
 	{
-		damage_flags |= DMG_DROWN;
+		damage_flags |= DMG_TRUEDAMAGE;
 	}
-	else
+	if(damage_flags == 0)
 	{
 		damage_flags |= DMG_BLAST;
 	}
@@ -2845,12 +3245,26 @@ int inflictor = 0)
 	{
 		custom_flags |= ZR_DAMAGE_ICE;
 	}
-	
-	if((i_ExplosiveProjectileHexArray[entity] & EP_NO_KNOCKBACK))
+	if((i_ExplosiveProjectileHexArray[entity] & EP_IS_ICE_DAMAGE))
 	{
-		damage_flags |= DMG_PREVENT_PHYSICS_FORCE;
+		custom_flags |= ZR_DAMAGE_ICE;
+	}
+	
+	if((i_ExplosiveProjectileHexArray[entity] & ZR_DAMAGE_IGNORE_DEATH_PENALTY))
+	{
+		custom_flags |= ZR_DAMAGE_IGNORE_DEATH_PENALTY;
 	}
 	int entityToEvaluateFrom = 0;
+	int EntityToForward = 0;
+
+	if(IsValidEntity(entity))
+	{
+		EntityToForward = entity;
+	}
+	else
+	{
+		EntityToForward = client;
+	}
 
 	if(IsValidEntity(client))
 	{
@@ -2860,10 +3274,12 @@ int inflictor = 0)
 	{
 		entityToEvaluateFrom = entity;
 	}
+
 	if(inflictor == 0)
 	{
 		inflictor = entityToEvaluateFrom;
 	}
+
 	if(entityToEvaluateFrom < 1)
 	{
 		//something went wrong, evacuate.
@@ -2885,7 +3301,8 @@ int inflictor = 0)
 			where did i explode
 		*/
 	}
-	DoExlosionTraceCheck(spawnLoc, explosionRadius, entityToEvaluateFrom);
+	ArrayList HitEntitiesSphereExplosionTrace = new ArrayList();
+	DoExlosionTraceCheck(spawnLoc, explosionRadius, entityToEvaluateFrom, HitEntitiesSphereExplosionTrace);
 	/*
 	This trace does not filter on what is hit first, thats kinda bad, it filters by what entity number is smaller.
 	solution: Trace all entities, get all their distances, and do a rating, with this we get what entity is the closest
@@ -2901,50 +3318,50 @@ int inflictor = 0)
 	{
 		maxtargetshit = 20; //we do not care.
 	}
-	for (int entity_traced = 0; entity_traced < MAXENTITIES; entity_traced++)
+	
+	int length = HitEntitiesSphereExplosionTrace.Length;
+	for (int i = 0; i < length; i++)
 	{
-		if(!HitEntitiesSphereExplosionTrace[entity_traced][entityToEvaluateFrom])
-			break;
+		int entity_traced = HitEntitiesSphereExplosionTrace.Get(i);
 		
-		VicPos[HitEntitiesSphereExplosionTrace[entity_traced][entityToEvaluateFrom]] = WorldSpaceCenter(HitEntitiesSphereExplosionTrace[entity_traced][entityToEvaluateFrom]);
-		distance[HitEntitiesSphereExplosionTrace[entity_traced][entityToEvaluateFrom]] = GetVectorDistance(VicPos[HitEntitiesSphereExplosionTrace[entity_traced][entityToEvaluateFrom]], spawnLoc, true);
+		WorldSpaceCenter(entity_traced, VicPos[entity_traced]);
+		distance[entity_traced] = GetVectorDistance(VicPos[entity_traced], spawnLoc, true);
 		//Save their distances.
 	}
+	
 	//do another check, this time we only need the amount of entities we actually hit.
 	//Im lazy and dumb, i dont know a better way.
-	for (int repeatloop = 0; repeatloop <= maxtargetshit; repeatloop++)
+
+	
+	for (int repeatloop = 0; repeatloop < maxtargetshit && length > 0; repeatloop++)
 	{
-		int ClosestTarget;
 		float ClosestDistance;
-		int indexTraced;
-		for (int entity_traced = 0; entity_traced < MAXENTITIES; entity_traced++)
+		int ClosestIndex;
+		for (int i = 0; i < length; i++)
 		{
-			if (HitEntitiesSphereExplosionTrace[entity_traced][entityToEvaluateFrom])
+			int entity_traced = HitEntitiesSphereExplosionTrace.Get(i);
+			
+			if( ClosestDistance ) 
 			{
-				if( ClosestDistance ) 
+				if( distance[entity_traced] < ClosestDistance ) 
 				{
-					if( distance[HitEntitiesSphereExplosionTrace[entity_traced][entityToEvaluateFrom]] < ClosestDistance ) 
-					{
-						indexTraced = entity_traced;
-						ClosestTarget = HitEntitiesSphereExplosionTrace[entity_traced][entityToEvaluateFrom]; 
-						ClosestDistance = distance[HitEntitiesSphereExplosionTrace[entity_traced][entityToEvaluateFrom]];  
-					}
-				} 
-				else 
-				{
-					indexTraced = entity_traced;
-					ClosestTarget = HitEntitiesSphereExplosionTrace[entity_traced][entityToEvaluateFrom]; 
-					ClosestDistance = distance[HitEntitiesSphereExplosionTrace[entity_traced][entityToEvaluateFrom]];
-				}	
-			}
-			else
+					ClosestIndex = i; 
+					ClosestDistance = distance[entity_traced];  
+				}
+			} 
+			else 
 			{
-				break;
+				ClosestIndex = i; 
+				ClosestDistance = distance[entity_traced];
 			}
 		}
-		/*
-		We will filter out each entity and them damage them accordingly.
-		*/
+
+		int ClosestTarget = HitEntitiesSphereExplosionTrace.Get(ClosestIndex);
+		HitEntitiesSphereExplosionTrace.Erase(ClosestIndex);
+		length--;
+		
+	//	We will filter out each entity and them damage them accordingly.
+		
 		if(IsValidEntity(ClosestTarget))
 		{	
 			static float vicpos[3];
@@ -2961,69 +3378,74 @@ int inflictor = 0)
 									
 				if(Traced_Target != ClosestTarget)
 				{	
-					return;
+					continue;
 				}
 			}
 			if(ignite)
 			{
-				if(ClosestTarget > MaxClients)
-				{
-					NPC_Ignite(ClosestTarget, entityToEvaluateFrom, 5.0, weapon);
-				}
-				else
-				{
-					TF2_AddCondition(ClosestTarget, TFCond_Gas, 1.5);
-					StartBleedingTimer_Against_Client(ClosestTarget, entityToEvaluateFrom, 4.0, 20);
-				}
+				NPC_Ignite(ClosestTarget, entityToEvaluateFrom, 5.0, weapon);
 			}
 			static float damage_1;
 			damage_1 = damage;
 
-			if(FromBlueNpc && ShouldNpcDealBonusDamage(ClosestTarget))
+			if(ShouldNpcDealBonusDamage(ClosestTarget))
 			{
 				damage_1 *= dmg_against_entity_multiplier; //enemy is an entityt that takes bonus dmg, and i am an npc.
 			}
 			//against raids, any aoe ability should be better as they are usually alone or its only two.
 			if(b_thisNpcIsARaid[ClosestTarget])
 			{
-				damage_1 *= 1.3;
+				damage_1 *= EXTRA_RAID_EXPLOSIVE_DAMAGE;
 			}
 			damage_1 *= f_ExplodeDamageVulnerabilityNpc[ClosestTarget];
 			float GetBeforeDamage;
 			if(FunctionToCallBeforeHit != INVALID_FUNCTION)
 			{
 				Call_StartFunction(null, FunctionToCallBeforeHit);
-				Call_PushCell(entityToEvaluateFrom);
+				Call_PushCell(EntityToForward);
 				Call_PushCell(ClosestTarget);
-				Call_PushFloat(damage_1 / damage_reduction);
+				Call_PushFloatRef(damage_1);
 				Call_PushCell(weapon);
 				Call_Finish(GetBeforeDamage);
 			}
-			if(damage > 0.0)
+			if(damage_1 > 0.0)
 			{
 				//npcs do not take damage from drown damage, so what we will do instead
 				//is to make it do slash damage, slash damage ignores most resistances like drown does.
-				if(ClosestTarget > MaxClients)
-				{
-					if((damage_flags & DMG_DROWN))
-					{
-						damage_flags &= ~DMG_DROWN;
-						damage_flags |= DMG_SLASH; 
-					}
-				}
+
 				damage_1 += GetBeforeDamage;
-				SDKHooks_TakeDamage(ClosestTarget, entityToEvaluateFrom, inflictor, damage_1 / damage_reduction, damage_flags, weapon, CalculateExplosiveDamageForce(spawnLoc, vicpos, explosionRadius), vicpos, false, custom_flags);	
+
+				ClosestDistance -= 1600.0;// Give 60 units of range cus its not going from their hurt pos
+
+				if(ClosestDistance < 0.1)
+				{
+					ClosestDistance = 0.1;
+				}
+				//we apply 50% more range, reason being is that this goes for collision boxes, so it can be abit off
+				//idealy we should fire a trace and see the distance from the trace
+				//ill do it in abit if i dont forget.
+				float ExplosionRangeFalloff = Pow(explosion_range_dmg_falloff, (ClosestDistance/((explosionRadius * explosionRadius) * 1.5))); //this is 1000, we use squared for optimisations sake
+				damage_1 *= ExplosionRangeFalloff; //this is 1000, we use squared for optimisations sake
+
+				damage_1 *= damage_reduction;
+				
+				float v[3];
+				CalculateExplosiveDamageForce(spawnLoc, vicpos, explosionRadius, v);
+				//dont do damage ticks if its actually 0 dmg.
+
+				if(damage_1 != 0.0)
+					SDKHooks_TakeDamage(ClosestTarget, entityToEvaluateFrom, inflictor, damage_1, damage_flags, weapon, v, vicpos, false, custom_flags);	
+
+				Projectile_DealElementalDamage(ClosestTarget, EntityToForward, ExplosionRangeFalloff);
 			}
 			if(FunctionToCallOnHit != INVALID_FUNCTION)
 			{
 				Call_StartFunction(null, FunctionToCallOnHit);
-				Call_PushCell(entityToEvaluateFrom);
+				Call_PushCell(EntityToForward);
 				Call_PushCell(ClosestTarget);
 				//do not allow division by 0
-				if(damage_1 == 0.0)
-					Call_PushFloat(damage_1);
-				else
-					Call_PushFloat(damage_1 / damage_reduction);
+				damage_1 *= damage_reduction;
+				Call_PushFloat(damage_1);
 					
 				Call_PushCell(weapon);
 				Call_Finish();
@@ -3034,21 +3456,11 @@ int inflictor = 0)
 				damage_reduction *= ExplosionDmgMultihitFalloff;
 			}
 		}
-		HitEntitiesSphereExplosionTrace[indexTraced][entityToEvaluateFrom] = false; //we will need to filter them out entirely now, we did dmg, and thus, its done!
-
-		indexTraced++;
-		for(; indexTraced < MAXENTITIES; indexTraced++)
-		{
-			HitEntitiesSphereExplosionTrace[indexTraced - 1][entityToEvaluateFrom] = HitEntitiesSphereExplosionTrace[indexTraced][entityToEvaluateFrom];
-			
-			if(!HitEntitiesSphereExplosionTrace[indexTraced][entityToEvaluateFrom])
-				break;
-		}
-	
+		
 		ClosestTarget = false;
 		ClosestDistance = 0.0;
-		indexTraced = 0;
 	}
+	delete HitEntitiesSphereExplosionTrace;
 }
 
 //#define PARTITION_SOLID_EDICTS        (1 << 1) /**< every edict_t that isn't SOLID_TRIGGER or SOLID_NOT (and static props) */
@@ -3056,29 +3468,28 @@ int inflictor = 0)
 //#define PARTITION_NON_STATIC_EDICTS   (1 << 5) /**< everything in solid & trigger except the static props, includes SOLID_NOTs */
 //#define PARTITION_STATIC_PROPS        (1 << 7)
 
-void DoExlosionTraceCheck(const float pos1[3], float radius, int entity)
+void DoExlosionTraceCheck(const float pos1[3], float radius, int entity, ArrayList HitEntitiesSphereExplosionTrace)
 {
-	for(int i=0; i < MAXENTITIES; i++)
-	{
-		HitEntitiesSphereExplosionTrace[i][entity] = false;
-	}
-	TR_EnumerateEntitiesSphere(pos1, radius, PARTITION_NON_STATIC_EDICTS, TraceEntityEnumerator_EnumerateEntitiesInRange, entity);
+	DataPack packFilter = new DataPack();
+	packFilter.WriteCell(HitEntitiesSphereExplosionTrace);
+	packFilter.WriteCell(entity);
+	TR_EnumerateEntitiesSphere(pos1, radius, PARTITION_NON_STATIC_EDICTS, TraceEntityEnumerator_EnumerateEntitiesInRange, packFilter);
+
+	delete packFilter;
 	//It does all needed logic here.
 }
 
-public bool TraceEntityEnumerator_EnumerateEntitiesInRange(int entity, int filterentity)
+public bool TraceEntityEnumerator_EnumerateEntitiesInRange(int entity, DataPack packFilter)
 {
+	packFilter.Reset();
+	ArrayList HitEntitiesSphereExplosionTrace = packFilter.ReadCell();
+	int filterentity = packFilter.ReadCell();
 	if(IsValidEnemy(filterentity, entity, true, true)) //Must detect camo.
 	{
 		//This will automatically take care of all the checks, very handy. force it to also target invul enemies.
-		for(int i=0; i < MAXENTITIES; i++)
-		{
-			if(!HitEntitiesSphereExplosionTrace[i][filterentity])
-			{
-				HitEntitiesSphereExplosionTrace[i][filterentity] = entity;
-				break;
-			}
-		}
+		//Add a new entity to the arrray list
+		HitEntitiesSphereExplosionTrace.Push(entity);
+		
 	}
 	//always keep going!
 	return true;
@@ -3221,12 +3632,11 @@ public void CauseDamageLaterSDKHooks_Takedamage(DataPack pack)
 	playerPos[0] = pack.ReadFloat();
 	playerPos[1] = pack.ReadFloat();
 	playerPos[2] = pack.ReadFloat();
-	
-	if(IsValidEntity(Victim) && IsValidEntity(client) && IsValidEntity(weapon) && IsValidEntity(inflictor))
+	int damage_type_Custom = pack.ReadCell();
+	if(IsValidEntity(Victim) && IsValidEntity(client)/* && IsValidEntity(weapon) */&& IsValidEntity(inflictor))
 	{
-		SDKHooks_TakeDamage(Victim, client, inflictor, damage, damage_type, weapon, damage_force, playerPos);
+		SDKHooks_TakeDamage(Victim, client, inflictor, damage, damage_type, weapon, damage_force, playerPos, _,damage_type_Custom);
 	}
-
 //	pack.delete;
 	delete pack;
 }
@@ -3245,7 +3655,7 @@ stock void LookAtTarget(int client, int target)
 	}
 	else
 	{
-		targetEyes = WorldSpaceCenter(target);
+		WorldSpaceCenter(target, targetEyes);
 	}
 	MakeVectorFromPoints(targetEyes, clientEyes, resultant); 
 	GetVectorAngles(resultant, angles); 
@@ -3291,10 +3701,10 @@ int Trail_Attach(int entity, char[] trail, int alpha, float lifetime=1.0, float 
 			
 		DispatchSpawn(entIndex);
 		float f_origin[3];
-		f_origin = GetAbsOrigin(entity);
+		GetAbsOrigin(entity, f_origin);
 		TeleportEntity(entIndex, f_origin, NULL_VECTOR, NULL_VECTOR);
 		SetVariantString(strTargetName);
-		AcceptEntityInput(entIndex, "SetParent");
+		SetParent(entity, entIndex, "", _, false);
 		return entIndex;
 	}	
 	return -1;
@@ -3332,7 +3742,7 @@ public void MakeExplosionFrameLater(DataPack pack)
 		DispatchKeyValue(ent, "spawnflags", "581");
 						
 		DispatchKeyValue(ent, "rendermode", "0");
-		DispatchKeyValue(ent, "fireballsprite", spirite);
+		DispatchKeyValue(ent, "fireballsprite", "spirites/zerogxplode.spr");
 										
 		DispatchKeyValueFloat(ent, "DamageForce", 0.0);								
 		SetEntProp(ent, Prop_Data, "m_iMagnitude", 0); 
@@ -3348,6 +3758,47 @@ public void MakeExplosionFrameLater(DataPack pack)
 	delete pack;
 }
 
+
+public void TeleportEntityLocalPos_FrameDelay(int entity, float VecPos[3])
+{
+	DataPack pack_boom = new DataPack();
+	pack_boom.WriteCell(EntIndexToEntRef(entity));
+	pack_boom.WriteFloat(VecPos[0]);
+	pack_boom.WriteFloat(VecPos[1]);
+	pack_boom.WriteFloat(VecPos[2]);
+	RequestFrames(TeleportEntityLocalPos_FrameDelayDo, 5, pack_boom);
+}
+
+public void TeleportEntityLocalPos_FrameDelayDo(DataPack pack)
+{
+	pack.Reset();
+	int Entity = EntRefToEntIndex(pack.ReadCell());
+	float vec_pos[3];
+	if(IsValidEntity(Entity))
+	{
+		vec_pos[0] = pack.ReadFloat();
+		vec_pos[1] = pack.ReadFloat();
+		vec_pos[2] = pack.ReadFloat();
+		SDKCall_SetAbsOrigin(Entity, vec_pos);
+		SDKCall_SetLocalOrigin(Entity,vec_pos);
+	}
+	
+	delete pack;
+}
+stock void SetPlayerActiveWeapon(int client, int weapon)
+{
+	TF2Util_SetPlayerActiveWeapon(client, weapon);
+#if defined ZR
+//	WeaponSwtichToWarningPostDestroyed(weapon);
+#endif
+	/*
+	char buffer[64];
+	GetEntityClassname(weapon, buffer, sizeof(buffer));
+	FakeClientCommand(client, "use %s", buffer); 					//allow client to change
+	SetEntPropEnt(client, Prop_Send, "m_hActiveWeapon", weapon);	//Force client to change.
+	OnWeaponSwitchPost(client, weapon);
+	*/
+}
 
 stock void DHook_CreateDetour(GameData gamedata, const char[] name, DHookCallback preCallback = INVALID_FUNCTION, DHookCallback postCallback = INVALID_FUNCTION)
 {
@@ -3399,6 +3850,13 @@ public void GiveCompleteInvul(int client, float time)
 	TF2_AddCondition(client, TFCond_MegaHeal, time);
 }
 
+public void RemoveInvul(int client)
+{
+	f_ClientInvul[client] = 0.0;
+	TF2_RemoveCondition(client, TFCond_UberchargedCanteen);
+	TF2_RemoveCondition(client, TFCond_MegaHeal);
+}
+
 stock int SpawnFormattedWorldText(const char[] format, float origin[3], int textSize = 10, const int colour[4] = {255,255,255,255}, int entity_parent = -1, bool rainbow = false, bool teleport = false)
 {
 	int worldtext = CreateEntityByName("point_worldtext");
@@ -3423,8 +3881,7 @@ stock int SpawnFormattedWorldText(const char[] format, float origin[3], int text
 		if(entity_parent != -1 && !teleport)
 		{
 			float vector[3];
-
-			vector = GetAbsOrigin(entity_parent);
+			GetAbsOrigin(entity_parent, vector);
 			
 			vector[0] += origin[0];
 			vector[1] += origin[1];
@@ -3463,7 +3920,7 @@ public Action TeleportTextTimer(Handle timer, DataPack pack)
 	if(IsValidEntity(text_entity) && IsValidEntity(parented_entity))
 	{
 		float vector[3];
-		vector = GetAbsOrigin(parented_entity);
+		GetAbsOrigin(parented_entity, vector);
 		
 		vector[0] += vector_offset[0];
 		vector[1] += vector_offset[1];
@@ -3491,8 +3948,7 @@ stock int SpawnSeperateCollisionBox(int entity, float Mins[3] = {-24.0,-24.0,0.0
 	}
 
 	float vector[3];
-
-	vector = GetAbsOrigin(entity);
+	GetAbsOrigin(entity, vector);
 
 	int brush = CreateEntityByName("func_brush");
         
@@ -3546,8 +4002,10 @@ int BrushToEntity(int brush)
 
 stock void UpdateLevelAbovePlayerText(int client, bool deleteText = false)
 {
+	Stats_UpdateLevel(client);
 	int textentity = EntRefToEntIndex(i_TextEntity[client][0]);
 	int textentity2 = EntRefToEntIndex(i_TextEntity[client][1]);
+	int textentity3 = EntRefToEntIndex(i_TextEntity[client][2]);
 	if(deleteText)
 	{
 		if(IsValidEntity(textentity))
@@ -3558,21 +4016,21 @@ stock void UpdateLevelAbovePlayerText(int client, bool deleteText = false)
 		{
 			RemoveEntity(textentity2);
 		}
+		if(IsValidEntity(textentity3))
+		{
+			RemoveEntity(textentity3);
+		}
 	}
 	if(deleteText)
 		return;
 		
+	char LVLBuffer[64];
+	IntToString(Level[client],LVLBuffer, sizeof(LVLBuffer));
+	ThousandString(LVLBuffer, sizeof(LVLBuffer));
 	if(IsValidEntity(textentity))
 	{
 		static char buffer[128];
-		if(Tier[client])
-		{
-			Format(buffer, sizeof(buffer), "Elite %d Level %d", Tier[client], Level[client] - GetLevelCap(Tier[client] - 1));
-		}
-		else
-		{
-			Format(buffer, sizeof(buffer), "Level %d", Level[client]);
-		}
+		Format(buffer, sizeof(buffer), "LVL %s", LVLBuffer);
 		DispatchKeyValue(textentity, "message", buffer);
 	}
 	else
@@ -3581,19 +4039,9 @@ stock void UpdateLevelAbovePlayerText(int client, bool deleteText = false)
 
 		OffsetFromHead[2] = 120.0;
 		static char buffer[128];
-		if(Tier[client])
-		{
-			Format(buffer, sizeof(buffer), "Elite %d Level %d", Tier[client], Level[client] - GetLevelCap(Tier[client] - 1));
-		}
-		else
-		{
-			Format(buffer, sizeof(buffer), "Level %d", Level[client]);
-		}
+		Format(buffer, sizeof(buffer), "LVL %s", LVLBuffer);
 		int textentityMade = SpawnFormattedWorldText(buffer, OffsetFromHead, 10, {255,255,255,255}, client);
 		i_TextEntity[client][0] = EntIndexToEntRef(textentityMade);
-	//	b_TextEntityToOwner[textentityMade] = client;
-	//	SetEdictFlags(textentityMade, GetEdictFlags(textentityMade) &~ FL_EDICT_ALWAYS);
-	//	SDKHook(textentityMade, SDKHook_SetTransmit, SDKHook_Settransmit_TextParentedToPlayer);
 	}
 	if(IsValidEntity(textentity2))
 	{
@@ -3630,7 +4078,103 @@ stock void UpdateLevelAbovePlayerText(int client, bool deleteText = false)
 		
 		i_TextEntity[client][1] = EntIndexToEntRef(textentityMade);
 	}
+	if(IsValidEntity(textentity3))
+	{
+		float Powerlevel = RPGStocks_CalculatePowerLevel(client);
+		char c_Powerlevel[255];
+		Format(c_Powerlevel, sizeof(c_Powerlevel), "%.0f", Powerlevel);
+		ThousandString(c_Powerlevel, sizeof(c_Powerlevel));
+		DispatchKeyValue(textentity3, "message", c_Powerlevel);
+		char sColor[32];
+		
+
+		// form.Name
+		static Form form;
+		Races_GetClientInfo(client, _, form);
+		int color4[4] = {255,255,255,255};
+		if(i_TransformationLevel[client] > 0)
+		{
+			color4[0] = form.Form_RGBA[0];
+			color4[1] = form.Form_RGBA[1];
+			color4[2] = form.Form_RGBA[2];
+			color4[3] = form.Form_RGBA[3];
+		}
+		Format(sColor, sizeof(sColor), " %d %d %d %d ", color4[0], color4[1], color4[2], color4[3]);
+		DispatchKeyValue(textentity3,     "color", sColor);
+	}
+	else
+	{
+		float OffsetFromHead[3];
+
+		OffsetFromHead[2] = 130.0;
+
+		float Powerlevel = RPGStocks_CalculatePowerLevel(client);
+		char c_Powerlevel[255];
+		Format(c_Powerlevel, sizeof(c_Powerlevel), "%.0f", Powerlevel);
+		ThousandString(c_Powerlevel, sizeof(c_Powerlevel));
+
+		static Form form;
+		Races_GetClientInfo(client, _, form);
+		int color4[4] = {255,255,255,255};
+		if(i_TransformationLevel[client] > 0)
+		{
+			color4[0] = form.Form_RGBA[0];
+			color4[1] = form.Form_RGBA[1];
+			color4[2] = form.Form_RGBA[2];
+			color4[3] = form.Form_RGBA[3];
+		}
+		int textentityMade = SpawnFormattedWorldText(c_Powerlevel, OffsetFromHead, 10, color4, client, false);
+		
+		i_TextEntity[client][2] = EntIndexToEntRef(textentityMade);
+	}
 }
+
+float RPGStocks_CalculatePowerLevel(int client)
+{
+	int total;
+	float BigTotal;
+	total = Stats_Strength(client);
+	total *= 3;
+	BigTotal += float(total);
+
+	total = Stats_Precision(client);
+	total *= 3;
+	BigTotal += float(total);
+
+	total = Stats_Artifice(client);
+	total *= 3;
+	BigTotal += float(total);
+
+	total = Stats_Endurance(client);
+	total *= 2;
+	BigTotal += float(total);
+
+	total = Stats_Structure(client);
+	total *= 4;
+	BigTotal += float(total);
+
+	total = Stats_Capacity(client);
+	total *= 3;
+	BigTotal += float(total);
+
+
+	static Race race;
+	static Form form;
+	Races_GetClientInfo(client, race, form);
+	float ResMulti;
+	ResMulti = form.GetFloatStat(client, Form::DamageResistance, Stats_GetFormMastery(client, form.Name));
+	
+	BigTotal *= (1.0 / ResMulti);
+
+	//These stats are abit different
+	total = Stats_Agility(client);
+	total *= 30;
+	BigTotal += float(total);
+	//luck doesnt exist
+
+	return BigTotal;
+}
+
 /*
 public Action SDKHook_Settransmit_TextParentedToPlayer(int entity, int client)
 {
@@ -3647,28 +4191,13 @@ public Action SDKHook_Settransmit_TextParentedToPlayer(int entity, int client)
 #endif
 
 
-stock void spawnRing_Vectors(float center[3],
- float range,
-  float modif_X,
-  float modif_Y,
-   float modif_Z,
-    char sprite[255],
-	 int r,
-	  int g,
-	   int b,
-	    int alpha,
-		 int fps,
-		  float life,
-		   float width,
-		    float amp,
-			 int speed,
-			  float endRange = -69.0) //Spawns a TE beam ring at a client's/entity's location
+stock void spawnRing_Vectors(float center[3], float range, float modif_X, float modif_Y, float modif_Z, char sprite[255], int r, int g, int b, int alpha, int fps, float life, float width, float amp, int speed, float endRange = -69.0, int client = 0) //Spawns a TE beam ring at a client's/entity's location
 {
-	float Center_Internal[3];
-	Center_Internal = center;
-	Center_Internal[0] += modif_X;
-	Center_Internal[1] += modif_Y;
-	Center_Internal[2] += modif_Z;
+	float PosUse[3];
+	PosUse = center;
+	PosUse[0] += modif_X;
+	PosUse[1] += modif_Y;
+	PosUse[2] += modif_Z;
 			
 	int ICE_INT = PrecacheModel(sprite);
 		
@@ -3683,8 +4212,15 @@ stock void spawnRing_Vectors(float center[3],
 		endRange = range + 0.5;
 	}
 	
-	TE_SetupBeamRingPoint(Center_Internal, range, endRange, ICE_INT, ICE_INT, 0, fps, life, width, amp, color, speed, 0);
-	TE_SendToAll();
+	TE_SetupBeamRingPoint(PosUse, range, endRange, ICE_INT, ICE_INT, 0, fps, life, width, amp, color, speed, 0);
+	if(client > 0)
+	{
+		TE_SendToClient(client);
+	}
+	else
+	{
+		TE_SendToAll();
+	}
 }
 
 stock char[] CharInt(int value)
@@ -3708,11 +4244,11 @@ stock char[] CharPercent(float value)
 	static char buffer[16];
 	if(value < 1.0)
 	{
-		Format(buffer, sizeof(buffer), "%d%%", 100 - RoundFloat((1.0 / value) * 100.0));
+		Format(buffer, sizeof(buffer), "%d％", 100 - RoundFloat((1.0 / value) * 100.0));
 	}
 	else
 	{
-		Format(buffer, sizeof(buffer), "+%d%%", RoundFloat((value - 1.0) * 100.0));
+		Format(buffer, sizeof(buffer), "+%d％", RoundFloat((value - 1.0) * 100.0));
 	}
 	return buffer;
 } 
@@ -3721,7 +4257,7 @@ stock char[] CharPercent(float value)
 
 stock bool AmmoBlacklist(int Ammotype)
 {
-	if(Ammotype == -1 || Ammotype >= Ammo_Hand_Grenade)
+	if(Ammotype >= 0 && Ammotype<= 2 || Ammotype == -1 || Ammotype >= Ammo_Hand_Grenade)
 	{
 		return false;
 	}
@@ -3731,12 +4267,19 @@ stock bool AmmoBlacklist(int Ammotype)
 
 #endif
 
-stock void GetBeamDrawStartPoint_Stock(int client, float startPoint[3], float Beamoffset[3] = {0.0,0.0,0.0})
+stock void GetBeamDrawStartPoint_Stock(int client, float startPoint[3] = {0.0,0.0,0.0}, float Beamoffset[3] = {0.0,0.0,0.0}, float Angles[3] = {0.0,0.0,0.0})
 {
-	GetClientEyePosition(client, startPoint);
-	float angles[3];
-	GetClientEyeAngles(client, angles);
-	startPoint[2] -= 25.0;
+	if(startPoint[0] == 0.0 && startPoint[1] == 0.0 && startPoint[2] == 0.0)
+	{
+		GetClientEyePosition(client, startPoint);
+		startPoint[2] -= 25.0;
+	}
+	
+	if(Angles[0] == 0.0 && Angles[1] == 0.0 && Angles[2] == 0.0)
+	{
+		GetClientEyeAngles(client, Angles);
+	}
+
 	if (0.0 == Beamoffset[0] && 0.0 == Beamoffset[1] && 0.0 == Beamoffset[2])
 	{
 		return;
@@ -3745,8 +4288,8 @@ stock void GetBeamDrawStartPoint_Stock(int client, float startPoint[3], float Be
 	float actualBeamOffset[3];
 	tmp[0] = Beamoffset[0];
 	tmp[1] = Beamoffset[1];
-	tmp[2] = 0.0;
-	VectorRotate(tmp, angles, actualBeamOffset);
+	tmp[2] = Beamoffset[2];
+	VectorRotate(tmp, Angles, actualBeamOffset);
 	actualBeamOffset[2] = Beamoffset[2];
 	startPoint[0] += actualBeamOffset[0];
 	startPoint[1] += actualBeamOffset[1];
@@ -3756,10 +4299,9 @@ stock void GetBeamDrawStartPoint_Stock(int client, float startPoint[3], float Be
 // Thank you miku:)
 // https://github.com/Mikusch/PropHunt/blob/985808f13d8738945a2c9980db0b75865a20c99c/addons/sourcemod/scripting/prophunt.sp#L332
 
-#if defined ZR
 static bool HazardResult;
 
-bool IsPointHazard(const float pos1[3])
+stock bool IsPointHazard(const float pos1[3])
 {
 	HazardResult = false;
 	TR_EnumerateEntities(pos1, pos1, PARTITION_TRIGGER_EDICTS, RayType_EndPoint, TraceEntityEnumerator_EnumerateTriggers);
@@ -3767,15 +4309,13 @@ bool IsPointHazard(const float pos1[3])
 }
 public bool TraceEntityEnumerator_EnumerateTriggers(int entity, int client)
 {
-	char classname[16];
-	if(GetEntityClassname(entity, classname, sizeof(classname)) && !StrContains(classname, "trigger_hurt"))
+	if(b_IsATriggerHurt[entity])
 	{
 		if(!GetEntProp(entity, Prop_Data, "m_bDisabled"))
 		{
 			Handle trace = TR_ClipCurrentRayToEntityEx(MASK_ALL, entity);
 			bool didHit = TR_DidHit(trace);
 			delete trace;
-			
 			if (didHit)
 			{
 				HazardResult = true;
@@ -3787,17 +4327,24 @@ public bool TraceEntityEnumerator_EnumerateTriggers(int entity, int client)
 	return true;
 }
 
-bool IsPointNoBuild(const float pos1[3])
+
+stock bool IsBoxHazard(const float pos1[3],const float mins[3],const float maxs[3])
 {
 	HazardResult = false;
-	TR_EnumerateEntities(pos1, pos1, PARTITION_TRIGGER_EDICTS, RayType_EndPoint, TraceEntityEnumerator_EnumerateTriggers_noBuilds);
+	TR_EnumerateEntitiesHull(pos1, pos1, mins, maxs, PARTITION_TRIGGER_EDICTS, TraceEntityEnumerator_EnumerateTriggers, _);
+	return HazardResult;
+}
+stock bool IsPointNoBuild(const float pos1[3],const float mins[3],const float maxs[3])
+{
+	HazardResult = false;
+	TR_EnumerateEntitiesHull(pos1, pos1, mins, maxs, PARTITION_TRIGGER_EDICTS, TraceEntityEnumerator_EnumerateTriggers_noBuilds);
 	return HazardResult;
 }
 
 public bool TraceEntityEnumerator_EnumerateTriggers_noBuilds(int entity, int client)
 {
 	char classname[16];
-	if(GetEntityClassname(entity, classname, sizeof(classname)) && (!StrContains(classname, "trigger_hurt") ||!StrContains(classname, "func_nobuild")))
+	if(b_IsATriggerHurt[entity] || (GetEntityClassname(entity, classname, sizeof(classname)) && !StrContains(classname, "func_nobuild")))
 	{
 		if(!GetEntProp(entity, Prop_Data, "m_bDisabled"))
 		{
@@ -3815,63 +4362,109 @@ public bool TraceEntityEnumerator_EnumerateTriggers_noBuilds(int entity, int cli
 	
 	return true;
 }
-#endif	// ZR
 
 stock void SetDefaultHudPosition(int client, int red = 34, int green = 139, int blue = 34, float duration = 1.01)
 {
-
 	float HudY = 0.75;
 	float HudX = -1.0;
+#if defined ZR
 	HudX += f_NotifHudOffsetY[client];
 	HudY += f_NotifHudOffsetX[client];
+#endif
 	SetHudTextParams(HudX, HudY, duration, red, green, blue, 255);
 }
 
+#if !defined RTS
 stock void ApplyTempAttrib(int entity, int index, float multi, float duration = 0.3)
 {
+#if defined RPG
+	ApplyTempAttrib_Internal(entity, index, multi, duration);
+	return;
+#endif
+#if defined ZR
+	if(Attributes_Has(entity,index))
+	{
+		//We need to get the owner!!
+		int owner;
+		if(entity <= MaxClients)
+			owner = entity;
+		else
+			owner = GetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity");
+
+		TempAttribStore TempStoreAttrib;
+		TempStoreAttrib.Attribute = index;
+		TempStoreAttrib.Value = multi;
+		TempStoreAttrib.GameTimeRemoveAt = GetGameTime() + duration;
+		if(entity <= MaxClients)
+		{
+			int clientid = GetSteamAccountID(entity);
+			TempStoreAttrib.Weapon_StoreIndex = clientid;
+			TempStoreAttrib.ClientOnly_ResetCountSave = ClientAttribResetCount[owner];
+		}
+		else
+			TempStoreAttrib.Weapon_StoreIndex = StoreWeapon[entity];
+		
+		TempStoreAttrib.Apply_TempAttrib(owner, entity);
+	}
+#endif
+}
+
+stock void ApplyTempAttrib_Internal(int entity, int index, float multi, float duration = 0.3, int ClientResetCount = 0)
+{
+	/*
+	Applying this onto players might cause issues, as player attributes are spread across wearbles
+	TODO: find a fix
+
+	*/
 	if(Attributes_Has(entity,index))
 	{
 		Attributes_SetMulti(entity, index, multi);
 		//Attributes_Get(weapon, 466, 1.0);
-
+		
 		DataPack pack;
-		CreateDataTimer(duration, StreetFighter_RestoreAttrib, pack, TIMER_FLAG_NO_MAPCHANGE);
+		CreateDataTimer(duration, ApplyTempAttrib_Revert, pack, TIMER_FLAG_NO_MAPCHANGE);
 		pack.WriteCell(EntIndexToEntRef(entity));
 		pack.WriteCell(index);
 		pack.WriteFloat(multi);
+		pack.WriteCell(ClientResetCount);
 	}
 }
 
-/*
-	float damage = 65.0;
-	
-	damage *= Attributes_Get(weapon, 1, 1.0);
-
-	damage *= Attributes_Get(weapon, 2, 1.0);
-			
-	float speed = 1100.0;
-	speed *= Attributes_Get(weapon, 103, 1.0);
-	
-	speed *= Attributes_Get(weapon, 104, 1.0);
-	
-	speed *= Attributes_Get(weapon, 475, 1.0);
-	
-	float time = 500.0 / speed;
-	time *= Attributes_Get(weapon, 101, 1.0);
-	
-	time *= Attributes_Get(weapon, 102, 1.0);
-	*/
-public Action StreetFighter_RestoreAttrib(Handle timer, DataPack pack)
+public Action ApplyTempAttrib_Revert(Handle timer, DataPack pack)
 {
 	pack.Reset();
 	int entity = EntRefToEntIndex(pack.ReadCell());
 	if(entity != INVALID_ENT_REFERENCE)
 	{
 		int index = pack.ReadCell();
-		Attributes_SetMulti(entity, index, 1.0 / pack.ReadFloat());
+		float AttribCount = pack.ReadFloat();
+		if(entity <= MaxClients)
+		{
+			int ClientResetCount = pack.ReadCell();
+			if(ClientAttribResetCount[entity] != ClientResetCount)
+			{
+				return Plugin_Stop;
+			}
+		}
+		Attributes_SetMulti(entity, index, 1.0 / AttribCount);
+		if(Attribute_IsMovementSpeed(index))
+		{
+			int owner;
+			if(entity <= MaxClients)
+				owner = entity;
+			else
+				owner = GetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity");
+				
+			if(owner > 0 && owner <= MaxClients)
+			{
+				SDKCall_SetSpeed(owner);
+			}
+		}
 	}
 	return Plugin_Stop;
 }
+#endif
+
 /*
 void PlayFakeDeathSound(int client)
 {
@@ -3901,7 +4494,7 @@ void PlayFakeDeathSound(int client)
 }
 */
 
-stock bool ShouldNpcDealBonusDamage(int entity, int attacker = -1)
+stock bool ShouldNpcDealBonusDamage(int entity)
 {
 	if(entity < 1)
 	{
@@ -3914,8 +4507,9 @@ stock bool ShouldNpcDealBonusDamage(int entity, int attacker = -1)
 	return i_IsABuilding[entity];
 }
 
+
 stock int ConnectWithBeamClient(int iEnt, int iEnt2, int iRed=255, int iGreen=255, int iBlue=255,
-							float fStartWidth=0.8, float fEndWidth=0.8, float fAmp=1.35, char[] Model = "sprites/laserbeam.vmt")
+							float fStartWidth=0.8, float fEndWidth=0.8, float fAmp=1.35, char[] Model = "sprites/laserbeam.vmt", int ClientToHideFirstPerson = 0)
 {
 	int iBeam = CreateEntityByName("env_beam");
 	if(iBeam <= MaxClients)
@@ -3932,6 +4526,11 @@ stock int ConnectWithBeamClient(int iEnt, int iEnt2, int iRed=255, int iGreen=25
 	DispatchKeyValue(iBeam, "life", "0");
 
 	DispatchSpawn(iBeam);
+
+	if(ClientToHideFirstPerson > 0)
+	{
+		AddEntityToThirdPersonTransitMode(ClientToHideFirstPerson, iBeam);
+	}
 
 	SetEntPropEnt(iBeam, Prop_Send, "m_hAttachEntity", EntIndexToEntRef(iEnt));
 
@@ -3960,27 +4559,62 @@ stock int ConnectWithBeamClient(int iEnt, int iEnt2, int iRed=255, int iGreen=25
 	return iBeam;
 }
 
-#if defined ZR
+void AddEntityToThirdPersonTransitMode(int client, int entity)
+{
+	i_OwnerEntityEnvLaser[entity] = EntIndexToEntRef(client);
+	SDKHook(entity, SDKHook_SetTransmit, ThirdersonTransmitEnvLaser);
+}
+
+public Action ThirdersonTransmitEnvLaser(int entity, int client)
+{
+	if(client > 0 && client <= MaxClients)
+	{
+		if(b_FirstPersonUsesWorldModel[client])
+		{
+			return Plugin_Continue;
+		}
+		int owner = EntRefToEntIndex(i_OwnerEntityEnvLaser[entity]);
+		if(owner == client)
+		{
+			if(TF2_IsPlayerInCondition(client, TFCond_Taunting) || GetEntProp(client, Prop_Send, "m_nForceTauntCam"))
+			{
+				return Plugin_Continue;
+			}
+		}
+		else if(GetEntPropEnt(client, Prop_Send, "m_hObserverTarget") != owner || GetEntProp(client, Prop_Send, "m_iObserverMode") != 4)
+		{
+			return Plugin_Continue;
+		}
+	}
+	return Plugin_Stop;
+}
+
+
 //bool identified if it went above max health or not.
 
 //No need to delele it, its just 1 ho difference, wow so huge.
-int HealEntityViaFloat(int entity, float healing_Amount, float MaxHealthOverMulti = 1.0)
+int HealEntityViaFloat(int entity, float healing_Amount, float MaxHealthOverMulti = 1.0, int MaxHealingPermitted = 9999999)
 {
 //	bool isNotClient = false;
-	int flHealth = GetEntProp(entity, Prop_Data, "m_iHealth");
-	int flMaxHealth;
-	if(entity > MaxClients)
+	
+	int flHealth, flMaxHealth;
+
+	#if defined ZR
+	if(i_IsVehicle[entity])
 	{
-		flMaxHealth = GetEntProp(entity, Prop_Data, "m_iMaxHealth");
+		flHealth = Armor_Charge[entity];
+		flMaxHealth = 10000;
 	}
 	else
+	#endif
 	{
-		flMaxHealth = SDKCall_GetMaxHealth(entity);
+		flHealth = GetEntProp(entity, Prop_Data, "m_iHealth");
+		flMaxHealth = ReturnEntityMaxHealth(entity);
 	}
 
 	int i_TargetHealAmount; //Health to actaully apply
 
-	if (healing_Amount <= 1.0)
+	if (healing_Amount <= 1.0 && healing_Amount > 0.0)
 	{
 		f_IncrementalSmallHeal[entity] += healing_Amount;
 			
@@ -3992,35 +4626,72 @@ int HealEntityViaFloat(int entity, float healing_Amount, float MaxHealthOverMult
 	}
 	else
 	{
-		i_TargetHealAmount = RoundToFloor(healing_Amount);
-							
-		float Decimal_healing = FloatFraction(healing_Amount);
-							
-							
-		f_IncrementalSmallHeal[entity] += Decimal_healing;
-							
-		while(f_IncrementalSmallHeal[entity] >= 1.0)
+		if(i_TargetHealAmount < 0.0) //negative heal
 		{
-			f_IncrementalSmallHeal[entity] -= 1.0;
-			i_TargetHealAmount += 1;
-		}
-	}
-	int newHealth = flHealth + i_TargetHealAmount;
-	int HealAmount = 0;
-	int MaxHeal = RoundToNearest(float(flMaxHealth) * MaxHealthOverMulti);
-	if(MaxHeal >= newHealth) //allow 1 tick of overheal.
-	{
-		if(newHealth >= MaxHeal)
-		{
-			SetEntProp(entity, Prop_Data, "m_iHealth", MaxHeal);
-			newHealth = MaxHeal;
+			i_TargetHealAmount = RoundToFloor(healing_Amount);
 		}
 		else
 		{
-			SetEntProp(entity, Prop_Data, "m_iHealth", newHealth);
-		}
+			i_TargetHealAmount = RoundToFloor(healing_Amount);
 		
-		HealAmount = newHealth - flHealth;
+			float Decimal_healing = FloatFraction(healing_Amount);
+								
+								
+			f_IncrementalSmallHeal[entity] += Decimal_healing;
+								
+			while(f_IncrementalSmallHeal[entity] >= 1.0)
+			{
+				f_IncrementalSmallHeal[entity] -= 1.0;
+				i_TargetHealAmount += 1;
+			}
+		}		
+	}
+	if(i_TargetHealAmount > MaxHealingPermitted)
+	{
+		i_TargetHealAmount = MaxHealingPermitted;
+	}
+	//scale down the healing.
+	int newHealth = flHealth + i_TargetHealAmount;
+	int HealAmount = 0;
+	int MaxHeal = RoundToNearest(float(flMaxHealth) * MaxHealthOverMulti);
+	if(flHealth < MaxHeal)
+	{
+		if(newHealth >= MaxHeal) //allow 1 tick of overheal.
+		{
+			#if defined ZR
+			if(i_IsVehicle[entity])
+			{
+				Armor_Charge[entity] = MaxHeal;
+			}
+			else
+			#endif
+			{
+				SetEntProp(entity, Prop_Data, "m_iHealth", MaxHeal);
+			}
+			
+			newHealth = MaxHeal;
+
+			HealAmount = newHealth - flHealth;
+		}
+		else
+		{
+			#if defined ZR
+			if(i_IsVehicle[entity])
+			{
+				Armor_Charge[entity] = newHealth;
+			}
+			else
+			#endif
+			{
+				SetEntProp(entity, Prop_Data, "m_iHealth", newHealth);
+			}
+
+			HealAmount = newHealth - flHealth;
+		}
+	}
+	if(newHealth <= 0)
+	{
+		SDKHooks_TakeDamage(entity, 0, 0, 100.0 - newHealth);
 	}
 	return HealAmount;
 }
@@ -4281,11 +4952,8 @@ void PrecachePlayerGiveGiveResponseVoice()
 }
 
 
-void MakePlayerGiveResponseVoice(int client, int status)
+stock void MakePlayerGiveResponseVoice(int client, int status)
 {
-	if(b_IsPlayerNiko[client])
-		return;
-	
 	int ClassShown = view_as<int>(CurrentClass[client]);
 
 	switch(status)
@@ -4461,6 +5129,7 @@ void MakePlayerGiveResponseVoice(int client, int status)
 	}
 }
 
+#if defined ZR
 void KillDyingGlowEffect(int client)
 {
 	int entity = EntRefToEntIndex(i_DyingParticleIndication[client][0]);
@@ -4510,9 +5179,9 @@ enum g_Collision_Group
 	
 };
 
-float f_HitmarkerSameFrame[MAXTF2PLAYERS];
+float f_HitmarkerSameFrame[MAXPLAYERS];
 
-void DoClientHitmarker(int client)
+stock void DoClientHitmarker(int client)
 {
 	if(b_HudHitMarker[client] && f_HitmarkerSameFrame[client] != GetGameTime())
 	{
@@ -4530,7 +5199,7 @@ void DoClientHitmarker(int client)
 
 */
 
-stock void UTIL_ImpactTrace(int  client , const float start[3], int iDamageType, const char[] pCustomImpactName = "Impact")
+stock void UTIL_ImpactTrace(const float start[3], int iDamageType, const char[] pCustomImpactName = "Impact")
 {
 	if(TR_GetEntityIndex() == -1 || TR_GetFraction() == 1.0)
 	{ 
@@ -4573,8 +5242,10 @@ stock void TE_SetupEffectDispatch(const float origin[3], const float start[3], c
 	TE_WriteNum("m_nColor", color);
 	TE_WriteFloat("m_flRadius", radius);
 	TE_WriteNum("m_bCustomColors", customColors);
-	//TE_WriteVector("m_CustomColors.m_vecColor1", customColor1);
-	//TE_WriteVector("m_CustomColors.m_vecColor2", customColor2);
+	if(customColor1[0] == 110.0)
+		TE_WriteVector("m_CustomColors.m_vecColor1", customColor1);
+	if(customColor2[0] == 110.0)
+		TE_WriteVector("m_CustomColors.m_vecColor2", customColor2);
 	TE_WriteNum("m_bControlPoint1", controlPoint1);
 	TE_WriteNum("m_ControlPoint1.m_eParticleAttachment", cp1ParticleAttachment);
 	TE_WriteFloat("m_ControlPoint1.m_vecOffset[0]", cp1Offset[0]);
@@ -4612,8 +5283,11 @@ stock void SpawnTimer(float time)
 	AcceptEntityInput(timer, "Resume");
 	AcceptEntityInput(timer, "Enable");
 	SetEntProp(timer, Prop_Send, "m_bAutoCountdown", false);
-	
 	GameRules_SetPropFloat("m_flStateTransitionTime", GetGameTime() + time);
+	
+	if(!Construction_Mode())
+		f_AllowInstabuildRegardless = GetGameTime() + time;
+
 	CreateTimer(time, Timer_RemoveEntity, EntIndexToEntRef(timer));
 	
 	Event event = CreateEvent("teamplay_update_timer", true);
@@ -4627,4 +5301,581 @@ stock int GetOwnerLoop(int entity)
 		return GetOwnerLoop(owner);
 	else
 		return entity;
+}
+
+stock bool AtEdictLimit(int type)
+{
+	switch(type)
+	{
+		case EDICT_NPC:
+		{
+			if(CurrentEntities < 1600)
+				return false;
+		}
+		case EDICT_PLAYER:
+		{
+			if(CurrentEntities < 1700)
+				return false;
+		}
+		case EDICT_RAID:
+		{
+			if(CurrentEntities < 1800)
+				return false;
+		}
+		case EDICT_EFFECT:
+		{
+			if(CurrentEntities < 1900)
+				return false;
+		}
+	}
+
+	return true;
+}
+
+stock int GetParticleEffectIndex(const char[] sEffectName)
+{
+	static int table = INVALID_STRING_TABLE;
+	
+	if (table == INVALID_STRING_TABLE)
+	{
+		table = FindStringTable("ParticleEffectNames");
+	}
+	
+	int iIndex = FindStringIndex(table, sEffectName);
+	if(iIndex != INVALID_STRING_INDEX)
+		return iIndex;
+	
+	// This is the invalid string index
+	return 0;
+}
+
+stock int GetEffectIndex(const char[] sEffectName)
+{
+	static int table = INVALID_STRING_TABLE;
+	
+	if (table == INVALID_STRING_TABLE)
+	{
+		table = FindStringTable("EffectDispatch");
+	}
+	
+	int iIndex = FindStringIndex(table, sEffectName);
+	if(iIndex != INVALID_STRING_INDEX)
+		return iIndex;
+	
+	// This is the invalid string index
+	return 0;
+}
+
+stock TE_SetupParticleEffect(const String:sParticleName[], ParticleAttachment_t:iAttachType, entity)//, const Float:fOrigin[3] = NULL_VECTOR, const Float:fAngles[3] = NULL_VECTOR, const Float:fStart[3] = NULL_VECTOR, iAttachmentPoint = -1, bool:bResetAllParticlesOnEntity = false)
+{
+	TE_Start("EffectDispatch");
+	
+	TE_WriteNum("m_nHitBox", GetParticleEffectIndex(sParticleName));
+	
+	new fFlags;
+	if(entity > 0)
+	{
+		new Float:fEntityOrigin[3];
+		GetEntPropVector(entity, Prop_Data, "m_vecOrigin", fEntityOrigin);
+		TE_WriteFloatArray("m_vOrigin[0]", fEntityOrigin, 3);
+
+		if(iAttachType != PATTACH_WORLDORIGIN)
+		{
+			TE_WriteNum("entindex", entity);
+			fFlags |= PARTICLE_DISPATCH_FROM_ENTITY;
+		}
+	}
+	
+	/*if(fOrigin != NULL_VECTOR)
+		TE_WriteFloatArray("m_vOrigin[0]", fOrigin, 3);
+	if(fStart != NULL_VECTOR)
+		TE_WriteFloatArray("m_vStart[0]", fStart, 3);
+	if(fAngles != NULL_VECTOR)
+		TE_WriteVector("m_vAngles", fAngles);*/
+	
+	//if(bResetAllParticlesOnEntity)
+	//	fFlags |= PARTICLE_DISPATCH_RESET_PARTICLES;
+	
+	TE_WriteNum("m_fFlags", fFlags);
+	TE_WriteNum("m_nDamageType", _:iAttachType);
+	TE_WriteNum("m_nAttachmentIndex", -1);
+	
+	TE_WriteNum("m_iEffectName", GetEffectIndex("ParticleEffect"));
+}
+
+stock PrecacheEffect(const String:sEffectName[])
+{
+	static table = INVALID_STRING_TABLE;
+	
+	if (table == INVALID_STRING_TABLE)
+	{
+		table = FindStringTable("EffectDispatch");
+	}
+	
+	new bool:save = LockStringTables(false);
+	AddToStringTable(table, sEffectName);
+	LockStringTables(save);
+}
+stock PrecacheParticleEffect(const String:sEffectName[])
+{
+	static table = INVALID_STRING_TABLE;
+	
+	if (table == INVALID_STRING_TABLE)
+	{
+		table = FindStringTable("ParticleEffectNames");
+	}
+	
+	new bool:save = LockStringTables(false);
+	AddToStringTable(table, sEffectName);
+	LockStringTables(save);
+}
+
+stock void Vector_DegToRad(float vecVector[3])
+{
+	vecVector[0] = DegToRad(vecVector[0]);
+	vecVector[1] = DegToRad(vecVector[1]);
+	vecVector[2] = DegToRad(vecVector[2]);
+}
+
+stock void Matrix_VectorMultiply(float matMatrix[3][3], float vecVector[3], float vecResult[3])
+{
+	vecResult[0] = matMatrix[0][0]*vecVector[0] + matMatrix[0][1]*vecVector[1] + matMatrix[0][2]*vecVector[2];
+	vecResult[1] = matMatrix[1][0]*vecVector[0] + matMatrix[1][1]*vecVector[1] + matMatrix[1][2]*vecVector[2];
+	vecResult[2] = matMatrix[2][0]*vecVector[0] + matMatrix[2][1]*vecVector[1] + matMatrix[2][2]*vecVector[2];
+}
+
+stock void Matrix_Set(float matMatrix[3][3], float f00, float f01, float f02, float f10, float f11, float f12, float f20, float f21, float f22)
+{
+	matMatrix[0][0] = f00;	matMatrix[0][1] = f01;	matMatrix[0][2] = f02;
+	matMatrix[1][0] = f10;	matMatrix[1][1] = f11;	matMatrix[1][2] = f12;
+	matMatrix[2][0] = f20;	matMatrix[2][1] = f21;	matMatrix[2][2] = f22;
+}
+
+stock void Matrix_GetRotationMatrix(float matMatrix[3][3], float fA, float fB, float fG)
+{
+	float fSinA = Sine(fA);
+	float fCosA = Cosine(fA);
+
+	float fSinB = Sine(fB);
+	float fCosB = Cosine(fB);
+
+	float fSinG = Sine(fG);
+	float fCosG = Cosine(fG);
+
+	Matrix_Set(matMatrix,
+		fCosB*fCosG, 	fSinA*fSinB*fCosG - fCosA*fSinG, 	fCosA*fSinB*fCosG + fSinA*fSinG,
+		fCosB*fSinG,	fSinA*fSinB*fSinG + fCosA*fCosG, 	fCosA*fSinB*fSinG - fSinA*fCosG,
+		     -fSinB,		                fSinA*fCosB,	                    fCosA*fCosB
+	);
+}
+
+stock void ForcePlayerCrouch(int client, bool enable, bool thirdpers = true)
+{
+	if(enable)
+	{
+		SetVariantInt(thirdpers);
+		AcceptEntityInput(client, "SetForcedTauntCam");
+		SetForceButtonState(client, true, IN_DUCK);
+		SetEntProp(client, Prop_Send, "m_bAllowAutoMovement", 0);
+		b_NetworkedCrouch[client] = true;
+		SetEntProp(client, Prop_Send, "m_bDucked", true);
+		SetEntityFlags(client, GetEntityFlags(client)|FL_DUCKING);
+	}
+	else
+	{
+		int Buttons = GetEntProp(client, Prop_Data, "m_afButtonForced");
+		if(Buttons & IN_DUCK)
+		{
+			if(thirdperson[client])
+			{
+				SetVariantInt(1);
+				AcceptEntityInput(client, "SetForcedTauntCam");
+			}
+			else
+			{
+				SetVariantInt(0);
+				AcceptEntityInput(client, "SetForcedTauntCam");
+#if defined ZR || defined RPG
+				ViewChange_Update(client);
+#endif
+			}
+			SetForceButtonState(client, false, IN_DUCK);
+			b_NetworkedCrouch[client] = false;
+			SetEntProp(client, Prop_Send, "m_bAllowAutoMovement", 1);
+			SetEntProp(client, Prop_Send, "m_bDucked", false);
+			SetEntityFlags(client, GetEntityFlags(client)&~FL_DUCKING);	
+		}
+	}
+}
+
+stock void SetForceButtonState(int client, bool apply, int button_flag)
+{
+	int Buttons = GetEntProp(client, Prop_Data, "m_afButtonForced");
+
+	if(apply)
+	{
+		Buttons |= button_flag;
+	}
+	else
+	{
+		Buttons &= ~button_flag;
+	}
+	SetEntProp(client, Prop_Data, "m_afButtonForced", Buttons);
+}
+
+stock int GetTeam(int entity)
+{
+	if(entity > 0 && entity <= MAXENTITIES)
+	{
+		if(i_IsVehicle[entity])
+		{
+#if defined ZR
+			entity = Vehicle_Driver(entity);
+#else
+			entity = GetEntPropEnt(entity, Prop_Data, "m_hPlayer");
+#endif
+			if(entity == -1)
+				return -1;
+		}
+
+//#if !defined RTS
+//		if(entity && entity <= MaxClients)
+//			return GetClientTeam(entity);
+//#endif
+
+		if(TeamNumber[entity] == -1)
+			TeamNumber[entity] = GetEntProp(entity, Prop_Data, "m_iTeamNum");
+		
+		return TeamNumber[entity];
+	}
+	return GetEntProp(entity, Prop_Data, "m_iTeamNum");
+}
+
+stock void SetTeam(int entity, int teamSet)
+{
+	if(entity > 0 && entity <= MAXENTITIES)
+	{
+		TeamNumber[entity] = teamSet;
+		if(teamSet <= TFTeam_Blue)
+		{
+			if(entity <= MaxClients)
+			{
+				ChangeClientTeam(entity, teamSet);
+			}
+			else
+			{
+				SetEntProp(entity, Prop_Data, "m_iTeamNum", teamSet);
+			}
+		}
+		else if(teamSet > TFTeam_Blue)
+		{
+			if(entity <= MaxClients)
+			{
+				if(teamSet >= 4)
+				{
+					ChangeClientTeam(entity, TFTeam_Red);
+					//With this we set custom teams=
+				}
+				else
+				{
+					ChangeClientTeam(entity, TFTeam_Blue);	
+				}
+			}
+			else
+			{
+				SetEntProp(entity, Prop_Data, "m_iTeamNum", 4);
+			}
+		}
+	}
+	else
+	{
+		SetEntProp(entity, Prop_Data, "m_iTeamNum", teamSet);
+	}
+}
+
+stock bool FailTranslation(const char[] phrase)
+{
+	if(TranslationPhraseExists(phrase))
+		return false;
+	
+	LogError("Translation '%s' does not exist", phrase);
+	return true;
+}
+
+stock any GetItemInArray(any[] array, int pos)
+{
+	return array[pos];
+}
+
+//MaxNumBuffValue(0.6, 1.0, 0.0) = 1.0
+//MaxNumBuffValue(0.6, 1.0, 1.0) = 0.6
+//MaxNumBuffValue(0.6, 1.0, 1.25) = 0.55
+
+stock float MaxNumBuffValue(float start, float max = 1.0, float valuenerf)
+{
+	// Our base number is max, the number when valuenerf is 0
+	// Our high number is start, the number when valuenerf is 1
+
+	// start = 0.6, max = 1.0
+	//     1.0 + ((-0.4) * valuenerf)
+	return max + ((start - max) * valuenerf);
+}
+
+/**
+ * Spawns a 2-point particle (IE medigun beam, dispenser beam, etc) and connects it through 2 entities.
+ * 
+ * @param startEnt		The entity to start from.
+ * @param startPoint	The point to attach the starting entity to.
+ * @param startXOff		Starting point X-axis offset.
+ * @param startYOff		Starting point Y-axis offset.
+ * @param startZOff		Starting point Z-axis offset.
+ * @param endEnt		The entity to end at.
+ * @param endPoint		The point to attach the end entity to.
+ * @param endXOff		Ending point X-axis offset.
+ * @param endYOff		Ending point Y-axis offset.
+ * @param endZOff		Ending point Z-axis offset.
+ * @param effect		The particle to connect.
+ * @param returnStart	Return parameter for the particle created at the start of the effect.
+ * @param returnEnd		Return parameter for the particle created at the end of the effect.
+ * @param duration		The duration of the effect. <= 0.0: infinite.
+ */
+#if defined ZR
+stock void AttachParticle_ControlPoints(int startEnt, char startPoint[255], float startXOff, float startYOff, float startZOff, int endEnt, char endPoint[255], float endXOff, float endYOff, float endZOff, char effect[255], int &returnStart, int &returnEnd, float duration = 0.0)
+{
+	float startPos[3], endPos[3];
+	WorldSpaceCenter(startEnt, startPos);
+	WorldSpaceCenter(endEnt, endPos);
+
+	int particle = ParticleEffectAtOcean(startPos, effect, duration, false);
+	int particle2 = ParticleEffectAtOcean(endPos, effect, duration, false);
+
+	float offsets[3];
+	offsets[0] = startXOff;
+	offsets[1] = startYOff;
+	offsets[2] = startZOff;
+	SetParent(startEnt, particle, startPoint, offsets, true);
+
+	offsets[0] = endXOff;
+	offsets[1] = endYOff;
+	offsets[2] = endZOff;
+	SetParent(endEnt, particle2, endPoint, offsets, true);
+
+	char szCtrlParti[128];
+	Format(szCtrlParti, sizeof(szCtrlParti), "tf2ctrlpart%i", EntIndexToEntRef(particle2));
+	DispatchKeyValue(particle, "targetname", szCtrlParti);
+
+	DispatchKeyValue(particle2, "cpoint1", szCtrlParti);
+
+	ActivateEntity(particle2);
+	AcceptEntityInput(particle2, "start");
+
+	returnStart = particle;
+	returnEnd = particle2;
+}
+#endif
+
+stock int FindEntityByNPC(int &i)
+{
+	for(; i < i_MaxcountNpcTotal; i++)
+	{
+		int entity = EntRefToEntIndexFast(i_ObjectsNpcsTotal[i]);
+		if(entity != -1 && !b_NpcHasDied[entity])
+		{
+			i++;
+			return entity;
+		}
+	}
+
+	return -1;
+}
+
+enum
+{
+	HitCooldown = 0,
+	SupportDisplayHurtHud = 1,
+	IgniteClientside = 2,
+	Osmosisdebuff = 3,
+	TankThrowLogic = 4,
+	ShadowingSlicer = 5,
+	
+}
+
+enum struct HitDetectionEnum
+{
+	int Attacker;
+	int Victim;
+	float Time;
+	int Offset;
+}
+static ArrayList hGlobalHitDetectionLogic;
+
+bool IsIn_HitDetectionCooldown(int attacker, int victim, int offset = 0)
+{
+	// ArrayList is empty currently
+	if(!hGlobalHitDetectionLogic)
+		return false;
+	
+	HitDetectionEnum data;
+	int length = hGlobalHitDetectionLogic.Length;
+	for(int i; i < length; i++)
+	{
+		// Loop through the arraylist to find the right attacker and victim
+		hGlobalHitDetectionLogic.GetArray(i, data);
+		if(data.Attacker == attacker && data.Victim == victim && data.Offset == offset)
+		{
+			// We found our match
+			return data.Time > GetGameTime();
+		}
+	}
+
+	// We found nothing
+	return false;
+}
+
+void Set_HitDetectionCooldown(int attacker, int victim, float time, int offset = 0)
+{
+	// Create if empty
+	if(!hGlobalHitDetectionLogic)
+		hGlobalHitDetectionLogic = new ArrayList(sizeof(HitDetectionEnum));
+	
+	HitDetectionEnum data;
+	int length = hGlobalHitDetectionLogic.Length;
+	for(int i; i < length; i++)
+	{
+		// Loop through the arraylist to find the right attacker and victim
+		hGlobalHitDetectionLogic.GetArray(i, data);
+		if(data.Attacker == attacker && data.Victim == victim && data.Offset == offset)
+		{
+			// We found our match, update the value
+			data.Time = time;
+			hGlobalHitDetectionLogic.SetArray(i, data);
+			return;
+		}
+	}
+
+	// Create a new entry
+	data.Attacker = attacker;
+	data.Victim = victim;
+	data.Offset = offset;
+	data.Time = time;
+	hGlobalHitDetectionLogic.PushArray(data);
+}
+
+// Deletes the entry if a entity died/removed/etc.
+void EntityKilled_HitDetectionCooldown(int entity, int offset = -1)
+{
+	// ArrayList is empty currently
+	if(!hGlobalHitDetectionLogic)
+		return;
+	
+	HitDetectionEnum data;
+	int length = hGlobalHitDetectionLogic.Length;
+	for(int i; i < length; i++)
+	{
+		// Loop through the arraylist to find the right attacker and victim
+		hGlobalHitDetectionLogic.GetArray(i, data);
+		
+		if(offset != -1 && data.Offset != offset)
+			continue;
+
+		if(data.Attacker == entity || data.Victim == entity)
+		{
+			// We found a match
+			hGlobalHitDetectionLogic.Erase(i);
+			i--;
+			length--;
+		}
+	}
+}
+
+stock void GetMapName(char[] buffer, int size)
+{
+	GetCurrentMap(buffer, size);
+	GetMapDisplayName(buffer, buffer, size);
+}
+
+stock int GetEntityFromHandle(any handle)
+{
+	int ent = handle & 0xFFF;
+	if (ent == 0xFFF)
+		ent = -1;
+
+	return ent;
+}
+
+stock int GetEntityFromAddress(Address entity)
+{
+	if (entity == Address_Null)
+		return -1;
+
+	return GetEntityFromHandle(LoadFromAddress(entity + view_as<Address>(FindDataMapInfo(0, "m_angRotation") + 12), NumberType_Int32));
+}
+
+stock void RunScriptCode(int entity, int activator, int caller, const char[] format, any...)
+{
+    if (!IsValidEntity(entity))
+        return;
+    
+    static char buffer[1024];
+    VFormat(buffer, sizeof(buffer), format, 5);
+    
+    SetVariantString(buffer);
+    AcceptEntityInput(entity, "RunScriptCode", activator, caller);
+}
+
+
+stock void Projectile_TeleportAndClip(int entity)
+{
+	float VecPos[3];
+	GetEntPropVector(entity, Prop_Data, "m_vecAbsOrigin", VecPos);
+
+	//todo: instead of angle, get speed of said projectile, and caclulate the angle from said speed
+	//This is just a placeholder
+	float VecAng[3];
+	GetEntPropVector(entity, Prop_Data, "m_angRotation", VecAng);
+	Handle hTrace = TR_TraceRayFilterEx(VecPos, VecAng, ( MASK_SOLID | CONTENTS_SOLID ), RayType_Infinite, BulletAndMeleeTrace, entity);
+	if ( TR_GetFraction(hTrace) < 1.0)
+	{
+		//collision
+		TR_GetEndPosition(VecPos, hTrace);
+		SDKCall_SetAbsOrigin(entity, VecPos);
+	}
+	delete hTrace;
+}
+
+
+void Stocks_ColourPlayernormal(int client)
+{
+	SetEntityRenderMode(client, RENDER_NORMAL);
+	SetEntityRenderColor(client, 255, 255, 255, 255);
+	int entity, i;
+	while(TF2U_GetWearable(client, entity, i))
+	{
+#if defined ZR
+		if(entity == EntRefToEntIndex(Armor_Wearable[client]) || i_WeaponVMTExtraSetting[entity] != -1)
+			continue;
+#endif
+
+		SetEntityRenderMode(entity, RENDER_NORMAL);
+		SetEntityRenderColor(entity, 255, 255, 255, 255);
+	}
+}
+
+stock void SetEntityRenderColor_NpcAll(int entity, float r, float g, float b)
+{	
+	f_EntityRenderColour[entity][0] *= r;
+	f_EntityRenderColour[entity][1] *= g;
+	f_EntityRenderColour[entity][2] *= b;
+	Update_SetEntityRenderColor(entity);
+	for(int WearableSlot=0; WearableSlot<sizeof(i_Wearable[]); WearableSlot++)
+	{
+		int WearableEntityIndex = EntRefToEntIndex(i_Wearable[entity][WearableSlot]);
+		if(IsValidEntity(WearableEntityIndex) && !b_EntityCantBeColoured[WearableEntityIndex])
+		{	
+			f_EntityRenderColour[WearableEntityIndex][0] *= r;
+			f_EntityRenderColour[WearableEntityIndex][1] *= g;
+			f_EntityRenderColour[WearableEntityIndex][2] *= b;
+			Update_SetEntityRenderColor(WearableEntityIndex);
+		}
+	}
 }

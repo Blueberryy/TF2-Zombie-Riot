@@ -30,8 +30,22 @@ public void XenoKamikaze_OnMapStart_NPC()
 	for (int i = 0; i < (sizeof(g_HurtSounds));		i++) { PrecacheSound(g_HurtSounds[i]);		}
 	for (int i = 0; i < (sizeof(g_IdleAlertedSounds)); i++) { PrecacheSound(g_IdleAlertedSounds[i]); }
 	for (int i = 0; i < (sizeof(g_MeleeHitSounds));	i++) { PrecacheSound(g_MeleeHitSounds[i]);	}
+	
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Xeno Kamikaze Demo");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_xeno_kamikaze_demo");
+	strcopy(data.Icon, sizeof(data.Icon), "demo");
+	data.IconCustom = false;
+	data.Flags = 0;
+	data.Category = Type_Xeno;
+	data.Func = ClotSummon;
+	NPC_Add(data);
 }
 
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team)
+{
+	return XenoKamikaze(vecPos, vecAng, team);
+}
 methodmap XenoKamikaze < CClotBody
 {
 	
@@ -42,16 +56,12 @@ methodmap XenoKamikaze < CClotBody
 		EmitSoundToAll(g_IdleAlertedSounds[GetRandomInt(0, sizeof(g_IdleAlertedSounds) - 1)], this.index, SNDCHAN_STATIC, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 80);
 		this.m_flNextIdleSound = GetGameTime(this.index) + GetRandomFloat(2.0, 3.0);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayIdleAlertSound()");
-		#endif
+		
 	}
 	public void PlayMeleeHitSound() {
 		EmitSoundToAll(g_MeleeHitSounds[GetRandomInt(0, sizeof(g_MeleeHitSounds) - 1)], this.index, SNDCHAN_STATIC, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, GetRandomInt(80, 7225));
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayMeleeHitSound()");
-		#endif
+		
 	}
 	
 	public void PlayHurtSound() {
@@ -63,16 +73,13 @@ methodmap XenoKamikaze < CClotBody
 		EmitSoundToAll(g_HurtSounds[GetRandomInt(0, sizeof(g_HurtSounds) - 1)], this.index, SNDCHAN_STATIC, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, 80);
 		
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayHurtSound()");
-		#endif
+		
 	}
 
-	public XenoKamikaze(int client, float vecPos[3], float vecAng[3], bool ally)
+	public XenoKamikaze(float vecPos[3], float vecAng[3], int ally)
 	{
 		XenoKamikaze npc = view_as<XenoKamikaze>(CClotBody(vecPos, vecAng, "models/player/demo.mdl" , "1.0", "700", ally));
 		
-		i_NpcInternalId[npc.index] = XENO_KAMIKAZE_DEMO;
 		i_NpcWeight[npc.index] = 1;
 		
 		FormatEx(c_HeadPlaceAttachmentGibName[npc.index], sizeof(c_HeadPlaceAttachmentGibName[]), "head");
@@ -90,10 +97,11 @@ methodmap XenoKamikaze < CClotBody
 		npc.m_flNextMeleeAttack = 0.0;
 		
 		
+
+		func_NPCDeath[npc.index] = XenoKamikaze_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = XenoKamikaze_OnTakeDamage;
+		func_NPCThink[npc.index] = XenoKamikaze_ClotThink;		
 		
-		SDKHook(npc.index, SDKHook_Think, XenoKamikaze_ClotThink);
-		
-		SetEntityRenderMode(npc.index, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(npc.index, 150, 255, 150, 255);
 		
 		npc.m_flGetClosestTargetTime = 0.0;
@@ -112,7 +120,6 @@ methodmap XenoKamikaze < CClotBody
 		SetVariantString("1.0");
 		AcceptEntityInput(npc.m_iWearable2, "SetModelScale");
 		
-		SetEntityRenderMode(npc.m_iWearable1, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(npc.m_iWearable1, 150, 255, 150, 255);
 		
 		SetEntProp(npc.m_iWearable1, Prop_Send, "m_nSkin", 1);
@@ -126,8 +133,7 @@ methodmap XenoKamikaze < CClotBody
 	
 }
 
-//TODO 
-//Rewrite
+
 public void XenoKamikaze_ClotThink(int iNPC)
 {
 	XenoKamikaze npc = view_as<XenoKamikaze>(iNPC);
@@ -165,24 +171,25 @@ public void XenoKamikaze_ClotThink(int iNPC)
 	
 	if(IsValidEnemy(npc.index, PrimaryThreatIndex))
 	{
-			float vecTarget[3]; vecTarget = WorldSpaceCenter(PrimaryThreatIndex);
+			float vecTarget[3]; WorldSpaceCenter(PrimaryThreatIndex, vecTarget);
 		
-			float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+			float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+			float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 			
 			//Predict their pos.
 			if(flDistanceToTarget < npc.GetLeadRadius()) {
 				
-				float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, PrimaryThreatIndex);
+				float vPredictedPos[3]; PredictSubjectPosition(npc, PrimaryThreatIndex,_,_, vPredictedPos);
 				
-				NPC_SetGoalVector(npc.index, vPredictedPos);
+				npc.SetGoalVector(vPredictedPos);
 			}
 			else 
 			{
-				NPC_SetGoalEntity(npc.index, PrimaryThreatIndex);
+				npc.SetGoalEntity(PrimaryThreatIndex);
 			}
 			npc.StartPathing();
 			
-			if(flDistanceToTarget < 10000 || npc.m_flAttackHappenswillhappen)
+			if(flDistanceToTarget < NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED || npc.m_flAttackHappenswillhappen)
 			{
 				//Look at target so we hit.
 			//	npc.FaceTowards(vecTarget, 1000.0);
@@ -220,7 +227,7 @@ public void XenoKamikaze_ClotThink(int iNPC)
 									
 								float startPosition[3];
 								GetEntPropVector(target, Prop_Data, "m_vecAbsOrigin", startPosition);
-								makeexplosion(-1, -1, startPosition, "" , 0, 0, 0.0 , 0);
+								makeexplosion(-1, startPosition, 0, 0);
 								
 								
 								
@@ -249,8 +256,8 @@ public void XenoKamikaze_ClotThink(int iNPC)
 	}
 	else
 	{
-		NPC_StopPathing(npc.index);
-		npc.m_bPathing = false;
+		npc.StopPathing();
+		
 		npc.m_flGetClosestTargetTime = 0.0;
 		npc.m_iTarget = GetClosestTarget(npc.index);
 	}
@@ -277,15 +284,13 @@ public void XenoKamikaze_NPCDeath(int entity)
 {
 	XenoKamikaze npc = view_as<XenoKamikaze>(entity);
 	
-	
-	SDKUnhook(npc.index, SDKHook_Think, XenoKamikaze_ClotThink);
 
 	if(!NpcStats_IsEnemySilenced(entity))
 	{
 		float startPosition[3];
 		GetEntPropVector(entity, Prop_Data, "m_vecAbsOrigin", startPosition); 
 		startPosition[2] += 45;
-		makeexplosion(entity, entity, startPosition, "", 65, 125, _, _, true);
+		makeexplosion(entity, startPosition, 65, 125, _, true);
 	}
 	else
 	{

@@ -1,6 +1,7 @@
 #pragma semicolon 1
 #pragma newdecls required
 
+#if defined ZR || defined RPG
 enum struct WeaponData
 {
 	char Classname[36];
@@ -16,82 +17,104 @@ enum struct WeaponData
 }
 
 static ArrayList WeaponList;
+#endif
 
-void Configs_ConfigsExecuted()
+static bool HasExecuted;
+
+KeyValues Configs_GetMapKv(const char[] mapname)
 {
 	char buffer[PLATFORM_MAX_PATH];
 	KeyValues kv;
 	
-#if defined ZR
-	if(!zr_ignoremapconfig.BoolValue)
-#endif
+	BuildPath(Path_SM, buffer, sizeof(buffer), CONFIG ... "/maps");
+	DirectoryListing dir = OpenDirectory(buffer);
+	if(dir != INVALID_HANDLE)
 	{
-		char mapname[64];
-		GetCurrentMap(mapname, sizeof(mapname));
-		BuildPath(Path_SM, buffer, sizeof(buffer), CONFIG ... "/maps");
-		DirectoryListing dir = OpenDirectory(buffer);
-		if(dir != INVALID_HANDLE)
+		FileType file;
+		char filename[68];
+		while(dir.GetNext(filename, sizeof(filename), file))
 		{
-			FileType file;
-			char filename[68];
-			while(dir.GetNext(filename, sizeof(filename), file))
-			{
-				if(file != FileType_File)
-					continue;
+			if(file != FileType_File)
+				continue;
 
-				if(SplitString(filename, ".cfg", filename, sizeof(filename)) == -1)
-					continue;
-					
-				if(StrContains(mapname, filename))
-					continue;
+			if(SplitString(filename, ".cfg", filename, sizeof(filename)) == -1)
+				continue;
+				
+			if(StrContains(mapname, filename))
+				continue;
 
-				kv = new KeyValues("Map");
-				Format(buffer, sizeof(buffer), "%s/%s.cfg", buffer, filename);
-				if(!kv.ImportFromFile(buffer))
-					LogError("[Config] Found '%s' but was unable to read", buffer);
+			kv = new KeyValues("Map");
+			Format(buffer, sizeof(buffer), "%s/%s.cfg", buffer, filename);
+			if(!kv.ImportFromFile(buffer))
+				LogError("[Config] Found '%s' but was unable to read", buffer);
 
-				break;
-			}
-			delete dir;
+			break;
 		}
-		else
-		{
-			LogError("[Config] Directory '%s' does not exist", buffer);
-		}
+		delete dir;
 	}
+
+	return kv;
+}
+
+bool Configs_HasExecuted()
+{
+	return HasExecuted;
+}
+
+void Configs_MapEnd()
+{
+	HasExecuted = false;
+}
+
+void Configs_ConfigsExecuted()
+{
+	HasExecuted = true;
+
+	ConVar_Enable();
+
+	char mapname[64];
+	GetMapName(mapname, sizeof(mapname));
+
+	KeyValues kv = Configs_GetMapKv(mapname);
+
+	ExecuteMapOverrides(kv);
 	
+#if defined RPG
+	RPG_SetupMapSpecific(mapname);
+#endif
+
+#if defined RPG
+	FileNetwork_ConfigSetup();
+	NPC_ConfigSetup();
+#else
 	FileNetwork_ConfigSetup(kv);
+	Building_ConfigSetup();
+	NPC_ConfigSetup();
+#endif
 	
 #if defined ZR
 	Items_SetupConfig();
+	SkillTree_ConfigSetup();
 	Store_ConfigSetup();
 	Waves_SetupVote(kv);
 	Waves_SetupMiniBosses(kv);
+	CheckAprilFools();
 #endif
-	
 #if defined RPG
-	Crafting_ConfigSetup(kv);
-	Dungeon_ConfigSetup(kv);
-	Fishing_ConfigSetup(kv);
-	Games_ConfigSetup(kv);
-	Garden_ConfigSetup(kv);
-	Mining_ConfigSetup(kv);
-	Music_ConfigSetup(kv);
-	Quests_ConfigSetup(kv);
-	Spawns_ConfigSetup(kv);
-	Tinker_ConfigSetup(kv);
-	
-	TextStore_ConfigSetup(kv);
+	RPG_ConfigSetup();
+#endif
 
-	BuildPath(Path_SM, buffer, sizeof(buffer), CONFIG ... "/soundscript.txt");
-	LoadSoundScript(buffer);
+#if defined RTS
+	RTS_ConfigsSetup();
 #endif
 
 	delete kv;
 
+#if defined ZR || defined RPG
 	delete WeaponList;
 	WeaponList = new ArrayList(sizeof(WeaponData));
 	
+	char buffer[PLATFORM_MAX_PATH];
 	BuildPath(Path_SM, buffer, sizeof(buffer), CONFIG_CFG, "weapondata");
 	kv = new KeyValues("WeaponData");
 	kv.ImportFromFile(buffer);
@@ -115,17 +138,39 @@ void Configs_ConfigsExecuted()
 		}
 	} while(kv.GotoNextKey());
 	delete kv;
-	
-	ConVar_Enable();
+#endif
 	
 	for(int client=1; client<=MaxClients; client++)
 	{
 		if(IsClientInGame(client))
 			OnClientPutInServer(client);
 	}
+#if defined ZR
+	ZR_FastDownloadForce();
+#endif
 }
 
+static void ExecuteMapOverrides(KeyValues kv)
+{
+	if(kv)
+	{
+		kv.Rewind();
+		if(kv.JumpToKey("Overrides") && kv.GotoFirstSubKey(false))
+		{
+			char name[64], value[128];
 
+			do
+			{
+				kv.GetSectionName(name, sizeof(name));
+				kv.GetString(NULL_STRING, value, sizeof(value));
+				ConVar_AddTemp(name, value);
+			}
+			while(kv.GotoNextKey(false));
+		}
+	}
+}
+
+#if defined ZR || defined RPG
 stock float Config_GetDPSOfEntity(int entity)
 {
 	static char classname[36];
@@ -203,8 +248,8 @@ void Config_CreateDescription(const char[] Archetype, const char[] classname, co
 	int i;
 	int val = WeaponList.Length;
 
-	float damage_Calc;
-	float firerate_Calc;
+// 	float damage_Calc;
+//	float firerate_Calc;
 	for(; i<val; i++)
 	{
 		WeaponList.GetArray(i, data);
@@ -212,12 +257,17 @@ void Config_CreateDescription(const char[] Archetype, const char[] classname, co
 			break;
 	}
 	
+#if defined RPG
 	if(i == val)
 		return;
+#endif
 	
 	// Damage and Pellets
+#if defined RPG
 	if(data.Damage > 0)
 	{
+		bool magic;
+
 		float defaul = data.Damage;
 		for(i=0; i<attribs; i++)
 		{
@@ -231,12 +281,34 @@ void Config_CreateDescription(const char[] Archetype, const char[] classname, co
 			for(i=0; i<attribs; i++)
 			{
 				if(attrib[i] == 410)
+				{
 					data.Damage *= value[i];
+					magic = true;
+				}
 			}
 		}
 
+#if defined RPG
+		data.Damage /= 65.0;
+#endif
+		
 		if(data.Damage > 0)
 		{
+
+#if defined RPG
+			if(magic)
+			{
+				Format(buffer, length, "%s\nDamage: Magic %.0f％", buffer, data.Damage * 100.0);
+			}
+			else if(data.Range)
+			{
+				Format(buffer, length, "%s\nDamage: Melee %.0f％", buffer, data.Damage * 100.0);
+			}
+			else
+			{
+				Format(buffer, length, "%s\nDamage: Ranged %.0f％", buffer, data.Damage * 100.0);
+			}
+#else
 			if(data.Damage < 100.0)
 			{
 				Format(buffer, length, "%s\nDamage: %.1f", buffer, data.Damage);
@@ -245,7 +317,7 @@ void Config_CreateDescription(const char[] Archetype, const char[] classname, co
 			{
 				Format(buffer, length, "%s\nDamage: %d", buffer, RoundFloat(data.Damage));
 			}
-
+#endif
 			
 			for(i=0; i<attribs; i++)
 			{
@@ -256,12 +328,13 @@ void Config_CreateDescription(const char[] Archetype, const char[] classname, co
 			i = RoundFloat(data.Pellets);
 			if(i != 1)
 				Format(buffer, length, "%sx%d", buffer, i);
-
-
-			damage_Calc = data.Damage * data.Pellets;
+			
+			//damage_Calc = data.Damage * data.Pellets;
 		}
 	}
-	
+#endif
+
+	/*
 	// Fire Rate
 	if(data.FireRate)
 	{
@@ -272,8 +345,9 @@ void Config_CreateDescription(const char[] Archetype, const char[] classname, co
 		}
 		
 		Format(buffer, length, "%s\nFire Rate: %.3fs", buffer, data.FireRate);
-		firerate_Calc = data.FireRate;
+	//	firerate_Calc = data.FireRate;
 	}
+	*/
 	
 	// Clip and Ammo
 	for(i=0; i<attribs; i++)
@@ -296,7 +370,8 @@ void Config_CreateDescription(const char[] Archetype, const char[] classname, co
 			if(attrib[i] == 298)
 			{
 				val = RoundFloat(value[i]);
-				break;
+				if(val == 0)
+					val = 1;
 			}
 		}
 		
@@ -338,6 +413,7 @@ void Config_CreateDescription(const char[] Archetype, const char[] classname, co
 		}
 	}
 	
+		/*
 	bool medigun;
 	
 	// Healing and Overheal
@@ -356,7 +432,6 @@ void Config_CreateDescription(const char[] Archetype, const char[] classname, co
 		}
 		
 		Format(buffer, length, "%s\nHealing: %d", buffer, RoundFloat(data.Healing));
-		
 		medigun = StrEqual(classname, "tf_weapon_medigun");
 		if(medigun)
 		{
@@ -377,6 +452,7 @@ void Config_CreateDescription(const char[] Archetype, const char[] classname, co
 				Format(buffer, length, "%s\nOverheal: x%.2f", buffer, overheal);
 		}
 	}
+	*/
 	
 	// Charge Speed
 	for(i=0; i<attribs; i++)
@@ -414,8 +490,10 @@ void Config_CreateDescription(const char[] Archetype, const char[] classname, co
 			}
 		}
 		
+		/*
 		if(data.Charge > 0)
 		{
+			
 			if(medigun)
 			{
 				val = 0;
@@ -448,7 +526,9 @@ void Config_CreateDescription(const char[] Archetype, const char[] classname, co
 			{
 				Format(buffer, length, "%s\nCharge: %.2fs", buffer, data.Charge);
 			}
+			
 		}
+		*/
 	}
 	
 	// Melee Range
@@ -474,7 +554,7 @@ void Config_CreateDescription(const char[] Archetype, const char[] classname, co
 		
 		Format(buffer, length, "%s\nRange: x%.2f", buffer, data.Range);
 	}*/
-
+	/*
 	if(damage_Calc)
 	{
 		float damagepersecond;
@@ -495,6 +575,8 @@ void Config_CreateDescription(const char[] Archetype, const char[] classname, co
 			if(attrib[i] == 298)
 			{
 				val = RoundFloat(value[i]);
+				if(val == 0)
+					val = 1;
 				break;
 			}
 		}
@@ -502,12 +584,14 @@ void Config_CreateDescription(const char[] Archetype, const char[] classname, co
 
 		Format(buffer, length, "%s\nDPS: %1.f", buffer, damagepersecond);
 	}
+	*/
 	if(Archetype[0])
-		Format(buffer, length, "%s\n%t", buffer, Archetype);
+		Format(buffer, length, "%s\n%t", buffer, "Archetype Type", Archetype);
 }
+#endif	// Non-RTS
 
 #if defined ZR
-bool Config_CreateNPCStats(const char[] classname, const int[] attrib, const float[] value, int attribs, WeaponData data)
+stock bool Config_CreateNPCStats(const char[] classname, const int[] attrib, const float[] value, int attribs, WeaponData data)
 {
 	int i;
 	int val = WeaponList.Length;
@@ -568,6 +652,9 @@ bool Config_CreateNPCStats(const char[] classname, const int[] attrib, const flo
 			if(attrib[i] == 298)
 			{
 				val = RoundFloat(value[i]);
+				if(val == 0)
+					val = 1;
+					
 				break;
 			}
 		}
@@ -690,3 +777,31 @@ bool Config_CreateNPCStats(const char[] classname, const int[] attrib, const flo
 	return true;
 }
 #endif	// ZR
+
+#if defined RPG
+stock float RpgConfig_GetWeaponDamage(int weapon)
+{
+	static char classname[36];
+	GetEntityClassname(weapon, classname, sizeof(classname));
+	
+	static WeaponData data;
+
+	int i;
+	int val = WeaponList.Length;
+
+	for(; i<val; i++)
+	{
+		WeaponList.GetArray(i, data);
+		if(StrEqual(classname, data.Classname))
+			break;
+	}
+	if(i == val)
+		return 0.0;
+
+	if(!data.Damage)
+	{
+		return 0.0;
+	}
+	return data.Damage;
+}
+#endif

@@ -14,8 +14,21 @@ void AlliedSensalAbility_OnMapStart_NPC()
 	for (int i = 0; i < (sizeof(g_DeathSounds));	   i++) { PrecacheSound(g_DeathSounds[i]);	   }
 	for (int i = 0; i < (sizeof(g_ChargeSounds));	   i++) { PrecacheSound(g_ChargeSounds[i]);	   }
 	PrecacheModel("models/weapons/c_models/c_claymore/c_claymore.mdl");
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Allied Sensal Afterimage");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_allied_sensal_afterimage");
+	strcopy(data.Icon, sizeof(data.Icon), "");
+	data.IconCustom = false;
+	data.Flags = 0;
+	data.Category = Type_Ally;
+	data.Func = ClotSummon;
+	NPC_Add(data);
 }
 
+static any ClotSummon(int client, float vecPos[3], float vecAng[3])
+{
+	return AlliedSensalAbility(client, vecPos, vecAng);
+}
 methodmap AlliedSensalAbility < CClotBody
 {
 	public void PlayDeathSound() 
@@ -28,11 +41,10 @@ methodmap AlliedSensalAbility < CClotBody
 	}
 
 	
-	public AlliedSensalAbility(int client, float vecPos[3], float vecAng[3], bool ally)
+	public AlliedSensalAbility(int client, float vecPos[3], float vecAng[3])
 	{
-		AlliedSensalAbility npc = view_as<AlliedSensalAbility>(CClotBody(vecPos, vecAng, "models/player/soldier.mdl", "1.0", "100", true, true));
+		AlliedSensalAbility npc = view_as<AlliedSensalAbility>(CClotBody(vecPos, vecAng, "models/player/soldier.mdl", "1.0", "100", TFTeam_Red, true));
 		
-		i_NpcInternalId[npc.index] = WEAPON_SENSAL_AFTERIMAGE;
 		i_NpcWeight[npc.index] = 999;
 		SetEntPropEnt(npc.index,   Prop_Send, "m_hOwnerEntity", client);
 		
@@ -40,8 +52,16 @@ methodmap AlliedSensalAbility < CClotBody
 		char ModelPath[255];
 		int entity, i;
 			
-		SetEntityRenderMode(npc.index, RENDER_TRANSALPHA);
-		SetEntityRenderColor(npc.index, 0, 0, 0, 0);
+		if((i_CustomModelOverrideIndex[client] < BARNEY || !b_HideCosmeticsPlayer[client]))
+		{
+			SetEntityRenderMode(npc.index, RENDER_TRANSALPHA);
+			SetEntityRenderColor(npc.index, 0, 0, 0, 0);
+		}
+		else
+		{
+			SetEntityRenderMode(npc.index, RENDER_TRANSALPHA);
+			SetEntityRenderColor(npc.index, 255, 255, 255, 125);
+		}
 
 
 		SetVariantInt(GetEntProp(client, Prop_Send, "m_nBody"));
@@ -49,14 +69,21 @@ methodmap AlliedSensalAbility < CClotBody
 
 		while(TF2U_GetWearable(client, entity, i, "tf_wearable"))
 		{
-			ModelIndex = GetEntProp(entity, Prop_Data, "m_nModelIndex");
-			if(ModelIndex < 0)
+
+			if(entity == EntRefToEntIndex(Armor_Wearable[client]) || i_WeaponVMTExtraSetting[entity] != -1)
+				continue;
+				
+			if(EntRefToEntIndex(i_Viewmodel_PlayerModel[client]) != entity || (i_CustomModelOverrideIndex[client] < BARNEY || !b_HideCosmeticsPlayer[client]))
 			{
-				GetEntPropString(entity, Prop_Data, "m_ModelName", ModelPath, sizeof(ModelPath));
-			}
-			else
-			{
-				ModelIndexToString(ModelIndex, ModelPath, sizeof(ModelPath));
+				ModelIndex = GetEntProp(entity, Prop_Data, "m_nModelIndex");
+				if(ModelIndex < 0)
+				{
+					GetEntPropString(entity, Prop_Data, "m_ModelName", ModelPath, sizeof(ModelPath));
+				}
+				else
+				{
+					ModelIndexToString(ModelIndex, ModelPath, sizeof(ModelPath));
+				}
 			}
 			if(!ModelPath[0])
 				continue;
@@ -82,8 +109,10 @@ methodmap AlliedSensalAbility < CClotBody
 				}
 			}
 		}
+		npc.m_bisWalking = false;
 	
 		npc.AddActivityViaSequence("taunt_the_fist_bump_fistbump");
+		npc.SetPlaybackRate(2.0);	
 		npc.PlayChargeSound();
 		npc.m_flNextMeleeAttack = 0.0;
 		npc.m_bDissapearOnDeath = true;
@@ -96,18 +125,19 @@ methodmap AlliedSensalAbility < CClotBody
 
 		b_ThisNpcIsImmuneToNuke[npc.index] = true;
 		b_NpcIsInvulnerable[npc.index] = true;
-		
-		SDKHook(npc.index, SDKHook_Think, AlliedSensalAbility_ClotThink);
+		ApplyStatusEffect(npc.index, npc.index, "Clear Head", 999999.0);	
+		func_NPCDeath[npc.index] = AlliedSensalAbility_NPCDeath;
+		func_NPCThink[npc.index] = AlliedSensalAbility_ClotThink;
 
 		npc.m_iState = 0;
 		npc.m_flSpeed = 0.0;
-		npc.m_flAttackHappens_2 = GetGameTime() + 1.5;
-		npc.m_flRangedSpecialDelay = GetGameTime() + 3.0;
+		npc.m_flAttackHappens_2 = GetGameTime() + 0.75;
+		npc.m_flRangedSpecialDelay = GetGameTime() + 1.5;
 		
 		npc.m_flMeleeArmor = 1.0;
 		npc.m_flRangedArmor = 1.0;
 
-		NPC_StopPathing(npc.index);
+		npc.StopPathing();
 		b_DoNotUnStuck[npc.index] = true;
 		b_NoGravity[npc.index] = true;
 		SetEntityCollisionGroup(npc.index, 1); //Dont Touch Anything.
@@ -136,6 +166,8 @@ public void AlliedSensalAbility_ClotThink(int iNPC)
 			npc.m_flAttackHappens_2 = 0.0;
 			if(IsValidEnemy(npc.index, npc.m_iTarget, true, true))
 			{
+				float EnemyVecPos[3]; WorldSpaceCenter(npc.m_iTarget, EnemyVecPos);
+				npc.FaceTowards(EnemyVecPos, 30000.0);
 				AlliedSensalFireLaser(npc.m_iTarget, npc);
 			}
 			else
@@ -144,7 +176,11 @@ public void AlliedSensalAbility_ClotThink(int iNPC)
 				GetClosestEnemyToAttack = GetClosestTarget(npc.index,_,_,_,_,_,_,true,_,_,true);
 				npc.m_iTarget = GetClosestEnemyToAttack;
 				if(npc.m_iTarget > 0)
+				{
+					float EnemyVecPos[3]; WorldSpaceCenter(npc.m_iTarget, EnemyVecPos);
+					npc.FaceTowards(EnemyVecPos, 30000.0);
 					AlliedSensalFireLaser(npc.m_iTarget, npc);
+				}
 			}
 		}
 		return;
@@ -162,7 +198,6 @@ public void AlliedSensalAbility_NPCDeath(int entity)
 {
 	AlliedSensalAbility npc = view_as<AlliedSensalAbility>(entity);
 
-	SDKUnhook(npc.index, SDKHook_Think, AlliedSensalAbility_ClotThink);
 	if(IsValidEntity(npc.m_iWearable1))
 		RemoveEntity(npc.m_iWearable1);
 	
@@ -252,37 +287,43 @@ void Allied_Sensal_InitiateLaserAttack(int owner, int entity, float VectorTarget
 	npc.PlayDeathSound();
 	npc.DispatchParticleEffect(npc.index, "mvm_soldier_shockwave", NULL_VECTOR, NULL_VECTOR, NULL_VECTOR, npc.FindAttachment("effect_hand_r"), PATTACH_POINT_FOLLOW, true);
 	
-	for (int building = 1; building < SENSAL_MAX_TARGETS_HIT; building++)
+	for (int building = 0; building < SENSAL_MAX_TARGETS_HIT; building++)
 	{
 		SensalAllied_BEAM_BuildingHit[building] = 0;
 	}
-
 	trace = TR_TraceHullFilterEx(VectorStart, VectorTarget, hullMin, hullMax, 1073741824, BEAM_TraceUsers, entity);	// 1073741824 is CONTENTS_LADDER?
 	delete trace;
 
 	int Weapon = EntRefToEntIndex(i_Changed_WalkCycle[npc.index]);
 	float DamageFallOff = 1.0;
+	int EnemiesHit = 0;
 	for (int building = 0; building < SENSAL_MAX_TARGETS_HIT; building++)
 	{
-		if (SensalAllied_BEAM_BuildingHit[building])
+		if (SensalAllied_BEAM_BuildingHit[building] > 0)
 		{
 			if(IsValidEntity(SensalAllied_BEAM_BuildingHit[building]))
 			{
 				float damage = fl_heal_cooldown[entity];
 
-				SDKHooks_TakeDamage(SensalAllied_BEAM_BuildingHit[building], owner, owner, damage / DamageFallOff, DMG_CLUB, Weapon, NULL_VECTOR, WorldSpaceCenter(SensalAllied_BEAM_BuildingHit[building]), _ , ZR_DAMAGE_REFLECT_LOGIC);	// 2048 is DMG_NOGIB?
-				DamageFallOff *= LASER_AOE_DAMAGE_FALLOFF;				
+				SensalCauseKnockback(npc.index, SensalAllied_BEAM_BuildingHit[building]);
+				float EnemyVecPos[3]; WorldSpaceCenter(SensalAllied_BEAM_BuildingHit[building], EnemyVecPos);
+				SDKHooks_TakeDamage(SensalAllied_BEAM_BuildingHit[building], owner, owner, damage * DamageFallOff, DMG_CLUB, Weapon, NULL_VECTOR, EnemyVecPos, _ , ZR_DAMAGE_REFLECT_LOGIC);	// 2048 is DMG_NOGIB?
+				DamageFallOff *= LASER_AOE_DAMAGE_FALLOFF;	
+				EnemiesHit += 1;
+				if(EnemiesHit >= 5)
+				{
+					break;
+				}
 			}
 		}
 	}
 }
 
-static bool BEAM_TraceUsers(int entity, int contentsMask, int client)
+static bool BEAM_TraceUsers(int entity, int contentsMask, int iExclude)
 {
 	if (IsValidEntity(entity))
 	{
-		entity = Target_Hit_Wand_Detection(client, entity);
-		if(0 < entity)
+		if(IsValidEnemy(iExclude, entity, true, true))
 		{
 			for(int i=0; i < (SENSAL_MAX_TARGETS_HIT); i++)
 			{
@@ -299,10 +340,74 @@ static bool BEAM_TraceUsers(int entity, int contentsMask, int client)
 void AlliedSensalFireLaser(int target, AlliedSensalAbility npc)
 {
 	int owner = GetEntPropEnt(npc.index, Prop_Data, "m_hOwnerEntity");
-	Allied_Sensal_InitiateLaserAttack(owner, npc.index, WorldSpaceCenter(target), WorldSpaceCenter(npc.index), npc);
+	float SelfVecPos[3]; WorldSpaceCenter(npc.index, SelfVecPos);
+	float TargetVecPos[3]; WorldSpaceCenter(target, TargetVecPos);
+	Allied_Sensal_InitiateLaserAttack(owner, npc.index, TargetVecPos, SelfVecPos, npc);
 }
 
 public bool AlliedSensal_TraceWallsOnly(int entity, int contentsMask)
 {
 	return !entity;
+}
+
+
+
+#define SENSAL_KNOCKBACK		750.0	// Knockback when push level and enemy weight is the same
+#define SENSAL_STUN_RATIO		0.00075	// Knockback when push level and enemy weight is the same
+
+void SensalCauseKnockback(int attacker, int victim, float RatioExtra = 1.0, bool dostun = true)
+{
+	int weight = i_NpcWeight[victim];
+	if(weight > 5)
+		return;
+		
+	if(HasSpecificBuff(victim, "Solid Stance"))
+		return;
+
+	if(weight < 0)
+		weight = 1;
+	
+	float knockback = SENSAL_KNOCKBACK;
+	switch(weight)
+	{
+		case 0:
+		{
+			knockback *= 0.75;
+		}
+		case 2:
+		{
+			knockback *= 0.65;
+		}
+		case 3:
+		{
+			knockback *= 0.55;
+		}
+		case 4:
+		{
+			knockback *= 0.35;
+		}
+		case 5:
+		{
+			knockback *= 0.25;
+		}
+	}
+
+	knockback *= 2.0; //here we do math depending on how much extra pushforce they got.
+	knockback *= RatioExtra;
+	if(b_thisNpcIsABoss[victim])
+	{
+		knockback *= 0.65; //They take half knockback
+	}
+	if(LastMann)
+		knockback *= 2.0;
+
+	if(knockback < (SENSAL_KNOCKBACK * 2.0 * 0.25))
+	{
+		knockback = (SENSAL_KNOCKBACK * 2.0 * 0.25);
+	}
+	
+	if(dostun)
+		FreezeNpcInTime(victim, knockback * SENSAL_STUN_RATIO);
+		
+	Custom_Knockback(attacker, victim, knockback, true, true, true);
 }

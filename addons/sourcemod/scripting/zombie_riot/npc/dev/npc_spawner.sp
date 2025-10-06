@@ -3,7 +3,7 @@
 
 enum
 {
-	Mode_None = -1
+	Mode_None = -1,
 	Mode_NPCIndex = 0,
 	Mode_SpawnRate,
 	Mode_SpawnHealth,
@@ -13,7 +13,7 @@ enum
 	Mode_Damage
 }
 
-static int MenuPos[MAXTF2PLAYERS] = {Mode_None, ...};
+static int MenuPos[MAXPLAYERS] = {Mode_None, ...};
 
 void DevSpawner_MapStart()
 {
@@ -22,7 +22,7 @@ void DevSpawner_MapStart()
 
 methodmap DevSpawner < CClotBody
 {
-	public DevSpawner(int client, float vecPos[3], float vecAng[3], bool ally)
+	public DevSpawner(float vecPos[3], float vecAng[3], int ally)
 	{
 		DevSpawner npc = view_as<DevSpawner>(CClotBody(vecPos, vecAng, "models/class_menu/random_class_icon.mdl", "1.0", "100", ally, true));
 
@@ -40,6 +40,7 @@ methodmap DevSpawner < CClotBody
 		npc.m_bDissapearOnDeath = true;
 		npc.m_bThisEntityIgnored = true;
 		npc.m_bStaticNPC = true;
+		AddNpcToAliveList(npc.index, 1);
 		b_ThisNpcIsImmuneToNuke[npc.index] = true;
 
 		npc.m_iNPCIndex = -1;
@@ -149,7 +150,7 @@ public void DevSpawner_ClotThink(int iNPC)
 				enemy.ExtraRangedRes = fl_Extra_RangedArmor[npc.index];
 				enemy.ExtraSpeed = fl_Extra_Speed[npc.index];
 				enemy.ExtraDamage = fl_Extra_Damage[npc.index];	
-				enemy.Friendly = GetEntProp(npc.index, Prop_Send, "m_iTeamNum") == 2;
+				enemy.Team = GetTeam(npc.index);
 				
 				Waves_AddNextEnemy(enemy);
 			}
@@ -160,12 +161,11 @@ public void DevSpawner_ClotThink(int iNPC)
 
 				float pos[3]; GetEntPropVector(npc.index, Prop_Data, "m_vecAbsOrigin", pos);
 				float ang[3]; GetEntPropVector(npc.index, Prop_Data, "m_angRotation", ang);
-				bool ally = GetEntProp(npc.index, Prop_Send, "m_iTeamNum") == 2;
 				
-				int entity = Npc_Create(npc.m_iNPCIndex, -1, pos, ang, ally, data);
+				int entity = NPC_CreateById(npc.m_iNPCIndex, -1, pos, ang, GetTeam(npc.index), data);
 				if(entity > MaxClients)
 				{
-					if(!ally)
+					if(GetTeam(npc.index) != TFTeam_Red)
 						Zombies_Currently_Still_Ongoing++;
 					
 					if(npc.m_iSpawnHealth > 0)
@@ -189,7 +189,7 @@ bool DevSpawner_Interact(int client, int entity)
 {
 	if(i_NpcInternalId[entity] == DEV_SPAWNER)
 	{
-		if(CheckCommandAccess(client, "sm_spawn_npc", ADMFLAG_SLAY))
+		if(CheckCommandAccess(client, "sm_spawn_npc", ADMFLAG_ROOT))
 		{
 			OpenMenu(client, EntIndexToEntRef(entity));
 			return true;
@@ -237,16 +237,16 @@ static void OpenMenu(int client, int ref)
 		FormatEx(buffer, sizeof(buffer), "Health: %d", npc.m_iSpawnHealth);
 		menu.AddItem(data, buffer, MenuPos[client] == Mode_SpawnHealth ? ITEMDRAW_DISABLED : ITEMDRAW_DEFAULT);
 		
-		FormatEx(buffer, sizeof(buffer), "Melee Vuln: %f%%", fl_Extra_MeleeArmor[npc.index] * 100.0);
+		FormatEx(buffer, sizeof(buffer), "Melee Vuln: %f％", fl_Extra_MeleeArmor[npc.index] * 100.0);
 		menu.AddItem(data, buffer, MenuPos[client] == Mode_MeleeRes ? ITEMDRAW_DISABLED : ITEMDRAW_DEFAULT);
 		
-		FormatEx(buffer, sizeof(buffer), "Ranged Vuln: %f%%", fl_Extra_RangedArmor[npc.index] * 100.0);
+		FormatEx(buffer, sizeof(buffer), "Ranged Vuln: %f％", fl_Extra_RangedArmor[npc.index] * 100.0);
 		menu.AddItem(data, buffer, MenuPos[client] == Mode_RangeRes ? ITEMDRAW_DISABLED : ITEMDRAW_DEFAULT);
 		
-		FormatEx(buffer, sizeof(buffer), "Speed Multi: %f%%", fl_Extra_Speed[npc.index] * 100.0);
+		FormatEx(buffer, sizeof(buffer), "Speed Multi: %f％", fl_Extra_Speed[npc.index] * 100.0);
 		menu.AddItem(data, buffer, MenuPos[client] == Mode_Speed ? ITEMDRAW_DISABLED : ITEMDRAW_DEFAULT);
 		
-		FormatEx(buffer, sizeof(buffer), "Damage Multi: %f%%", fl_Extra_Damage[npc.index] * 100.0);
+		FormatEx(buffer, sizeof(buffer), "Damage Multi: %f％", fl_Extra_Damage[npc.index] * 100.0);
 		menu.AddItem(data, buffer, MenuPos[client] == Mode_Damage ? ITEMDRAW_DISABLED : ITEMDRAW_DEFAULT);
 
 		menu.AddItem(data, npc.m_bWaveSpawn ? "Spawn via Waves: true" : "Spawn via Waves: false");

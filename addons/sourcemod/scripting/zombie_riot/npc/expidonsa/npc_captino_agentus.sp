@@ -47,6 +47,13 @@ static const char g_MeleeAttackBackstabSounds[][] = {
 	"player/spy_shield_break.wav",
 };
 
+static const char g_ZapAttackSounds[][] = {
+	"npc/assassin/ball_zap1.wav",
+};
+
+static const char g_PullAttackSounds[][] = {
+	"weapons/physcannon/physcannon_pickup.wav",
+};
 void CaptinoAgentus_OnMapStart_NPC()
 {
 	for (int i = 0; i < (sizeof(g_DeathSounds));	   i++) { PrecacheSound(g_DeathSounds[i]);	   }
@@ -57,10 +64,25 @@ void CaptinoAgentus_OnMapStart_NPC()
 	for (int i = 0; i < (sizeof(g_MeleeHitSounds)); i++) { PrecacheSound(g_MeleeHitSounds[i]); }
 	for (int i = 0; i < (sizeof(g_SapperHitSounds)); i++) { PrecacheSound(g_SapperHitSounds[i]); }
 	for (int i = 0; i < (sizeof(g_TeleportSound)); i++) { PrecacheSound(g_TeleportSound[i]); }
+	for (int i = 0; i < (sizeof(g_PullAttackSounds)); i++) { PrecacheSound(g_PullAttackSounds[i]); }
+	for (int i = 0; i < (sizeof(g_ZapAttackSounds)); i++) { PrecacheSound(g_ZapAttackSounds[i]); }
 	PrecacheModel("models/player/spy.mdl");
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Captino Agentus");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_captino_agentus");
+	strcopy(data.Icon, sizeof(data.Icon), "captino_agentus");
+	data.IconCustom = true;
+	data.Flags = 0;
+	data.Category = Type_Expidonsa;
+	data.Func = ClotSummon;
+	NPC_Add(data);
 }
 
 
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team, const char[] data)
+{
+	return CaptinoAgentus(vecPos, vecAng, team, data);
+}
 methodmap CaptinoAgentus < CClotBody
 {
 
@@ -128,11 +150,15 @@ methodmap CaptinoAgentus < CClotBody
 		EmitSoundToAll(g_TeleportSound[GetRandomInt(0, sizeof(g_TeleportSound) - 1)], this.index, SNDCHAN_STATIC, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME);
 		
 	}
-	public CaptinoAgentus(int client, float vecPos[3], float vecAng[3], bool ally)
+	public void PlayZapSound()
+	{
+		EmitSoundToAll(g_ZapAttackSounds[GetRandomInt(0, sizeof(g_ZapAttackSounds) - 1)], this.index, SNDCHAN_AUTO, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME);
+		EmitSoundToAll(g_PullAttackSounds[GetRandomInt(0, sizeof(g_PullAttackSounds) - 1)], this.index, SNDCHAN_AUTO, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME);
+	}
+	public CaptinoAgentus(float vecPos[3], float vecAng[3], int ally, const char[] data)
 	{
 		CaptinoAgentus npc = view_as<CaptinoAgentus>(CClotBody(vecPos, vecAng, "models/player/spy.mdl", "1.0", "750", ally));
 		
-		i_NpcInternalId[npc.index] = EXPIDONSA_CAPTINOAGENTUS;
 		i_NpcWeight[npc.index] = 3;
 		FormatEx(c_HeadPlaceAttachmentGibName[npc.index], sizeof(c_HeadPlaceAttachmentGibName[]), "head");
 		
@@ -142,20 +168,30 @@ methodmap CaptinoAgentus < CClotBody
 		
 		npc.m_flNextMeleeAttack = 0.0;
 		npc.i_GunMode = 1;
+		npc.g_TimesSummoned = 0;
 		
 		npc.m_iBleedType = BLEEDTYPE_NORMAL;
 		npc.m_iStepNoiseType = STEPSOUND_NORMAL;	
 		npc.m_iNpcStepVariation = STEPTYPE_NORMAL;
+		SetEntPropFloat(npc.index, Prop_Data, "m_flElementRes", 1.0, Element_Chaos);
 		
-		SDKHook(npc.index, SDKHook_Think, CaptinoAgentus_ClotThink);
+		func_NPCDeath[npc.index] = CaptinoAgentus_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = CaptinoAgentus_OnTakeDamage;
+		func_NPCThink[npc.index] = CaptinoAgentus_ClotThink;
 		
-		//IDLE
-		npc.m_iState = 0;
-		npc.m_flGetClosestTargetTime = 0.0;
+		
 		npc.StartPathing();
 		npc.m_flSpeed = 340.0;
 		b_TryToAvoidTraverse[npc.index] = true;
+		DiversionSpawnNpcReset(npc.index);
 		
+		bool final = StrContains(data, "spy_duel") != -1;
+		
+		if(final)
+		{
+			b_FaceStabber[npc.index] = true;
+			i_RaidGrantExtra[npc.index] = 1;
+		}
 		
 		int skin = 1;
 		SetEntProp(npc.index, Prop_Send, "m_nSkin", skin);
@@ -211,7 +247,7 @@ methodmap CaptinoAgentus < CClotBody
 		SetEntPropFloat(npc.m_iWearable6, Prop_Send, "m_fadeMinDist", 350.0);
 		SetEntPropFloat(npc.m_iWearable6, Prop_Send, "m_fadeMaxDist", 500.0);
 
-		TeleportDiversioToRandLocation(npc.index);
+	//	TeleportDiversioToRandLocation(npc.index);
 		return npc;
 	}
 }
@@ -247,77 +283,128 @@ public void CaptinoAgentus_ClotThink(int iNPC)
 	npc.i_GunMode = 1;
 	if(IsValidEnemy(npc.index, npc.m_iTarget))
 	{
+		int AntiCheeseReply = 0;
+
 		bool IsEnemyBuilding = ShouldNpcDealBonusDamage(npc.m_iTarget);
 
 		if(IsEnemyBuilding)
 			npc.i_GunMode = 0;
 
-		float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
+		float vecTarget[3]; WorldSpaceCenter(npc.m_iTarget, vecTarget );
 	
-		float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+		npc.m_bAllowBackWalking = false;
+		float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+		float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 		if(flDistanceToTarget < npc.GetLeadRadius()) 
 		{
 			if(!IsEnemyBuilding)
 			{
 				float vPredictedPos[3];
 				b_TryToAvoidTraverse[npc.index] = false;
-				vPredictedPos = PredictSubjectPosition(npc, npc.m_iTarget);
+				PredictSubjectPosition(npc, npc.m_iTarget,_,_, vPredictedPos);
 				vPredictedPos = GetBehindTarget(npc.m_iTarget, 30.0 ,vPredictedPos);
+				AntiCheeseReply = DiversionAntiCheese(npc.m_iTarget, npc.index, vPredictedPos);
 				b_TryToAvoidTraverse[npc.index] = true;
-				NPC_SetGoalVector(npc.index, vPredictedPos, true);
-				if(GetGameTime(npc.index) > npc.f_CaptinoAgentusTeleport)
+				if(AntiCheeseReply == 0)
 				{
-					
-					static float hullcheckmaxs[3];
-					static float hullcheckmins[3];
-					hullcheckmaxs = view_as<float>( { 24.0, 24.0, 82.0 } );
-					hullcheckmins = view_as<float>( { -24.0, -24.0, 0.0 } );	
+					if(!npc.m_bPathing)
+						npc.StartPathing();
 
-					float PreviousPos[3];
-					PreviousPos = WorldSpaceCenter(npc.index);
-					
-					bool Succeed = Npc_Teleport_Safe(npc.index, vPredictedPos, hullcheckmins, hullcheckmaxs, true);
-					if(Succeed)
+					npc.SetGoalVector(vPredictedPos, true);
+					if(GetGameTime(npc.index) > npc.f_CaptinoAgentusTeleport)
 					{
-						int maxhealth = GetEntProp(npc.index, Prop_Data, "m_iMaxHealth");
-						maxhealth /= 10;
-						float pos[3]; GetEntPropVector(npc.index, Prop_Data, "m_vecAbsOrigin", pos);
-						float ang[3]; GetEntPropVector(npc.index, Prop_Data, "m_angRotation", ang);
 						
-						int spawn_index = Npc_Create(EXPIDONSA_DIVERSIONISTICO, -1, pos, ang, GetEntProp(npc.index, Prop_Send, "m_iTeamNum") == 2);
-						if(spawn_index > MaxClients)
+						static float hullcheckmaxs[3];
+						static float hullcheckmins[3];
+						hullcheckmaxs = view_as<float>( { 24.0, 24.0, 82.0 } );
+						hullcheckmins = view_as<float>( { -24.0, -24.0, 0.0 } );	
+
+						float PreviousPos[3];
+						WorldSpaceCenter(npc.index, PreviousPos);
+						
+						bool Succeed = Npc_Teleport_Safe(npc.index, vPredictedPos, hullcheckmins, hullcheckmaxs, true);
+						if(Succeed)
 						{
-							Zombies_Currently_Still_Ongoing += 1;
-							TeleportEntity(spawn_index, pos, ang);
-							SetEntProp(spawn_index, Prop_Data, "m_iHealth", maxhealth);
-							SetEntProp(spawn_index, Prop_Data, "m_iMaxHealth", maxhealth);
-							fl_Extra_Damage[spawn_index] = 1.5; //2x dmg so they are scary
+							if(npc.g_TimesSummoned < 1)
+							{
+								//only spawn 5
+								int maxhealth = ReturnEntityMaxHealth(npc.index);
+								maxhealth /= 20;
+								float pos[3]; GetEntPropVector(npc.index, Prop_Data, "m_vecAbsOrigin", pos);
+								float ang[3]; GetEntPropVector(npc.index, Prop_Data, "m_angRotation", ang);
+								
+								int spawn_index = NPC_CreateByName("npc_diversionistico", -1, pos, ang, GetTeam(npc.index));
+								if(spawn_index > MaxClients)
+								{
+									NpcStats_CopyStats(npc.index, spawn_index);
+									npc.g_TimesSummoned++;
+									NpcAddedToZombiesLeftCurrently(spawn_index, true);
+									TeleportEntity(spawn_index, pos, ang);
+									SetEntProp(spawn_index, Prop_Data, "m_iHealth", maxhealth);
+									SetEntProp(spawn_index, Prop_Data, "m_iMaxHealth", maxhealth);
+									fl_Extra_Damage[spawn_index] *= 1.5; //1.5x dmg so they are scary
+								}
+							}
+							npc.PlayTeleportSound();
+							ParticleEffectAt(PreviousPos, "teleported_blue", 0.5); //This is a permanent particle, gotta delete it manually...
+							
+							float WorldSpaceVec[3]; WorldSpaceCenter(npc.index, WorldSpaceVec);
+							ParticleEffectAt(WorldSpaceVec, "teleported_blue", 0.5); //This is a permanent particle, gotta delete it manually...
+							float VecEnemy[3]; WorldSpaceCenter(npc.m_iTarget, VecEnemy);
+							npc.FaceTowards(VecEnemy, 15000.0);
+							npc.f_CaptinoAgentusTeleport = GetGameTime(npc.index) + 12.5;
+							npc.m_flNextMeleeAttack = GetGameTime(npc.index) + 0.7; //so they cant instastab you!
 						}
-						npc.PlayTeleportSound();
-						ParticleEffectAt(PreviousPos, "teleported_blue", 0.5); //This is a permanent particle, gotta delete it manually...
-						ParticleEffectAt(WorldSpaceCenter(npc.index), "teleported_blue", 0.5); //This is a permanent particle, gotta delete it manually...
-						npc.FaceTowards(WorldSpaceCenter(npc.m_iTarget), 15000.0);
-						npc.f_CaptinoAgentusTeleport = GetGameTime(npc.index) + 12.5;
-						npc.m_flNextMeleeAttack = GetGameTime(npc.index) + 0.7; //so they cant instastab you!
+						else
+						{
+							npc.f_CaptinoAgentusTeleport = GetGameTime(npc.index) + 1.0; //Retry in a second
+						}
+					}
+				}
+				else if(AntiCheeseReply == 1)
+				{
+					if(!npc.m_bPathing)
+					npc.StartPathing();
+					if(flDistanceToTarget < (NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED * 2.5))
+					{
+						npc.m_bAllowBackWalking = true;
+						float vBackoffPos[3];
+						BackoffFromOwnPositionAndAwayFromEnemy(npc, npc.m_iTarget,_,vBackoffPos);
+						npc.SetGoalVector(vBackoffPos, true); //update more often, we need it
 					}
 					else
 					{
-						npc.f_CaptinoAgentusTeleport = GetGameTime(npc.index) + 1.0; //Retry in a second
+						npc.SetGoalEntity(npc.m_iTarget);
 					}
 				}
 			}
 			else
 			{
+				DiversionCalmDownCheese(npc.index);
+				if(!npc.m_bPathing)
+					npc.StartPathing();
+
 				float vPredictedPos[3];
-				vPredictedPos = PredictSubjectPosition(npc, npc.m_iTarget);
-				NPC_SetGoalVector(npc.index, vPredictedPos);
+				PredictSubjectPosition(npc, npc.m_iTarget,_,_, vPredictedPos);
+				npc.SetGoalVector(vPredictedPos);
 			}
 		}
 		else 
 		{
-			NPC_SetGoalEntity(npc.index, npc.m_iTarget);
+			DiversionCalmDownCheese(npc.index);
+			if(!npc.m_bPathing)
+				npc.StartPathing();
+
+			npc.SetGoalEntity(npc.m_iTarget);
 		}
-		CaptinoAgentusSelfDefense(npc,GetGameTime(npc.index), npc.m_iTarget, flDistanceToTarget); 
+		if(AntiCheeseReply == 0)
+		{
+			CaptinoAgentusSelfDefense(npc,GetGameTime(npc.index), npc.m_iTarget, flDistanceToTarget); 
+		}
+		else if(AntiCheeseReply == 1)
+		{
+			CaptinoAgentusSelfDefenseRanged(npc,GetGameTime(npc.index), npc.m_iTarget); 
+		}
 	}
 	else
 	{
@@ -335,6 +422,15 @@ public Action CaptinoAgentus_OnTakeDamage(int victim, int &attacker, int &inflic
 	if(attacker <= 0)
 		return Plugin_Continue;
 		
+	if(i_RaidGrantExtra[victim])
+	{
+		if(!i_HasBeenBackstabbed[victim])
+		{
+			damage = 0.0;
+			return Plugin_Changed;
+		}
+	}
+
 	if (npc.m_flHeadshotCooldown < GetGameTime(npc.index))
 	{
 		npc.m_flHeadshotCooldown = GetGameTime(npc.index) + DEFAULT_HURTDELAY;
@@ -351,8 +447,9 @@ public void CaptinoAgentus_NPCDeath(int entity)
 	{
 		npc.PlayDeathSound();	
 	}
-	SDKUnhook(npc.index, SDKHook_Think, CaptinoAgentus_ClotThink);
 		
+	if(IsValidEntity(npc.m_iWearable7))
+		RemoveEntity(npc.m_iWearable7);
 	if(IsValidEntity(npc.m_iWearable6))
 		RemoveEntity(npc.m_iWearable6);
 	if(IsValidEntity(npc.m_iWearable5))
@@ -367,6 +464,32 @@ public void CaptinoAgentus_NPCDeath(int entity)
 		RemoveEntity(npc.m_iWearable1);
 
 }
+void CaptinoAgentusSelfDefenseRanged(CaptinoAgentus npc, float gameTime, int target)
+{
+	float WorldSpaceVec[3]; WorldSpaceCenter(target, WorldSpaceVec);
+	npc.FaceTowards(WorldSpaceVec, 15000.0);
+	if(gameTime > npc.m_flNextRangedAttack)
+	{
+		npc.PlayZapSound();
+		npc.AddGesture("ACT_MP_THROW");
+		npc.m_flDoingAnimation = gameTime + 0.25;
+		npc.m_flNextRangedAttack = gameTime + 1.2;
+		float damageDealt = 125.0;
+		SDKHooks_TakeDamage(target, npc.index, npc.index, damageDealt, DMG_BULLET, -1, _, WorldSpaceVec);
+		if(IsValidEntity(npc.m_iWearable7))
+			RemoveEntity(npc.m_iWearable7);
+
+		npc.DispatchParticleEffect(npc.index, "mvm_soldier_shockwave", NULL_VECTOR, NULL_VECTOR, NULL_VECTOR, npc.FindAttachment("effect_hand_r"), PATTACH_POINT_FOLLOW, true);	
+		Custom_Knockback(npc.index, target, -750.0, true);
+		if(IsValidClient(target))
+		{
+			TF2_AddCondition(target, TFCond_LostFooting, 0.5);
+			TF2_AddCondition(target, TFCond_AirCurrent, 0.5);
+		}
+		npc.m_iWearable7 = ConnectWithBeam(npc.m_iWearable1, target, 100, 100, 250, 3.0, 3.0, 1.35, LASERBEAM);
+		CreateTimer(0.5, Timer_RemoveEntity, EntIndexToEntRef(npc.m_iWearable7), TIMER_FLAG_NO_MAPCHANGE);
+	}
+}
 
 void CaptinoAgentusSelfDefense(CaptinoAgentus npc, float gameTime, int target, float distance)
 {
@@ -380,7 +503,8 @@ void CaptinoAgentusSelfDefense(CaptinoAgentus npc, float gameTime, int target, f
 				npc.AddGesture("ACT_MP_ATTACK_STAND_GRENADE_BUILDING");
 			}
 
-			npc.FaceTowards(WorldSpaceCenter(npc.m_iTarget), 15000.0);
+			float VecEnemy[3]; WorldSpaceCenter(npc.m_iTarget, VecEnemy);
+			npc.FaceTowards(VecEnemy, 15000.0);
 			Handle swingTrace;
 			if(npc.DoSwingTrace(swingTrace, npc.m_iTarget)) //Ignore barricades
 			{
@@ -391,7 +515,7 @@ void CaptinoAgentusSelfDefense(CaptinoAgentus npc, float gameTime, int target, f
 				
 				if(IsValidEnemy(npc.index, target))
 				{
-					float damageDealt = 500.0;
+					float damageDealt = 400.0;
 
 					SDKHooks_TakeDamage(target, npc.index, npc.index, damageDealt, DMG_CLUB, -1, _, vecHit);
 
@@ -411,11 +535,19 @@ void CaptinoAgentusSelfDefense(CaptinoAgentus npc, float gameTime, int target, f
 			int Enemy_I_See;					
 			Enemy_I_See = Can_I_See_Enemy(npc.index, npc.m_iTarget);
 			
-			npc.FaceTowards(WorldSpaceCenter(npc.m_iTarget), 15000.0);
+			float VecEnemy[3]; WorldSpaceCenter(npc.m_iTarget, VecEnemy);
+			npc.FaceTowards(VecEnemy, 15000.0);
 			if(IsValidEnemy(npc.index, Enemy_I_See))
 			{
 				npc.PlayMeleeSound();
-				if(IsBehindAndFacingTarget(npc.index, npc.m_iTarget))
+				if(i_RaidGrantExtra[npc.index])
+				{
+					if(Enemy_I_See <= MaxClients && b_FaceStabber[Enemy_I_See])
+					{
+						BackstabDone = true;
+					}
+				}
+				if(BackstabDone || IsBehindAndFacingTarget(npc.index, npc.m_iTarget))
 				{
 					BackstabDone = true;
 					npc.AddGesture("ACT_MP_ATTACK_STAND_MELEE_SECONDARY");	
@@ -450,8 +582,19 @@ void CaptinoAgentusSelfDefense(CaptinoAgentus npc, float gameTime, int target, f
 
 					if(BackstabDone)
 					{
+						if(i_RaidGrantExtra[npc.index])
+						{
+							if(target <= MaxClients && b_FaceStabber[target])
+							{
+								damageDealt *= 0.5;
+							}
+						}
 						npc.PlayMeleeBackstabSound(target);
 						damageDealt *= 3.0;
+					}
+					else if(i_RaidGrantExtra[npc.index])
+					{
+						damageDealt *= 0.5;
 					}
 
 					SDKHooks_TakeDamage(target, npc.index, npc.index, damageDealt, DMG_CLUB, -1, _, vecHit);
@@ -527,8 +670,8 @@ void CaptinoAgentusAnimationChange(CaptinoAgentus npc)
 			{
 				if(npc.m_iChanged_WalkCycle != 3)
 				{
-					fl_RangedArmor[npc.index] = 0.5;
-					fl_MeleeArmor[npc.index] = 0.5;
+					fl_RangedArmor[npc.index] = 0.65;
+					fl_MeleeArmor[npc.index] = 0.65;
 					ResetCaptinoAgentusWeapon(npc, 0);
 					npc.m_bisWalking = true;
 					npc.m_iChanged_WalkCycle = 3;
@@ -540,8 +683,8 @@ void CaptinoAgentusAnimationChange(CaptinoAgentus npc)
 			{
 				if(npc.m_iChanged_WalkCycle != 4)
 				{
-					fl_RangedArmor[npc.index] = 0.5;
-					fl_MeleeArmor[npc.index] = 0.5;
+					fl_RangedArmor[npc.index] = 0.65;
+					fl_MeleeArmor[npc.index] = 0.65;
 					ResetCaptinoAgentusWeapon(npc, 0);
 					npc.m_bisWalking = false;
 					npc.m_iChanged_WalkCycle = 4;

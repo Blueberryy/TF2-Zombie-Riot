@@ -65,8 +65,17 @@ public void FastZombie_OnMapStart_NPC()
 	for (int i = 0; i < (sizeof(g_leap_scream));   i++) { PrecacheSound(g_leap_scream[i]);   }
 	for (int i = 0; i < (sizeof(g_leap_prepare));   i++) { PrecacheSound(g_leap_prepare[i]);   }
 	PrecacheModel("models/zombie/fast.mdl");
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Fast Zombie");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_fastzombie");
+	data.Func = ClotSummon;
+	NPC_Add(data);
 }
 
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team)
+{
+	return FastZombie(vecPos, vecAng, team);
+}
 
 methodmap FastZombie < CClotBody
 {
@@ -108,9 +117,7 @@ methodmap FastZombie < CClotBody
 		
 		EmitSoundToAll(g_leap_prepare[GetRandomInt(0, sizeof(g_leap_prepare) - 1)], this.index, _, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayMeleeJumpPrepare()");
-		#endif
+
 	}
 	
 	public void PlayLeapDone() {
@@ -128,14 +135,13 @@ methodmap FastZombie < CClotBody
 		
 	}
 
-	public FastZombie(int client, float vecPos[3], float vecAng[3], bool ally)
+	public FastZombie(float vecPos[3], float vecAng[3], int ally)
 	{
 		FastZombie npc = view_as<FastZombie>(CClotBody(vecPos, vecAng, "models/zombie/fast.mdl", "1.15", "300", ally, false,_,_,_,_));
 		
-		i_NpcInternalId[npc.index] = FAST_ZOMBIE;
-		
 		FormatEx(c_HeadPlaceAttachmentGibName[npc.index], sizeof(c_HeadPlaceAttachmentGibName[]), "head");
-		
+		KillFeed_SetKillIcon(npc.index, "warrior_spirit");
+
 		npc.SetActivity("ACT_IDLE");
 
 		npc.m_bisWalking = false;
@@ -146,24 +152,24 @@ methodmap FastZombie < CClotBody
 		npc.m_iBleedType = BLEEDTYPE_NORMAL;
 		npc.m_iStepNoiseType = STEPSOUND_NORMAL;	
 		npc.m_iNpcStepVariation = STEPTYPE_NORMAL;
+		func_NPCDeath[npc.index] = FastZombie_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = FastZombie_OnTakeDamage;
+		func_NPCThink[npc.index] = FastZombie_ClotThink;
+
 
 		f3_SpawnPosition[npc.index][0] = vecPos[0];
 		f3_SpawnPosition[npc.index][1] = vecPos[1];
 		f3_SpawnPosition[npc.index][2] = vecPos[2];
 		
-		SDKHook(npc.index, SDKHook_OnTakeDamage, FastZombie_OnTakeDamage);
-		SDKHook(npc.index, SDKHook_Think, FastZombie_ClotThink);
-		
-		NPC_StopPathing(npc.index);
-		npc.m_bPathing = false;	
+		npc.StopPathing();
+			
 		
 		return npc;
 	}
 	
 }
 
-//TODO 
-//Rewrite
+
 public void FastZombie_ClotThink(int iNPC)
 {
 	FastZombie npc = view_as<FastZombie>(iNPC);
@@ -194,7 +200,7 @@ public void FastZombie_ClotThink(int iNPC)
 	
 	npc.m_flNextThinkTime = gameTime + 0.1;
 
-	// npc.m_iTarget comes from here.
+	// npc.m_iTarget comes from here, This only handles out of battle instancnes, for inbattle, code it yourself. It also makes NPCS jump if youre too high up.
 	Npc_Base_Thinking(iNPC, 500.0, "ACT_RUN", "ACT_IDLE_ANGRY", 360.0, gameTime);
 
 	if(npc.m_bmovedelay_gun)
@@ -220,7 +226,8 @@ public void FastZombie_ClotThink(int iNPC)
 			
 			if(IsValidEnemy(npc.index, npc.m_iTarget))
 			{
-				float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, npc.m_iTarget);
+				float vPredictedPos[3]; 
+				PredictSubjectPosition(npc, npc.m_iTarget,_,_,vPredictedPos);
 				npc.m_flDoingAnimation = gameTime + 3.5;
 				npc.m_bisWalking = true;
 				npc.RemoveGesture("ACT_JUMP");
@@ -240,19 +247,24 @@ public void FastZombie_ClotThink(int iNPC)
 	
 	if(IsValidEnemy(npc.index, npc.m_iTarget))
 	{
-		float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
-		float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+		float vecTarget[3];
+		WorldSpaceCenter(npc.m_iTarget, vecTarget);
+		float vecSelf[3];
+		WorldSpaceCenter(npc.index, vecSelf);
+
+		float flDistanceToTarget = GetVectorDistance(vecTarget, vecSelf, true);
 			
 		//Predict their pos.
 		if(flDistanceToTarget < npc.GetLeadRadius()) 
 		{
-			float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, npc.m_iTarget);
+			float vPredictedPos[3]; 
+			PredictSubjectPosition(npc, npc.m_iTarget,_,_,vPredictedPos);
 			
-			NPC_SetGoalVector(npc.index, vPredictedPos);
+			npc.SetGoalVector(vPredictedPos);
 		}
 		else
 		{
-			NPC_SetGoalEntity(npc.index, npc.m_iTarget);
+			npc.SetGoalEntity(npc.m_iTarget);
 		}
 		//Get position for just travel here.
 
@@ -260,7 +272,7 @@ public void FastZombie_ClotThink(int iNPC)
 		{
 			npc.m_iState = -1;
 		}
-		else if(flDistanceToTarget < (NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED - (35.0 * 35.0)) && npc.m_flNextMeleeAttack < gameTime)
+		else if(flDistanceToTarget < (NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED * 0.65) && npc.m_flNextMeleeAttack < gameTime)
 		{
 			npc.m_iState = 1; //Engage in Close Range Destruction.
 		}
@@ -294,11 +306,9 @@ public void FastZombie_ClotThink(int iNPC)
 			}
 			case 1:
 			{			
-				int Enemy_I_See;
-							
-				Enemy_I_See = Can_I_See_Enemy(npc.index, npc.m_iTarget);
+				int Enemy_I_See = Can_I_See_Enemy(npc.index, npc.m_iTarget);
 				//Can i see This enemy, is something in the way of us?
-				//Dont even check if its the same enemy, just engage in rape, and also set our new target to this just in case.
+				//Dont even check if its the same enemy, just engage in killing, and also set our new target to this just in case.
 				if(IsValidEntity(Enemy_I_See) && IsValidEnemy(npc.index, Enemy_I_See))
 				{
 					npc.m_iTarget = Enemy_I_See;			
@@ -320,14 +330,16 @@ public void FastZombie_ClotThink(int iNPC)
 						npc.AddGesture("ACT_MELEE_ATTACK1");
 
 						Handle swingTrace;
-						npc.FaceTowards(WorldSpaceCenter(npc.m_iTarget), 15000.0); //Snap to the enemy. make backstabbing hard to do.
+						float WorldSpaceCenterVec[3]; 
+						WorldSpaceCenter(npc.m_iTarget, WorldSpaceCenterVec);
+						npc.FaceTowards(WorldSpaceCenterVec, 15000.0); //Snap to the enemy. make backstabbing hard to do.
 						if(npc.DoSwingTrace(swingTrace, npc.m_iTarget, _, _, _, _)) //Big range, but dont ignore buildings if somehow this doesnt count as a raid to be sure.
 						{
 							int target = TR_GetEntityIndex(swingTrace);	
 							
 							float vecHit[3];
 							TR_GetEndPosition(vecHit, swingTrace);
-							float damage = 35.0;
+							float damage = 20000.0;
 
 							npc.PlayMeleeHitSound();
 							if(target > 0) 
@@ -351,11 +363,9 @@ public void FastZombie_ClotThink(int iNPC)
 			}
 			case 2:
 			{			
-				int Enemy_I_See;
-							
-				Enemy_I_See = Can_I_See_Enemy(npc.index, npc.m_iTarget);
+				int Enemy_I_See = Can_I_See_Enemy(npc.index, npc.m_iTarget);
 				//Can i see This enemy, is something in the way of us?
-				//Dont even check if its the same enemy, just engage in rape, and also set our new target to this just in case.
+				//Dont even check if its the same enemy, just engage in killing, and also set our new target to this just in case.
 				if(IsValidEntity(Enemy_I_See) && IsValidEnemy(npc.index, Enemy_I_See))
 				{
 					npc.m_iTarget = Enemy_I_See;
@@ -401,9 +411,6 @@ public void FastZombie_NPCDeath(int entity)
 	{
 		npc.PlayDeathSound();
 	}
-	SDKUnhook(entity, SDKHook_OnTakeDamage, FastZombie_OnTakeDamage);
-	SDKUnhook(entity, SDKHook_Think, FastZombie_ClotThink);
-
 	if(IsValidEntity(npc.m_iWearable1))
 		RemoveEntity(npc.m_iWearable1);
 	if(IsValidEntity(npc.m_iWearable2))

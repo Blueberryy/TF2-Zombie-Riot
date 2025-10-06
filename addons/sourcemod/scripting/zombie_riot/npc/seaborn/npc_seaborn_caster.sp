@@ -31,6 +31,24 @@ static const char g_MeleeAttackSounds[][] =
 	"weapons/capper_shoot.wav"
 };
 
+void SeabornCaster_Precache()
+{
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Seaborn Caster");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_seaborn_caster");
+	strcopy(data.Icon, sizeof(data.Icon), "sea_caster");
+	data.IconCustom = true;
+	data.Flags = 0;
+	data.Category = Type_Seaborn;
+	data.Func = ClotSummon;
+	NPC_Add(data);
+}
+
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team, const char[] data)
+{
+	return SeabornCaster(vecPos, vecAng, team, data);
+}
+
 methodmap SeabornCaster < CClotBody
 {
 	public void PlayIdleSound()
@@ -54,14 +72,13 @@ methodmap SeabornCaster < CClotBody
 		EmitSoundToAll(g_MeleeAttackSounds[GetRandomInt(0, sizeof(g_MeleeAttackSounds) - 1)], this.index, SNDCHAN_AUTO, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME);	
 	}
 	
-	public SeabornCaster(int client, float vecPos[3], float vecAng[3], bool ally)
+	public SeabornCaster(float vecPos[3], float vecAng[3], int ally, const char[] data)
 	{
-		SeabornCaster npc = view_as<SeabornCaster>(CClotBody(vecPos, vecAng, COMBINE_CUSTOM_MODEL, "1.15", "12000", ally, false));
+		SeabornCaster npc = view_as<SeabornCaster>(CClotBody(vecPos, vecAng, COMBINE_CUSTOM_MODEL, "1.15", "25000", ally, false));
 
 		SetVariantInt(4);
 		AcceptEntityInput(npc.index, "SetBodyGroup");
 		
-		i_NpcInternalId[npc.index] = SEABORN_CASTER;
 		i_NpcWeight[npc.index] = 1;
 		npc.SetActivity("ACT_RUN");
 		KillFeed_SetKillIcon(npc.index, "merasmus_zap");
@@ -70,8 +87,9 @@ methodmap SeabornCaster < CClotBody
 		npc.m_iStepNoiseType = STEPSOUND_NORMAL;
 		npc.m_iNpcStepVariation = STEPTYPE_SEABORN;
 		
-		SDKHook(npc.index, SDKHook_Think, SeabornCaster_ClotThink);
-		b_ThisNpcIsSawrunner[npc.index] = true;
+		func_NPCDeath[npc.index] = SeabornCaster_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = Generic_OnTakeDamage;
+		func_NPCThink[npc.index] = SeabornCaster_ClotThink;
 		
 		npc.m_flSpeed = 230.0;
 		npc.m_flGetClosestTargetTime = 0.0;
@@ -79,8 +97,6 @@ methodmap SeabornCaster < CClotBody
 		npc.m_flAttackHappens = 0.0;
 		npc.m_flRangedArmor = 0.8;
 		
-		SetEntityRenderMode(npc.index, RENDER_TRANSCOLOR);
-		SetEntityRenderColor(npc.index, 155, 155, 255, 255);
 
 		npc.m_iWearable1 = npc.EquipItem("weapon_bone", "models/workshop_partner/weapons/c_models/c_tw_eagle/c_tw_eagle.mdl");
 		SetVariantString("0.7");
@@ -89,9 +105,17 @@ methodmap SeabornCaster < CClotBody
 		npc.m_iWearable2 = npc.EquipItem("partyhat", "models/player/items/all_class/trn_wiz_hat_spy.mdl");
 		SetVariantString("1.25");
 		AcceptEntityInput(npc.m_iWearable2, "SetModelScale");
-		
-		SetEntityRenderMode(npc.m_iWearable2, RENDER_TRANSCOLOR);
-		SetEntityRenderColor(npc.m_iWearable2, 155, 155, 255, 255);
+		if(!StrContains(data, "normal"))
+		{
+			npc.m_iBleedType = BLEEDTYPE_NORMAL;
+			npc.m_iNpcStepVariation = STEPTYPE_NORMAL;
+			FormatEx(c_NpcName[npc.index], sizeof(c_NpcName[]), "Caster");
+		}
+		else
+		{
+			SetEntityRenderColor(npc.index, 155, 155, 255, 255);
+			SetEntityRenderColor(npc.m_iWearable2, 155, 155, 255, 255);
+		}
 
 		return npc;
 	}
@@ -131,17 +155,18 @@ public void SeabornCaster_ClotThink(int iNPC)
 	
 	if(npc.m_iTarget > 0)
 	{
-		float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
-		float distance = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);		
+		float vecTarget[3]; WorldSpaceCenter(npc.m_iTarget, vecTarget );
+		float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+		float distance = GetVectorDistance(vecTarget, VecSelfNpc, true);	
 		
 		if(distance < npc.GetLeadRadius())
 		{
-			float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, npc.m_iTarget);
-			NPC_SetGoalVector(npc.index, vPredictedPos);
+			float vPredictedPos[3]; PredictSubjectPosition(npc, npc.m_iTarget,_,_, vPredictedPos);
+			npc.SetGoalVector(vPredictedPos);
 		}
 		else 
 		{
-			NPC_SetGoalEntity(npc.index, npc.m_iTarget);
+			npc.SetGoalEntity(npc.m_iTarget);
 		}
 
 		npc.StartPathing();
@@ -152,11 +177,11 @@ public void SeabornCaster_ClotThink(int iNPC)
 			{
 				npc.m_flAttackHappens = 0.0;
 				
-				vecTarget = PredictSubjectPositionForProjectiles(npc, npc.m_iTarget, 600.0);
+				PredictSubjectPositionForProjectiles(npc, npc.m_iTarget, 600.0, _, vecTarget);
 				npc.FaceTowards(vecTarget, 15000.0);
 
 				npc.PlayMeleeSound();
-				npc.FireParticleRocket(vecTarget, 100.0, 600.0, 150.0, "raygun_projectile_blue", true, true, _, _, EP_DEALS_DROWN_DAMAGE);
+				npc.FireParticleRocket(vecTarget, 180.0, 600.0, 150.0, "raygun_projectile_blue", true, true, _, _, EP_DEALS_TRUE_DAMAGE);
 			}
 
 			npc.m_flSpeed = 115.0;
@@ -195,8 +220,6 @@ void SeabornCaster_NPCDeath(int entity)
 	if(!npc.m_bGib)
 		npc.PlayDeathSound();
 	
-	SDKUnhook(npc.index, SDKHook_Think, SeabornCaster_ClotThink);
-
 	if(IsValidEntity(npc.m_iWearable1))
 		RemoveEntity(npc.m_iWearable1);
 

@@ -1,22 +1,8 @@
 #pragma semicolon 1
 #pragma newdecls required
 
-static const char g_DeathSounds[][] = {
-	"vo/medic_paincrticialdeath01.mp3",
-	"vo/medic_paincrticialdeath02.mp3",
-	"vo/medic_paincrticialdeath03.mp3",
-};
 
-static const char g_HurtSounds[][] = {
-	")vo/medic_painsharp01.mp3",
-	")vo/medic_painsharp02.mp3",
-	")vo/medic_painsharp03.mp3",
-	")vo/medic_painsharp04.mp3",
-	")vo/medic_painsharp05.mp3",
-	")vo/medic_painsharp06.mp3",
-	")vo/medic_painsharp07.mp3",
-	")vo/medic_painsharp08.mp3",
-};
+
 
 
 static const char g_IdleAlertedSounds[][] = {
@@ -37,12 +23,26 @@ static const char g_MeleeHitSounds[][] = {
 
 void Protecta_OnMapStart_NPC()
 {
-	for (int i = 0; i < (sizeof(g_DeathSounds));	   i++) { PrecacheSound(g_DeathSounds[i]);	   }
-	for (int i = 0; i < (sizeof(g_HurtSounds));		i++) { PrecacheSound(g_HurtSounds[i]);		}
+	for (int i = 0; i < (sizeof(g_DefaultMedic_DeathSounds));	   i++) { PrecacheSound(g_DefaultMedic_DeathSounds[i]);	   }
+	for (int i = 0; i < (sizeof(g_DefaultMedic_HurtSounds));		i++) { PrecacheSound(g_DefaultMedic_HurtSounds[i]);		}
 	for (int i = 0; i < (sizeof(g_IdleAlertedSounds)); i++) { PrecacheSound(g_IdleAlertedSounds[i]); }
 	for (int i = 0; i < (sizeof(g_MeleeAttackSounds)); i++) { PrecacheSound(g_MeleeAttackSounds[i]); }
 	for (int i = 0; i < (sizeof(g_MeleeHitSounds)); i++) { PrecacheSound(g_MeleeHitSounds[i]); }
 	PrecacheModel("models/player/medic.mdl");
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Protecta");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_protecta");
+	strcopy(data.Icon, sizeof(data.Icon), "medic");
+	data.IconCustom = false;
+	data.Flags = 0;
+	data.Category = Type_Expidonsa;
+	data.Func = ClotSummon;
+	NPC_Add(data);
+}
+
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team)
+{
+	return Protecta(vecPos, vecAng, team);
 }
 
 methodmap Protecta < CClotBody
@@ -64,13 +64,13 @@ methodmap Protecta < CClotBody
 			
 		this.m_flNextHurtSound = GetGameTime(this.index) + 0.4;
 		
-		EmitSoundToAll(g_HurtSounds[GetRandomInt(0, sizeof(g_HurtSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME);
+		EmitSoundToAll(g_DefaultMedic_HurtSounds[GetRandomInt(0, sizeof(g_DefaultMedic_HurtSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME);
 		
 	}
 	
 	public void PlayDeathSound() 
 	{
-		EmitSoundToAll(g_DeathSounds[GetRandomInt(0, sizeof(g_DeathSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME);
+		EmitSoundToAll(g_DefaultMedic_DeathSounds[GetRandomInt(0, sizeof(g_DefaultMedic_DeathSounds) - 1)], this.index, SNDCHAN_VOICE, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME);
 	}
 	
 	public void PlayMeleeSound()
@@ -79,16 +79,15 @@ methodmap Protecta < CClotBody
 	}
 	public void PlayMeleeHitSound() 
 	{
-		EmitSoundToAll(g_MeleeHitSounds[GetRandomInt(0, sizeof(g_MeleeHitSounds) - 1)], this.index, SNDCHAN_STATIC, RAIDBOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME);
+		EmitSoundToAll(g_MeleeHitSounds[GetRandomInt(0, sizeof(g_MeleeHitSounds) - 1)], this.index, SNDCHAN_STATIC, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME);
 
 	}
 	
 	
-	public Protecta(int client, float vecPos[3], float vecAng[3], bool ally)
+	public Protecta(float vecPos[3], float vecAng[3], int ally)
 	{
 		Protecta npc = view_as<Protecta>(CClotBody(vecPos, vecAng, "models/player/medic.mdl", "1.0", "2500", ally));
 		
-		i_NpcInternalId[npc.index] = EXPIDONSA_PROTECTA;
 		i_NpcWeight[npc.index] = 1;
 		FormatEx(c_HeadPlaceAttachmentGibName[npc.index], sizeof(c_HeadPlaceAttachmentGibName[]), "head");
 		
@@ -99,18 +98,19 @@ methodmap Protecta < CClotBody
 		AcceptEntityInput(npc.index, "SetBodyGroup");
 		
 		
+		func_NPCDeath[npc.index] = Protecta_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = Protecta_OnTakeDamage;
+		func_NPCThink[npc.index] = Protecta_ClotThink;
 		
 		npc.m_flNextMeleeAttack = 0.0;
 		
 		npc.m_iBleedType = BLEEDTYPE_NORMAL;
 		npc.m_iStepNoiseType = STEPSOUND_NORMAL;	
 		npc.m_iNpcStepVariation = STEPTYPE_NORMAL;
+		SetEntPropFloat(npc.index, Prop_Data, "m_flElementRes", 1.0, Element_Chaos);
 		
-		SDKHook(npc.index, SDKHook_Think, Protecta_ClotThink);
 		
-		//IDLE
-		npc.m_iState = 0;
-		npc.m_flGetClosestTargetTime = 0.0;
+		
 		npc.StartPathing();
 		npc.m_flSpeed = 220.0;
 		
@@ -160,21 +160,21 @@ public void Protecta_ClotThink(int iNPC)
 		npc.m_iTarget = GetClosestTarget(npc.index);
 		npc.m_flGetClosestTargetTime = GetGameTime(npc.index) + GetRandomRetargetTime();
 	}
-	
 	if(IsValidEnemy(npc.index, npc.m_iTarget))
 	{
-		float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
+		float vecTarget[3]; WorldSpaceCenter(npc.m_iTarget, vecTarget );
 	
-		float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+		float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+		float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 		if(flDistanceToTarget < npc.GetLeadRadius()) 
 		{
 			float vPredictedPos[3];
-			vPredictedPos = PredictSubjectPosition(npc, npc.m_iTarget);
-			NPC_SetGoalVector(npc.index, vPredictedPos);
+			PredictSubjectPosition(npc, npc.m_iTarget,_,_, vPredictedPos);
+			npc.SetGoalVector(vPredictedPos);
 		}
 		else 
 		{
-			NPC_SetGoalEntity(npc.index, npc.m_iTarget);
+			npc.SetGoalEntity(npc.m_iTarget);
 		}
 		ProtectaSelfDefense(npc,GetGameTime(npc.index), npc.m_iTarget, flDistanceToTarget); 
 	}
@@ -212,26 +212,10 @@ public void Protecta_NPCDeath(int entity)
 	//when dying, cause a heal explosion!
 	if(!NpcStats_IsEnemySilenced(npc.index))
 	{
-		b_ExpidonsaWasAttackingNonPlayer = false;
-		int TeamNum = GetEntProp(npc.index, Prop_Send, "m_iTeamNum");
-		SetEntProp(npc.index, Prop_Send, "m_iTeamNum", 4);
-		Explode_Logic_Custom(0.0,
-		npc.index,
-		npc.index,
-		-1,
-		_,
-		150.0,
-		_,
-		_,
-		true,
-		5,
-		false,
-		_,
-		ProtectaAllyHeal);
-		SetEntProp(npc.index, Prop_Send, "m_iTeamNum", TeamNum);
+		ExpidonsaGroupHeal(npc.index, 150.0, 99, 200.0, 1.0, true);
+		DesertYadeamDoHealEffect(npc.index, 150.0);
 	}
 	ExpidonsaRemoveEffects(entity);
-	SDKUnhook(npc.index, SDKHook_Think, Protecta_ClotThink);
 		
 	
 	if(IsValidEntity(npc.m_iWearable4))
@@ -254,7 +238,8 @@ void ProtectaSelfDefense(Protecta npc, float gameTime, int target, float distanc
 			npc.m_flAttackHappens = 0.0;
 			
 			Handle swingTrace;
-			npc.FaceTowards(WorldSpaceCenter(npc.m_iTarget), 15000.0);
+			float VecEnemy[3]; WorldSpaceCenter(npc.m_iTarget, VecEnemy);
+			npc.FaceTowards(VecEnemy, 15000.0);
 			if(npc.DoSwingTrace(swingTrace, npc.m_iTarget)) //Big range, but dont ignore buildings if somehow this doesnt count as a raid to be sure.
 			{
 							
@@ -271,9 +256,6 @@ void ProtectaSelfDefense(Protecta npc, float gameTime, int target, float distanc
 
 
 					SDKHooks_TakeDamage(target, npc.index, npc.index, damageDealt, DMG_CLUB, -1, _, vecHit);
-
-					int TeamNum = GetEntProp(npc.index, Prop_Send, "m_iTeamNum");
-					SetEntProp(npc.index, Prop_Send, "m_iTeamNum", 4);
 					// Hit sound
 					npc.PlayMeleeHitSound();
 
@@ -281,41 +263,27 @@ void ProtectaSelfDefense(Protecta npc, float gameTime, int target, float distanc
 					{
 						if (IsInvuln(target))
 						{
-							b_ExpidonsaWasAttackingNonPlayer = true;
+							ExpidonsaGroupHeal(npc.index, 150.0, 5, 150.0, 1.0, true);
 						}
 						else
 						{
-							b_ExpidonsaWasAttackingNonPlayer = false;
+							ExpidonsaGroupHeal(npc.index, 150.0, 5, 200.0, 1.0, true);
 						}
 					}
 					else
 					{
-						b_ExpidonsaWasAttackingNonPlayer = true;
+						ExpidonsaGroupHeal(npc.index, 150.0, 5, 150.0, 1.0, true);
 					}
-					//on hit, we heal all allies around us
-					Explode_Logic_Custom(0.0,
-					npc.index,
-					npc.index,
-					-1,
-					_,
-					150.0,
-					_,
-					_,
-					true,
-					5,
-					false,
-					_,
-					ProtectaAllyHeal);
-					SetEntProp(npc.index, Prop_Send, "m_iTeamNum", TeamNum);
+					DesertYadeamDoHealEffect(npc.index, 150.0);
 				} 
-				delete swingTrace;
 			}
+			delete swingTrace;
 		}
 	}
 
 	if(GetGameTime(npc.index) > npc.m_flNextMeleeAttack)
 	{
-		if(distance < (NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED * 1.25))
+		if(distance < (NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED))
 		{
 			int Enemy_I_See;
 								
@@ -338,14 +306,17 @@ void ProtectaSelfDefense(Protecta npc, float gameTime, int target, float distanc
 
 void ProtectaEffects(int iNpc)
 {
+	if(AtEdictLimit(EDICT_NPC))
+		return;
+	
 	float flPos[3];
 	float flAng[3];
 	GetAttachment(iNpc, "effect_hand_r", flPos, flAng);
 
-	int particle_1 = ParticleEffectAt({0.0,0.0,0.0}, "", 0.0); //This is the root bone basically
+	int particle_1 = InfoTargetParentAt({0.0,0.0,0.0}, "", 0.0); //This is the root bone basically
 
 	
-	int particle_2 = ParticleEffectAt({0.0,0.0,20.0}, "", 0.0); //First offset we go by
+	int particle_2 = InfoTargetParentAt({0.0,0.0,20.0}, "", 0.0); //First offset we go by
 	int particle_3 = ParticleEffectAt({0.0,0.0,-40.0}, "eyeboss_projectile", 0.0); //First offset we go by
 	
 	SetParent(particle_1, particle_2, "",_, true);
@@ -362,42 +333,5 @@ void ProtectaEffects(int iNpc)
 	i_ExpidonsaEnergyEffect[iNpc][0] = EntIndexToEntRef(particle_1);
 	i_ExpidonsaEnergyEffect[iNpc][1] = EntIndexToEntRef(particle_2);
 	i_ExpidonsaEnergyEffect[iNpc][2] = EntIndexToEntRef(particle_3);
-	i_ExpidonsaEnergyEffect[iNpc][5] = EntIndexToEntRef(Laser_1);
-}
-
-
-void ProtectaAllyHeal(int entity, int victim, float damage, int weapon)
-{
-	if(entity == victim)
-		return;
-
-	if(b_IsAlliedNpc[entity])
-	{
-		if(victim <= MaxClients)
-		{
-			ProtectaAllyHealInternal(victim, 50.0);
-		}
-		else if (b_IsAlliedNpc[victim])
-		{
-			ProtectaAllyHealInternal(victim, 50.0);
-		}
-	}
-	else
-	{
-		if (!b_IsAlliedNpc[victim] && !i_IsABuilding[victim] && victim > MaxClients)
-		{
-			ProtectaAllyHealInternal(victim, 200.0);
-		}
-	}
-}
-
-void ProtectaAllyHealInternal(int victim, float heal)
-{
-	if(b_ExpidonsaWasAttackingNonPlayer)
-		heal *= 0.5;
-	HealEntityViaFloat(victim, heal, 1.0);
-	float ProjLoc[3];
-	GetEntPropVector(victim, Prop_Data, "m_vecAbsOrigin", ProjLoc);
-	ProjLoc[2] += 100.0;
-	TE_Particle("healthgained_blu", ProjLoc, NULL_VECTOR, NULL_VECTOR, _, _, _, _, _, _, _, _, _, _, 0.0);
+	i_ExpidonsaEnergyEffect[iNpc][3] = EntIndexToEntRef(Laser_1);
 }

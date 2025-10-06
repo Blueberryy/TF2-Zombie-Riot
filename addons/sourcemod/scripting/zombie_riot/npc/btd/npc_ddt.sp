@@ -40,6 +40,9 @@ static int MoabHealth(bool fortified)
 {
 	float value = 40000.0;	// 400 RGB
 	value *= 0.5;
+	value *= BLOON_HP_MULTI_GLOBAL;
+	if(IsValidEntity(RaidBossActive))
+		value *= 0.8;
 	
 	if(fortified)
 		value *= 2.0;
@@ -57,12 +60,43 @@ static int MoabHealth(bool fortified)
 		value *= 1.0 + (CurrentRound - 79) * 0.02;
 	}
 	
-	return RoundFloat(value) + (Bloon_Health(fortified, Bloon_Ceramic) * 3);	// 104x3 RGB
+	return RoundFloat((value + (Bloon_HPRatio(fortified, Bloon_Ceramic) * 3.0) * Bloon_BaseHealth()));	// 104x3 RGB
 }
 
 void DDT_MapStart()
 {
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Dark Dirigible Titan");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_ddt");
+	strcopy(data.Icon, sizeof(data.Icon), "special_blimp");
+	data.IconCustom = false;
+	data.Flags = 0;
+	data.Category = Type_BTD;
+	data.Func = ClotSummon;
+	data.Precache = ClotPrecache;
+	NPC_Add(data);
+}
+
+static void ClotPrecache()
+{
+	for(int i; i<sizeof(SoundMoabHit); i++)
+	{
+		PrecacheSoundCustom(SoundMoabHit[i]);
+	}
+	for(int i; i<sizeof(SoundLead); i++)
+	{
+		PrecacheSoundCustom(SoundLead[i]);
+	}
+	for(int i; i<sizeof(SoundMoabPop); i++)
+	{
+		PrecacheSoundCustom(SoundMoabPop[i]);
+	}
 	PrecacheModel("models/zombie_riot/btd/ddt.mdl");
+}
+
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team, const char[] data)
+{
+	return DDT(vecPos, vecAng, team, data);
 }
 
 methodmap DDT < CClotBody
@@ -101,7 +135,7 @@ methodmap DDT < CClotBody
 		
 		SetEntProp(this.index, Prop_Send, "m_nSkin", type);
 	}
-	public DDT(int client, float vecPos[3], float vecAng[3], bool ally, const char[] data)
+	public DDT(float vecPos[3], float vecAng[3], int ally, const char[] data)
 	{
 		bool fortified = StrContains(data, "f") != -1;
 		
@@ -110,7 +144,6 @@ methodmap DDT < CClotBody
 		
 		DDT npc = view_as<DDT>(CClotBody(vecPos, vecAng, "models/zombie_riot/btd/ddt.mdl", "1.0", buffer, ally, false, true));
 		
-		i_NpcInternalId[npc.index] = BTD_DDT;
 		i_NpcWeight[npc.index] = 2;
 		KillFeed_SetKillIcon(npc.index, "vehicle");
 		
@@ -118,8 +151,8 @@ methodmap DDT < CClotBody
 		if(iActivity > 0) npc.StartActivity(iActivity);
 		
 		npc.m_iBleedType = BLEEDTYPE_METAL;
-		npc.m_iStepNoiseType = NOTHING;	
-		npc.m_iNpcStepVariation = NOTHING;	
+		npc.m_iStepNoiseType = STEPTYPE_NONE;	
+		npc.m_iNpcStepVariation = STEPTYPE_NONE;	
 		npc.m_bDissapearOnDeath = true;
 		npc.m_bisWalking = false;
 		
@@ -134,10 +167,13 @@ methodmap DDT < CClotBody
 		npc.m_flNextRangedSpecialAttack = 0.0;
 		npc.m_flAttackHappenswillhappen = false;
 		npc.m_fbRangedSpecialOn = false;
+		npc.m_bDoNotGiveWaveDelay = true;
 		
+		func_NPCDeath[npc.index] = DDT_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = DDT_OnTakeDamage;
+		func_NPCThink[npc.index] = DDT_ClotThink;
 		
 		SDKHook(npc.index, SDKHook_OnTakeDamagePost, DDT_ClotDamagedPost);
-		SDKHook(npc.index, SDKHook_Think, DDT_ClotThink);
 		
 		SetEntityRenderMode(npc.index, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(npc.index, 255, 255, 255, 60);
@@ -151,8 +187,7 @@ methodmap DDT < CClotBody
 	
 }
 
-//TODO 
-//Rewrite
+
 public void DDT_ClotThink(int iNPC)
 {
 	DDT npc = view_as<DDT>(iNPC);
@@ -181,7 +216,8 @@ public void DDT_ClotThink(int iNPC)
 	npc.m_flNextThinkTime = gameTime + 0.1;
 
 	bool camo = !NpcStats_IsEnemySilenced(npc.index);
-	Building_CamoOrRegrowBlocker(npc.index, camo);
+	if(camo && HasSpecificBuff(npc.index, "Revealed"))
+		camo = false;
 
 	if(npc.m_bCamo)
 	{
@@ -207,66 +243,39 @@ public void DDT_ClotThink(int iNPC)
 	
 	if(IsValidEnemy(npc.index, PrimaryThreatIndex))
 	{
-		float vecTarget[3]; vecTarget = WorldSpaceCenter(PrimaryThreatIndex);
+		float vecTarget[3]; WorldSpaceCenter(PrimaryThreatIndex, vecTarget);
 													
-		float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+		float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+		float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 		
 		//Predict their pos.
 		if(flDistanceToTarget < npc.GetLeadRadius())
 		{
-			//float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, PrimaryThreatIndex);
 			
-			NPC_SetGoalVector(npc.index, PredictSubjectPosition(npc, PrimaryThreatIndex));
+			
+			float VecPredictPos[3]; PredictSubjectPosition(npc, PrimaryThreatIndex,_,_, VecPredictPos);
+			npc.SetGoalVector(VecPredictPos);
 		}
 		else
 		{
-			NPC_SetGoalEntity(npc.index, PrimaryThreatIndex);
+			npc.SetGoalEntity(PrimaryThreatIndex);
 		}
 		
 		//Target close enough to hit
 		if(flDistanceToTarget < 20000)
 		{
-		//	npc.FaceTowards(vecTarget, 1000.0);
-			
 			if(npc.m_flNextMeleeAttack < gameTime)
 			{
+				float WorldSpaceVec[3]; WorldSpaceCenter(PrimaryThreatIndex, WorldSpaceVec);
 				npc.m_flNextMeleeAttack = gameTime + 0.35;
+				float damageDealDo = 60.0;
 				
-				Handle swingTrace;
-				if(npc.DoAimbotTrace(swingTrace, PrimaryThreatIndex))
-				{
-					int target = TR_GetEntityIndex(swingTrace);
-					if(target > 0)
-					{
-						float vecHit[3];
-						TR_GetEndPosition(vecHit, swingTrace);
-						
-						if(npc.m_bFortified)
-						{
-							if(!ShouldNpcDealBonusDamage(target))
-							{
-								SDKHooks_TakeDamage(target, npc.index, npc.index, 60.0, DMG_CLUB, -1, _, vecHit);
-							}
-							else
-							{
-								SDKHooks_TakeDamage(target, npc.index, npc.index, 200.0 * 2.0, DMG_CLUB, -1, _, vecHit);
-							}
-						}
-						else
-						{
-							if(!ShouldNpcDealBonusDamage(target))
-							{
-								SDKHooks_TakeDamage(target, npc.index, npc.index, 50.0, DMG_CLUB, -1, _, vecHit);
-							}
-							else
-							{
-								SDKHooks_TakeDamage(target, npc.index, npc.index, 165.0 * 2.0, DMG_CLUB, -1, _, vecHit);
-							}
-						}					
-					}
+				if(npc.m_bFortified)
+					damageDealDo *= 1.4;
+				if(ShouldNpcDealBonusDamage(PrimaryThreatIndex))
+					damageDealDo *= 25.0;
 					
-					delete swingTrace;
-				}
+				SDKHooks_TakeDamage(PrimaryThreatIndex, npc.index, npc.index, damageDealDo, DMG_CLUB, -1, _, WorldSpaceVec);					
 			}
 		}
 		
@@ -275,8 +284,8 @@ public void DDT_ClotThink(int iNPC)
 	}
 	else
 	{
-		NPC_StopPathing(npc.index);
-		npc.m_bPathing = false;
+		npc.StopPathing();
+		
 		npc.m_flGetClosestTargetTime = 0.0;
 		npc.m_iTarget = GetClosestTarget(npc.index);
 	}
@@ -290,13 +299,13 @@ public Action DDT_OnTakeDamage(int victim, int &attacker, int &inflictor, float 
 	
 	DDT npc = view_as<DDT>(victim);
 	
-	if((damagetype & DMG_PLASMA) || (damagetype & DMG_SLASH))
+	if((damagetype & DMG_PLASMA) || (damagetype & DMG_TRUEDAMAGE))
 	{
 		npc.PlayHitSound();
 	}
-	else if((damagetype & DMG_BLAST) && f_IsThisExplosiveHitscan[attacker] != GetGameTime(npc.index))
+	else if((damagetype & DMG_BLAST))
 	{
-		damage *= 0.15;
+		damage *= 0.15 / MultiGlobalHealthBoss;
 
 		damagePosition[2] += 50.0;
 		npc.DispatchParticleEffect(npc.index, "medic_resist_match_blast_blue", damagePosition, NULL_VECTOR, NULL_VECTOR);
@@ -304,7 +313,7 @@ public Action DDT_OnTakeDamage(int victim, int &attacker, int &inflictor, float 
 	}
 	else
 	{
-		damage *= 0.15;
+		damage *= 0.15 / MultiGlobalHealthBoss;
 		npc.PlayLeadSound();
 
 		damagePosition[2] += 50.0;
@@ -326,8 +335,6 @@ public void DDT_NPCDeath(int entity)
 	npc.PlayDeathSound();
 	
 	SDKUnhook(npc.index, SDKHook_OnTakeDamagePost, DDT_ClotDamagedPost);
-	
-	SDKUnhook(npc.index, SDKHook_Think, DDT_ClotThink);
 	
 	int entity_death = CreateEntityByName("prop_dynamic_override");
 	if(IsValidEntity(entity_death))
@@ -351,7 +358,7 @@ public void DDT_NPCDeath(int entity)
 		SetEntityCollisionGroup(entity_death, 2);
 		SetVariantString("death");
 		AcceptEntityInput(entity_death, "SetAnimation");
-		SetEntProp(entity_death, Prop_Send, "m_iTeamNum", GetEntProp(npc.index, Prop_Send, "m_iTeamNum"));
+		SetTeam(entity_death, GetTeam(npc.index));
 		
 		pos[2] += 20.0;
 		
@@ -366,11 +373,15 @@ public void DDT_PostDeath(const char[] output, int caller, int activator, float 
 	GetEntPropVector(caller, Prop_Send, "m_vecOrigin", pos);
 	RemoveEntity(caller);
 	
-	TE_Particle("ExplosionCore_buildings", pos, NULL_VECTOR, NULL_VECTOR, caller, _, _, _, _, _, _, _, _, _, 0.0);
+	TE_Particle("ExplosionCore_MidAir", pos, NULL_VECTOR, NULL_VECTOR, caller, _, _, _, _, _, _, _, _, _, 0.0);
 	
-	int spawn_index = Npc_Create(BTD_BLOON, -1, pos, angles, GetEntProp(caller, Prop_Send, "m_iTeamNum") == 2, "9rc");
+	int spawn_index = NPC_CreateByName("npc_bloon", -1, pos, angles, GetTeam(caller), "9rc");
 	if(spawn_index > MaxClients)
-		Zombies_Currently_Still_Ongoing += 1;
+	{
+		ScalingMultiplyEnemyHpGlobalScale(spawn_index);
+		NpcStats_CopyStats(caller, spawn_index);
+		NpcAddedToZombiesLeftCurrently(spawn_index, true);
+	}
 }
 
 public void DDT_PostFortifiedDeath(const char[] output, int caller, int activator, float delay)
@@ -380,9 +391,13 @@ public void DDT_PostFortifiedDeath(const char[] output, int caller, int activato
 	GetEntPropVector(caller, Prop_Send, "m_vecOrigin", pos);
 	RemoveEntity(caller);
 	
-	TE_Particle("ExplosionCore_buildings", pos, NULL_VECTOR, NULL_VECTOR, caller, _, _, _, _, _, _, _, _, _, 0.0);
+	TE_Particle("ExplosionCore_MidAir", pos, NULL_VECTOR, NULL_VECTOR, caller, _, _, _, _, _, _, _, _, _, 0.0);
 	
-	int spawn_index = Npc_Create(BTD_BLOON, -1, pos, angles, GetEntProp(caller, Prop_Send, "m_iTeamNum") == 2, "9frc");
+	int spawn_index = NPC_CreateByName("npc_bloon", -1, pos, angles, GetTeam(caller), "9frc");
 	if(spawn_index > MaxClients)
-		Zombies_Currently_Still_Ongoing += 1;
+	{
+		ScalingMultiplyEnemyHpGlobalScale(spawn_index);
+		NpcStats_CopyStats(caller, spawn_index);
+		NpcAddedToZombiesLeftCurrently(spawn_index, true);
+	}
 }

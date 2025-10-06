@@ -40,6 +40,24 @@ static const char g_MeleeAttackSounds[][] =
 	"weapons/machete_swing.wav"
 };
 
+void SeabornEngineer_Precache()
+{
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Seaborn Engineer");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_seaborn_engineer");
+	strcopy(data.Icon, sizeof(data.Icon), "sea_engineer");
+	data.IconCustom = true;
+	data.Flags = MVM_CLASS_FLAG_MISSION;
+	data.Category = Type_Seaborn;
+	data.Func = ClotSummon;
+	NPC_Add(data);
+}
+
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team)
+{
+	return SeabornEngineer(vecPos, vecAng, team);
+}
+
 methodmap SeabornEngineer < CClotBody
 {
 	public void PlayIdleSound()
@@ -67,11 +85,10 @@ methodmap SeabornEngineer < CClotBody
 		EmitSoundToAll(g_MeleeHitSounds[GetRandomInt(0, sizeof(g_MeleeHitSounds) - 1)], this.index, SNDCHAN_AUTO, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, _);	
 	}
 	
-	public SeabornEngineer(int client, float vecPos[3], float vecAng[3], bool ally)
+	public SeabornEngineer(float vecPos[3], float vecAng[3], int ally)
 	{
-		SeabornEngineer npc = view_as<SeabornEngineer>(CClotBody(vecPos, vecAng, "models/player/engineer.mdl", "1.0", "10000", ally));
+		SeabornEngineer npc = view_as<SeabornEngineer>(CClotBody(vecPos, vecAng, "models/player/engineer.mdl", "1.0", "15000", ally));
 		
-		i_NpcInternalId[npc.index] = SEABORN_ENGINEER;
 		i_NpcWeight[npc.index] = 1;
 		npc.SetActivity("ACT_MP_RUN_MELEE");
 		
@@ -81,7 +98,9 @@ methodmap SeabornEngineer < CClotBody
 		
 		SetEntProp(npc.index, Prop_Send, "m_nSkin", 1);
 
-		SDKHook(npc.index, SDKHook_Think, SeabornEngineer_ClotThink);
+		func_NPCDeath[npc.index] = SeabornEngineer_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = Generic_OnTakeDamage;
+		func_NPCThink[npc.index] = SeabornEngineer_ClotThink;
 		
 		npc.m_flSpeed = 300.0;
 		npc.m_flGetClosestTargetTime = 0.0;
@@ -90,7 +109,6 @@ methodmap SeabornEngineer < CClotBody
 		npc.m_flNextRangedAttack = GetGameTime(npc.index) + GetRandomFloat(4.0, 6.0);
 		npc.m_fbRangedSpecialOn = false;
 		
-		SetEntityRenderMode(npc.index, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(npc.index, 100, 100, 255, 255);
 
 		npc.m_iWearable1 = npc.EquipItem("head", "models/weapons/c_models/c_wrench/c_wrench.mdl");
@@ -126,21 +144,24 @@ public void SeabornEngineer_ClotThink(int iNPC)
 	{
 		if(IsValidEntity(npc.m_iTargetAlly) && i_IsABuilding[npc.m_iTargetAlly])
 		{
-			if(!npc.m_iTarget && b_bBuildingIsPlaced[npc.m_iTargetAlly])
+			if(!npc.m_iTarget)
 			{
 				KillFeed_SetKillIcon(npc.index, "obj_attachment_sapper");
 
-				ParticleEffectAt(WorldSpaceCenter(npc.index), "water_bulletsplash01", 3.0);
-				ParticleEffectAt(WorldSpaceCenter(npc.m_iTargetAlly), "water_bulletsplash01", 3.0);
+				float trg_vec[3]; WorldSpaceCenter(npc.m_iTargetAlly, trg_vec );
+				float self_vec[3]; WorldSpaceCenter(npc.index, self_vec);
 
-				int repair = Building_GetBuildingRepair(npc.m_iTargetAlly);
+				ParticleEffectAt(self_vec, "water_bulletsplash01", 3.0);
+				ParticleEffectAt(trg_vec, "water_bulletsplash01", 3.0);
+
+				int repair = GetEntProp(npc.m_iTargetAlly, Prop_Data, "m_iRepair");
 				if(repair < 1)
 				{
-					SeaSlider_AddNeuralDamage(npc.m_iTargetAlly, npc.index, 75);
+					Elemental_AddNervousDamage(npc.m_iTargetAlly, npc.index, 75);
 				}
 				else
 				{
-					Building_SetBuildingRepair(npc.m_iTargetAlly, repair - 150);
+					SetEntProp(npc.m_iTargetAlly, Prop_Data, "m_iRepair", repair - 3);
 				}
 
 				npc.m_flNextThinkTime = gameTime + 0.4;
@@ -152,9 +173,8 @@ public void SeabornEngineer_ClotThink(int iNPC)
 			}
 		}
 		
-		if(!npc.m_bThisNpcIsABoss && !b_thisNpcHasAnOutline[npc.index])
-			GiveNpcOutLineLastOrBoss(npc.index, false);
 		
+		b_thisNpcHasAnOutline[npc.index] = false;
 		npc.m_fbRangedSpecialOn = false;
 		npc.m_flNextRangedAttack = FAR_FUTURE;
 		npc.SetActivity("ACT_MP_RUN_MELEE");
@@ -166,16 +186,15 @@ public void SeabornEngineer_ClotThink(int iNPC)
 	{
 		for(int i; i < i_MaxcountBuilding; i++)
 		{
-			int entity = EntRefToEntIndex(i_ObjectsBuilding[i]);
+			int entity = EntRefToEntIndexFast(i_ObjectsBuilding[i]);
 			if(entity != INVALID_ENT_REFERENCE)
 			{
-				CClotBody building = view_as<CClotBody>(entity);
-				if(!building.bBuildingIsStacked && building.bBuildingIsPlaced && !b_ThisEntityIgnored[entity] && !b_ThisEntityIgnoredByOtherNpcsAggro[entity])
+				//CClotBody building = view_as<CClotBody>(entity);
+				if(!b_ThisEntityIgnored[entity] && !b_ThisEntityIgnoredByOtherNpcsAggro[entity])
 				{
 					b_ThisEntityIgnored[entity] = true;
 
-					if(!npc.m_bThisNpcIsABoss && !b_thisNpcHasAnOutline[npc.index])
-						GiveNpcOutLineLastOrBoss(npc.index, true);
+					b_thisNpcHasAnOutline[npc.index] = true;
 					
 					npc.m_iTarget = 0;
 					npc.m_iTargetAlly = entity;
@@ -208,17 +227,18 @@ public void SeabornEngineer_ClotThink(int iNPC)
 	
 	if(npc.m_iTarget > 0)
 	{
-		float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
-		float distance = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);		
+		float vecTarget[3]; WorldSpaceCenter(npc.m_iTarget, vecTarget );
+		float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+		float distance = GetVectorDistance(vecTarget, VecSelfNpc, true);	
 		
 		if(distance < npc.GetLeadRadius())
 		{
-			float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, npc.m_iTarget);
-			NPC_SetGoalVector(npc.index, vPredictedPos);
+			float vPredictedPos[3]; PredictSubjectPosition(npc, npc.m_iTarget,_,_,vPredictedPos);
+			npc.SetGoalVector(vPredictedPos);
 		}
 		else 
 		{
-			NPC_SetGoalEntity(npc.index, npc.m_iTarget);
+			npc.SetGoalEntity(npc.m_iTarget);
 		}
 
 		npc.StartPathing();
@@ -240,7 +260,7 @@ public void SeabornEngineer_ClotThink(int iNPC)
 
 						npc.PlayMeleeHitSound();
 						SDKHooks_TakeDamage(target, npc.index, npc.index, ShouldNpcDealBonusDamage(target) ? 150.0 : 75.0, DMG_CLUB);
-						SeaSlider_AddNeuralDamage(target, npc.index, 15);
+						Elemental_AddNervousDamage(target, npc.index, 15);
 					}
 				}
 
@@ -289,6 +309,4 @@ void SeabornEngineer_NPCDeath(int entity)
 	
 	if(IsValidEntity(npc.m_iWearable2))
 		RemoveEntity(npc.m_iWearable2);
-	
-	SDKUnhook(npc.index, SDKHook_Think, SeabornEngineer_ClotThink);
 }

@@ -51,29 +51,22 @@ public void L4D2_Tank_OnMapStart_NPC()
 	PrecacheSound("player/flow.wav");
 	PrecacheSound("weapons/physcannon/energy_disintegrate5.wav");
 	PrecacheModel("models/infected/hulk_2.mdl");
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "L4D2 Tank");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_l4d2_tank");
+	strcopy(data.Icon, sizeof(data.Icon), "l4d2_tank");
+	data.IconCustom = true;
+	data.Flags = 0;
+	data.Category = Type_Special;
+	data.Func = ClotSummon;
+	NPC_Add(data);
 }
 
 
-static int i_TankAntiStuck[MAXENTITIES];
-
-static int i_PlayMusicSound[MAXENTITIES];
-static float fl_AlreadyStrippedMusic[MAXTF2PLAYERS];
-
-
-static float fl_ThrowPlayerCooldown[MAXENTITIES];
-static float fl_ThrowPlayerImmenent[MAXENTITIES];
-static bool b_ThrowPlayerImmenent[MAXENTITIES];
-static int i_GrabbedThis[MAXENTITIES];
-
-static bool b_AlreadyHitTankThrow[MAXENTITIES];
-static int i_TankThrewThis[MAXENTITIES];
-
-static bool i_ThrowAlly[MAXENTITIES];
-static int i_IWantToThrowHim[MAXENTITIES];
-
-static float fl_ThrowDelay[MAXENTITIES];
-
-static float f3_LastValidPosition[MAXENTITIES][3]; //Before grab to be exact
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team, const char[] data)
+{
+	return L4D2_Tank(vecPos, vecAng, team, data);
+}
 
 methodmap L4D2_Tank < CClotBody
 {
@@ -85,9 +78,7 @@ methodmap L4D2_Tank < CClotBody
 		
 		EmitCustomToAll(g_HurtSounds[GetRandomInt(0, sizeof(g_HurtSounds) - 1)], this.index, SNDCHAN_AUTO, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayHurtSound()");
-		#endif
+		
 	}
 
 	public void PlayDeathSound() {
@@ -95,26 +86,20 @@ methodmap L4D2_Tank < CClotBody
 		EmitCustomToAll(g_DeathSounds[GetRandomInt(0, sizeof(g_DeathSounds) - 1)], this.index, SNDCHAN_AUTO, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME);
 		EmitCustomToAll(g_DeathSounds[GetRandomInt(0, sizeof(g_DeathSounds) - 1)], this.index, SNDCHAN_AUTO, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayDeathSound()");
-		#endif
+		
 	}
 
 	public void PlaySpawnSound() {
 	
 		EmitCustomToAll(g_SpawnSounds[GetRandomInt(0, sizeof(g_SpawnSounds) - 1)], this.index, SNDCHAN_AUTO, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayDeathSound()");
-		#endif
+		
 	}
 	
 	public void PlayMeleeSound() {
 		EmitCustomToAll(g_MeleeAttackSounds[GetRandomInt(0, sizeof(g_MeleeAttackSounds) - 1)], this.index, SNDCHAN_STATIC, BOSS_ZOMBIE_SOUNDLEVEL, 80, BOSS_ZOMBIE_VOLUME);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayMeleeHitSound()");
-		#endif
+		
 	}
 	public void PlayMeleeHitSound() {
 		
@@ -123,17 +108,13 @@ methodmap L4D2_Tank < CClotBody
 		EmitSoundToAll(g_MeleeHitSounds[GetRandomInt(0, sizeof(g_MeleeHitSounds) - 1)], this.index, SNDCHAN_STATIC, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME, Random_pitch);
 		EmitSoundToAll(g_MeleeHitSounds[GetRandomInt(0, sizeof(g_MeleeHitSounds) - 1)], this.index, SNDCHAN_STATIC, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME, Random_pitch);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayMeleeHitSound()");
-		#endif
+		
 	}
 
 	public void PlayMeleeMissSound() {
 		EmitSoundToAll(g_MeleeMissSounds[GetRandomInt(0, sizeof(g_MeleeMissSounds) - 1)], this.index, SNDCHAN_STATIC, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CGoreFast::PlayMeleeMissSound()");
-		#endif
+		
 	}
 	property int m_iPlayMusicSound
 	{
@@ -144,19 +125,22 @@ methodmap L4D2_Tank < CClotBody
 		if(this.m_iPlayMusicSound > GetTime())
 			return;
 		
+		if(i_RaidGrantExtra[this.index] == 1)
+			return;
+			
 		EmitCustomToAll(g_IdleMusic, this.index, SNDCHAN_VOICE, SNDLEVEL_NONE, _, BOSS_ZOMBIE_VOLUME, 100);
 
 		this.m_iPlayMusicSound = GetTime() + 52;
 		
 	}
 	
-	public L4D2_Tank(int client, float vecPos[3], float vecAng[3], bool ally)
+	public L4D2_Tank(float vecPos[3], float vecAng[3], int ally, const char[] data)
 	{
-		L4D2_Tank npc = view_as<L4D2_Tank>(CClotBody(vecPos, vecAng, "models/infected/hulk_2.mdl", "1.45", GetTankHealth(), ally, false, true));
+		L4D2_Tank npc = view_as<L4D2_Tank>(CClotBody(vecPos, vecAng, "models/infected/hulk_2.mdl", "1.45", MinibossHealthScaling(100.0), ally, false, true));
 		
-		i_NpcInternalId[npc.index] = L4D2_TANK;
 		i_NpcWeight[npc.index] = 4;
 		
+		npc.m_bisWalking = true;
 		int iActivity = npc.LookupActivity("ACT_RUN");
 		if(iActivity > 0) npc.StartActivity(iActivity);
 		KillFeed_SetKillIcon(npc.index, "fists");
@@ -171,7 +155,9 @@ methodmap L4D2_Tank < CClotBody
 
 		
 		
-		SDKHook(npc.index, SDKHook_Think, L4D2_Tank_ClotThink);
+		func_NPCDeath[npc.index] = L4D2_Tank_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = L4D2_Tank_OnTakeDamage;
+		func_NPCThink[npc.index] = L4D2_Tank_ClotThink;
 		SDKHook(npc.index, SDKHook_OnTakeDamagePost, L4D2_Tank_ClotDamagedPost);
 		
 		for(int client_clear=1; client_clear<=MaxClients; client_clear++)
@@ -179,6 +165,7 @@ methodmap L4D2_Tank < CClotBody
 			fl_AlreadyStrippedMusic[client_clear] = 0.0; //reset to 0
 		}
 		
+		npc.m_bisWalking = false;
 		npc.m_flSpeed = 0.0;
 		npc.m_flNextThinkTime = GetGameTime(npc.index) + 3.0;
 		npc.m_flDoSpawnGesture = GetGameTime(npc.index) + 3.0;
@@ -203,12 +190,20 @@ methodmap L4D2_Tank < CClotBody
 		i_IWantToThrowHim[npc.index] = -1;
 		fl_ThrowDelay[npc.index] = GetGameTime(npc.index) + 3.0;
 
+		if(StrContains(data, "no_music") != -1)
+		{
+			npc.m_flNextThinkTime = GetGameTime(npc.index) + 0.0;
+			npc.m_flDoSpawnGesture = GetGameTime(npc.index) + 0.0;
+			i_RaidGrantExtra[npc.index] = 1;
+		}
+
 		
-		float wave = float(ZR_GetWaveCount()+1);
+		float wave = float(Waves_GetRoundScale()+1);
 		
-		wave *= 0.1;
+		wave *= 0.133333;
 	
 		npc.m_flWaveScale = wave;
+		npc.m_flWaveScale *= MinibossScalingReturn();
 	
 		
 //		SetEntPropFloat(npc.index, Prop_Data, "m_speed",npc.m_flSpeed);
@@ -219,12 +214,11 @@ methodmap L4D2_Tank < CClotBody
 	}
 }
 
-//TODO 
-//Rewrite
+
 public void L4D2_Tank_ClotThink(int iNPC)
 {
 	L4D2_Tank npc = view_as<L4D2_Tank>(iNPC);
-	
+	Tank_AdjustGrabbedTarget(iNPC);
 //	PrintToChatAll("%.f",GetEntPropFloat(view_as<int>(iNPC), Prop_Data, "m_speed"));
 	
 	if(npc.m_flNextDelayTime > GetGameTime(npc.index))
@@ -238,12 +232,14 @@ public void L4D2_Tank_ClotThink(int iNPC)
 	
 	if(npc.m_bDoSpawnGesture)
 	{
+		npc.m_bisWalking = false;
 		npc.PlaySpawnSound();
 		npc.AddGesture("ACT_SPAWN");
 		npc.m_bDoSpawnGesture = false;
 	}
 	if(npc.m_bUseDefaultAnim)
 	{
+		npc.m_bisWalking = true;
 		int iActivity = npc.LookupActivity("ACT_RUN");
 		if(iActivity > 0) npc.StartActivity(iActivity);
 		npc.m_bUseDefaultAnim = false;
@@ -259,8 +255,8 @@ public void L4D2_Tank_ClotThink(int iNPC)
 	if(npc.m_flStandStill > GetGameTime(npc.index))
 	{
 		npc.m_flSpeed = 0.0;
-		NPC_StopPathing(npc.index);
-		npc.m_bPathing = false;		
+		npc.StopPathing();
+				
 	}
 	else
 	{
@@ -279,17 +275,19 @@ public void L4D2_Tank_ClotThink(int iNPC)
 	{
 		npc.m_iTarget = GetClosestTarget(npc.index);
 		npc.m_flGetClosestTargetTime = GetGameTime(npc.index) + GetRandomRetargetTime();
-		
-		for(int client=1; client<=MaxClients; client++)
+		if(i_RaidGrantExtra[npc.index] != 1)
 		{
-			if(IsClientInGame(client))
+			for(int client=1; client<=MaxClients; client++)
 			{
-				if(fl_AlreadyStrippedMusic[client] < GetEngineTime())
+				if(IsClientInGame(client))
 				{
-					Music_Stop_All(client); //This is actually more expensive then i thought.
+					if(fl_AlreadyStrippedMusic[client] < GetEngineTime())
+					{
+						Music_Stop_All(client); //This is actually more expensive then i thought.
+					}
+					SetMusicTimer(client, GetTime() + 6);
+					fl_AlreadyStrippedMusic[client] = GetEngineTime() + 5.0;
 				}
-				SetMusicTimer(client, GetTime() + 6);
-				fl_AlreadyStrippedMusic[client] = GetEngineTime() + 5.0;
 			}
 		}
 		//PluginBot_NormalJump(npc.index);
@@ -310,29 +308,31 @@ public void L4D2_Tank_ClotThink(int iNPC)
 		if(IsValidEntity(EntRefToEntIndex(i_IWantToThrowHim[npc.index])))
 		{
 			I_Wanna_Throw_ally = true;
-			NPC_SetGoalEntity(npc.index, EntRefToEntIndex(i_IWantToThrowHim[npc.index]));
-			vecTarget = WorldSpaceCenter(EntRefToEntIndex(i_IWantToThrowHim[npc.index]));
-			flDistanceToTarget  = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+			npc.SetGoalEntity(EntRefToEntIndex(i_IWantToThrowHim[npc.index]));
+			WorldSpaceCenter(EntRefToEntIndex(i_IWantToThrowHim[npc.index]), vecTarget);
+			float npc_vec[3]; WorldSpaceCenter(npc.index, npc_vec);
+			flDistanceToTarget  = GetVectorDistance(vecTarget, npc_vec, true);
 			
-			vecTarget_OnRun = WorldSpaceCenter(closest);
-			flDistanceToTarget_OnRun = GetVectorDistance(vecTarget_OnRun, WorldSpaceCenter(npc.index), true);
+			WorldSpaceCenter(closest, vecTarget_OnRun);
+			flDistanceToTarget_OnRun = GetVectorDistance(vecTarget_OnRun, npc_vec, true);
 			
 		}
 		if(!I_Wanna_Throw_ally)
 		{
-			vecTarget = WorldSpaceCenter(closest);
+			WorldSpaceCenter(closest, vecTarget);
 			vecTarget_OnRun = vecTarget;
-			flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+			float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+			flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 			//Predict their pos.
 			if(flDistanceToTarget < npc.GetLeadRadius())
 			{
-				float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, closest);
+				float vPredictedPos[3]; PredictSubjectPosition(npc, closest,_,_, vPredictedPos);
 		//		PrintToChatAll("cutoff");
-				NPC_SetGoalVector(npc.index, vPredictedPos);	
+				npc.SetGoalVector(vPredictedPos);	
 			}
 			else
 			{
-				NPC_SetGoalEntity(npc.index, closest);
+				npc.SetGoalEntity(closest);
 			}
 		}
 		if(b_ThrowPlayerImmenent[npc.index])
@@ -354,8 +354,9 @@ public void L4D2_Tank_ClotThink(int iNPC)
 		
 							if(IsValidEntity(Enemy_I_See) && IsValidEnemy(npc.index, Enemy_I_See) && Closest_non_grabbed_player == Enemy_I_See)
 							{
-								Zero(b_AlreadyHitTankThrow);
+								EntityKilled_HitDetectionCooldown(client, TankThrowLogic);
 								i_TankThrewThis[client] = npc.index;
+								fl_ThrowDelay[client] = GetGameTime() + 0.1;
 								float flPos[3]; // original
 								float flAng[3]; // original
 								
@@ -364,11 +365,12 @@ public void L4D2_Tank_ClotThink(int iNPC)
 								
 								SDKCall_SetLocalOrigin(client, flPos);
 								
-								float vecTarget_closest[3]; vecTarget_closest = WorldSpaceCenter(Closest_non_grabbed_player);
+								float vecTarget_closest[3]; WorldSpaceCenter(Closest_non_grabbed_player, vecTarget_closest);
 								npc.FaceTowards(vecTarget_closest, 20000.0);
 								PluginBot_Jump(client, vecTarget_closest);
 								RequestFrame(ApplySdkHookTankThrow, EntIndexToEntRef(client));
 								i_TankAntiStuck[client] = EntIndexToEntRef(npc.index);
+								i_GrabbedThis[npc.index] = -1;
 								CreateTimer(0.1, CheckStuckTank, EntIndexToEntRef(client), TIMER_FLAG_NO_MAPCHANGE);
 							}
 						}
@@ -377,8 +379,6 @@ public void L4D2_Tank_ClotThink(int iNPC)
 					}
 					else
 					{
-						AcceptEntityInput(client, "ClearParent");
-						
 						float flPos[3]; // original
 						float flAng[3]; // original
 						
@@ -407,7 +407,7 @@ public void L4D2_Tank_ClotThink(int iNPC)
 						
 						
 						b_DoNotUnStuck[client] = false;
-						Zero(b_AlreadyHitTankThrow);
+						EntityKilled_HitDetectionCooldown(client, TankThrowLogic);
 						i_TankThrewThis[client] = npc.index;
 						int Closest_non_grabbed_player = GetClosestTarget(npc.index,_,_,_,_, client);
 						
@@ -419,9 +419,9 @@ public void L4D2_Tank_ClotThink(int iNPC)
 		
 							if(IsValidEntity(Enemy_I_See) && IsValidEnemy(npc.index, Enemy_I_See) && Closest_non_grabbed_player == Enemy_I_See)
 							{
-								float vecTarget_closest[3]; vecTarget_closest = WorldSpaceCenter(Closest_non_grabbed_player);
+								float vecTarget_closest[3]; WorldSpaceCenter(Closest_non_grabbed_player, vecTarget_closest);
 								npc.FaceTowards(vecTarget_closest, 20000.0);
-								if(client > MaxClients)
+								if(client > MaxClients && !b_NpcHasDied[client])
 								{
 									RequestFrame(ApplySdkHookTankThrow, EntIndexToEntRef(client));
 									PluginBot_Jump(client, vecTarget_closest);
@@ -432,6 +432,7 @@ public void L4D2_Tank_ClotThink(int iNPC)
 						}
 						if(client <= MaxClients)
 						{
+							fl_ThrowDelay[client] = GetGameTime() + 0.1;
 							SDKHook(client, SDKHook_PreThink, contact_throw_tank);	
 							i_TankAntiStuck[client] = EntIndexToEntRef(npc.index);
 							CreateTimer(0.1, CheckStuckTank, EntIndexToEntRef(client), TIMER_FLAG_NO_MAPCHANGE);
@@ -472,15 +473,37 @@ public void L4D2_Tank_ClotThink(int iNPC)
 							TR_GetEndPosition(vecHit, swingTrace);
 							if(target > 0) 
 							{
-								float damage = 60.0;
+								float damage = 70.0;
 								
+								damage *= npc.m_flWaveScale;
+
+								if(ShouldNpcDealBonusDamage(target))
+								{
+									damage *= 15.0;
+								}
+								SDKHooks_TakeDamage(target, npc.index, npc.index, damage, DMG_CLUB, -1, _, vecHit);
+								
+								
+								EntityKilled_HitDetectionCooldown(target, TankThrowLogic);
+								i_TankThrewThis[target] = npc.index;
 								if(!ShouldNpcDealBonusDamage(target))
-									SDKHooks_TakeDamage(target, npc.index, npc.index, damage * npc.m_flWaveScale, DMG_CLUB, -1, _, vecHit);
-								else
-									SDKHooks_TakeDamage(target, npc.index, npc.index, damage * 2.0 * npc.m_flWaveScale, DMG_CLUB, -1, _, vecHit);
-								
-								
-									
+								{
+									if(target > MaxClients)
+									{
+										RequestFrame(ApplySdkHookTankThrow, EntIndexToEntRef(target));
+										Custom_Knockback(npc.index, target, 1000.0, true, true);
+										i_TankAntiStuck[target] = EntIndexToEntRef(npc.index);
+									}
+									else
+									{
+										fl_ThrowDelay[target] = GetGameTime() + 0.1;
+										TF2_AddCondition(target, TFCond_LostFooting, 0.35);
+										TF2_AddCondition(target, TFCond_AirCurrent, 0.35);
+										SDKHook(target, SDKHook_PreThink, contact_throw_tank);	
+										i_TankAntiStuck[target] = EntIndexToEntRef(npc.index);
+										Custom_Knockback(npc.index, target, 1000.0, true, true);										
+									}
+								}
 								// Hit sound
 								npc.PlayMeleeHitSound();
 							}
@@ -498,7 +521,7 @@ public void L4D2_Tank_ClotThink(int iNPC)
 					}
 				}
 			}
-			else if(!I_Wanna_Throw_ally && (flDistanceToTarget < 12500 && fl_ThrowPlayerCooldown[iNPC] < GetGameTime(npc.index) && !npc.m_bLostHalfHealth && (!b_NpcHasDied[closest] || closest < MaxClients) && !i_IsABuilding[closest]))
+			else if(!I_Wanna_Throw_ally && (flDistanceToTarget < 12500 && fl_ThrowPlayerCooldown[iNPC] < GetGameTime(npc.index) && !npc.m_bLostHalfHealth && (!b_NpcHasDied[closest] || closest <= MaxClients) && !i_IsABuilding[closest]))
 			{
 				int Enemy_I_See;
 					
@@ -506,7 +529,16 @@ public void L4D2_Tank_ClotThink(int iNPC)
 				//Target close enough to hit
 				if(IsValidEntity(closest) && IsValidEnemy(npc.index, Enemy_I_See))
 				{
-					
+					if(i_IsVehicle[Enemy_I_See] == 2)
+					{
+						int driver = Vehicle_Driver(Enemy_I_See);
+						if(driver != -1)
+						{
+							Enemy_I_See = driver;
+							Vehicle_Exit(driver);
+						}
+					}
+
 					GetEntPropVector(npc.index, Prop_Data, "m_vecAbsOrigin", f3_LastValidPosition[Enemy_I_See]);
 					
 					f_TankGrabbedStandStill[Enemy_I_See] = GetGameTime(npc.index) + 1.2;
@@ -528,10 +560,6 @@ public void L4D2_Tank_ClotThink(int iNPC)
 					
 					
 					b_DoNotUnStuck[Enemy_I_See] = true;
-					if(Enemy_I_See <= MaxClients)
-					{
-						SetParent(npc.index, Enemy_I_See, "rhand");
-					}
 					npc.AddGesture("ACT_HULK_THROW");
 					
 					i_GrabbedThis[npc.index] = EntIndexToEntRef(Enemy_I_See);
@@ -586,6 +614,7 @@ public void L4D2_Tank_ClotThink(int iNPC)
 						fl_ThrowPlayerImmenent[npc.index] = GetGameTime(npc.index) + 1.0;
 						b_ThrowPlayerImmenent[npc.index] = true;
 						npc.m_flStandStill = GetGameTime(npc.index) + 1.5;
+						ApplyStatusEffect(npc.index, ally, "Unstoppable Force", 1.5);
 						i_IWantToThrowHim[npc.index] = -1;
 					}
 				}
@@ -599,8 +628,8 @@ public void L4D2_Tank_ClotThink(int iNPC)
 	}
 	else
 	{
-		NPC_StopPathing(npc.index);
-		npc.m_bPathing = false;
+		npc.StopPathing();
+		
 		npc.m_flGetClosestTargetTime = 0.0;
 		npc.m_iTarget = GetClosestTarget(npc.index);
 	}
@@ -636,7 +665,7 @@ public Action L4D2_Tank_OnTakeDamage(int victim, int &attacker, int &inflictor, 
 public void L4D2_Tank_ClotDamagedPost(int victim, int attacker, int inflictor, float damage, int damagetype) 
 {
 	L4D2_Tank npc = view_as<L4D2_Tank>(victim);
-	if((GetEntProp(npc.index, Prop_Data, "m_iMaxHealth")/2) >= GetEntProp(npc.index, Prop_Data, "m_iHealth") && !npc.m_bLostHalfHealth) //Anger after half hp/400 hp
+	if((ReturnEntityMaxHealth(npc.index)/2) >= GetEntProp(npc.index, Prop_Data, "m_iHealth") && !npc.m_bLostHalfHealth) //Anger after half hp/400 hp
 	{
 //		npc.m_flDoSpawnGesture = GetGameTime(npc.index) + 1.5;
 	//	npc.AddGesture("ACT_PANZER_STAGGER");
@@ -658,13 +687,12 @@ public void L4D2_Tank_NPCDeath(int entity)
 	{
 		npc.PlayDeathSound();	
 	}
-	
-	Music_Stop_All_Tank(entity);
+	if(i_RaidGrantExtra[npc.index] != 1)
+		Music_Stop_All_Tank(entity);
 	int client = EntRefToEntIndex(i_GrabbedThis[npc.index]);
 	
 	if(IsValidClient(client))
 	{
-		AcceptEntityInput(client, "ClearParent");
 		
 		SetEntityMoveType(client, MOVETYPE_WALK); //can move XD
 		SetEntityCollisionGroup(client, 5);
@@ -678,9 +706,6 @@ public void L4D2_Tank_NPCDeath(int entity)
 	}	
 	
 	i_GrabbedThis[npc.index] = -1;
-	
-	
-	SDKUnhook(npc.index, SDKHook_Think, L4D2_Tank_ClotThink);
 	SDKUnhook(npc.index, SDKHook_OnTakeDamagePost, L4D2_Tank_ClotDamagedPost);
 		
 	if(IsValidEntity(npc.m_iWearable1))
@@ -731,49 +756,18 @@ public void L4D2_Tank_NPCDeath(int entity)
 }
 
 
-static char[] GetTankHealth()
-{
-	int health = 85;
-	
-	health *= CountPlayersOnRed(); //yep its high! will need tos cale with waves expoentially.
-	
-	float temp_float_hp = float(health);
-	
-	if(CurrentRound+1 < 30)
-	{
-		health = RoundToCeil(Pow(((temp_float_hp + float(CurrentRound+1)) * float(CurrentRound+1)),1.20));
-	}
-	else if(CurrentRound+1 < 45)
-	{
-		health = RoundToCeil(Pow(((temp_float_hp + float(CurrentRound+1)) * float(CurrentRound+1)),1.25));
-	}
-	else
-	{
-		health = RoundToCeil(Pow(((temp_float_hp + float(CurrentRound+1)) * float(CurrentRound+1)),1.35)); //Yes its way higher but i reduced overall hp of him
-	}
-	
-	health /= 2;
-	
-	
-	health = RoundToCeil(float(health) * 1.2);
-	
-	char buffer[16];
-	IntToString(health, buffer, sizeof(buffer));
-	return buffer;
-}
-
 void Music_Stop_All_Tank(int entity)
 {
-	StopSound(entity, SNDCHAN_VOICE, "#infected_riot/tank/onebadtank.mp3");
-	StopSound(entity, SNDCHAN_VOICE, "#infected_riot/tank/onebadtank.mp3");
-	StopSound(entity, SNDCHAN_VOICE, "#infected_riot/tank/onebadtank.mp3");
-	StopSound(entity, SNDCHAN_VOICE, "#infected_riot/tank/onebadtank.mp3");
-	StopSound(entity, SNDCHAN_VOICE, "#infected_riot/tank/onebadtank.mp3");
+	StopCustomSound(entity, SNDCHAN_VOICE, "#infected_riot/tank/onebadtank.mp3", 5.0);
 }
 
 
 public Action contact_throw_tank(int client)
 {
+	if (fl_ThrowDelay[client] > GetGameTime())
+	{
+		return Plugin_Continue;
+	}
 	float targPos[3];
 	float chargerPos[3];
 	float flVel[3];
@@ -781,12 +775,12 @@ public Action contact_throw_tank(int client)
 	if (IsValidClient(client) && IsPlayerAlive(client) && dieingstate[client] != 0 && TeutonType[client] == TEUTON_NONE)
 	{
 		
-		Zero(b_AlreadyHitTankThrow);
+		EntityKilled_HitDetectionCooldown(client, TankThrowLogic);
 		SDKUnhook(client, SDKHook_PreThink, contact_throw_tank);	
 	}
 	if ((GetEntityFlags(client) & FL_ONGROUND) != 0 || GetEntProp(client, Prop_Send, "m_nWaterLevel") >= 1)
 	{
-		Zero(b_AlreadyHitTankThrow);
+		EntityKilled_HitDetectionCooldown(client, TankThrowLogic);
 		SDKUnhook(client, SDKHook_PreThink, contact_throw_tank);	
 		return Plugin_Continue;
 	}
@@ -794,7 +788,7 @@ public Action contact_throw_tank(int client)
 	{
 		char classname[60];
 		
-		chargerPos = WorldSpaceCenter(client);
+		WorldSpaceCenter(client, chargerPos);
 		for(int entity=1; entity <= MAXENTITIES; entity++)
 		{
 			
@@ -803,10 +797,10 @@ public Action contact_throw_tank(int client)
 				GetEntityClassname(entity, classname, sizeof(classname));
 				if (!StrContains(classname, "zr_base_npc", true) || !StrContains(classname, "player", true) || !StrContains(classname, "obj_dispenser", true) || !StrContains(classname, "obj_sentrygun", true))
 				{
-					targPos = WorldSpaceCenter(entity);
+					WorldSpaceCenter(entity, targPos);
 					if (GetVectorDistance(chargerPos, targPos, true) <= (125.0* 125.0))
 					{
-						if (!b_AlreadyHitTankThrow[entity] && entity != client && i_TankThrewThis[client] != entity)
+						if (!IsIn_HitDetectionCooldown(client,entity,TankThrowLogic) && entity != client && i_TankThrewThis[client] != entity)
 						{		
 							int damage = SDKCall_GetMaxHealth(client) / 3;
 							
@@ -821,7 +815,7 @@ public Action contact_throw_tank(int client)
 							
 							SDKHooks_TakeDamage(entity, 0, 0, float(damage), DMG_GENERIC, -1, NULL_VECTOR, targPos);
 							EmitSoundToAll("weapons/physcannon/energy_disintegrate5.wav", entity, SNDCHAN_STATIC, 80, _, 0.8);
-							b_AlreadyHitTankThrow[entity] = true;
+							Set_HitDetectionCooldown(client,entity,FAR_FUTURE,TankThrowLogic);
 							if(entity <= MaxClients)
 							{
 								float newVel[3];
@@ -855,14 +849,14 @@ public Action contact_throw_tank_entity(int client)
 	GetEntPropVector(client, Prop_Data, "m_vecVelocity", flVel);
 	if (npc.IsOnGround() && fl_ThrowDelay[client] < GetGameTime(npc.index))
 	{
-		Zero(b_AlreadyHitTankThrow);
+		EntityKilled_HitDetectionCooldown(client, TankThrowLogic);
 		SDKUnhook(client, SDKHook_Think, contact_throw_tank_entity);	
 		return Plugin_Continue;
 	}
 	else
 	{
 		char classname[60];
-		chargerPos = WorldSpaceCenter(client);
+		WorldSpaceCenter(client, chargerPos);
 		for(int entity=1; entity <= MAXENTITIES; entity++)
 		{
 			if (IsValidEntity(entity) && !b_ThisEntityIgnored[entity])
@@ -870,12 +864,12 @@ public Action contact_throw_tank_entity(int client)
 				GetEntityClassname(entity, classname, sizeof(classname));
 				if (!StrContains(classname, "zr_base_npc", true) || !StrContains(classname, "player", true) || !StrContains(classname, "obj_dispenser", true) || !StrContains(classname, "obj_sentrygun", true))
 				{
-					targPos = WorldSpaceCenter(entity);
+					WorldSpaceCenter(entity, targPos);
 					if (GetVectorDistance(chargerPos, targPos, true) <= (125.0* 125.0))
 					{
-						if (!b_AlreadyHitTankThrow[entity] && entity != client && i_TankThrewThis[client] != entity)
+						if (!IsIn_HitDetectionCooldown(client,entity,TankThrowLogic) && entity != client && i_TankThrewThis[client] != entity)
 						{		
-							int damage = GetEntProp(client, Prop_Data, "m_iMaxHealth") / 3;
+							int damage = ReturnEntityMaxHealth(client) / 3;
 							
 							if(damage > 2000)
 							{
@@ -889,7 +883,7 @@ public Action contact_throw_tank_entity(int client)
 							
 							SDKHooks_TakeDamage(entity, 0, 0, float(damage), DMG_GENERIC, -1, NULL_VECTOR, targPos);
 							EmitSoundToAll("weapons/physcannon/energy_disintegrate5.wav", entity, SNDCHAN_STATIC, 80, _, 0.8);
-							b_AlreadyHitTankThrow[entity] = true;
+							Set_HitDetectionCooldown(client,entity,FAR_FUTURE,TankThrowLogic);
 							if(entity <= MaxClients)
 							{
 								float newVel[3];
@@ -919,6 +913,7 @@ void ApplySdkHookTankThrow(int ref)
 	int entity = EntRefToEntIndex(ref);
 	if(IsValidEntity(entity))
 	{
+		EntityKilled_HitDetectionCooldown(entity, TankThrowLogic);
 		fl_ThrowDelay[entity] = GetGameTime(entity) + 0.1;
 		SDKHook(entity, SDKHook_Think, contact_throw_tank_entity);		
 	}
@@ -985,4 +980,19 @@ public Action CheckStuckTank(Handle timer, any entid)
 		}
 	}
 	return Plugin_Handled;
+}
+
+void Tank_AdjustGrabbedTarget(int iNPC)
+{
+	CClotBody npc = view_as<CClotBody>(iNPC);
+	if(!IsValidEntity(i_GrabbedThis[npc.index]))
+		return;
+
+	int EnemyGrab = EntRefToEntIndex(i_GrabbedThis[npc.index]);
+	float flPos[3]; // original
+	float flAng[3]; // original
+
+	npc.GetAttachment("rhand", flPos, flAng);
+	
+	TeleportEntity(EnemyGrab, flPos, NULL_VECTOR, {0.0,0.0,0.0});
 }

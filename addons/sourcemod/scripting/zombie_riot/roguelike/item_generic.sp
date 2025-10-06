@@ -1,8 +1,23 @@
+#pragma semicolon 1
+#pragma newdecls required
+
 public void Rogue_None_Remove()
 {
 	// Nothing happens when removed
 }
 
+public void FlagShip_Rogue_Refresh_Remove()
+{
+	// Refresh players when removed
+	for(int entity = 1; entity <= MAXENTITIES; entity++)
+	{
+		if(!IsValidEntity(entity))
+			continue;
+			
+		RemoveSpecificBuff(entity, "Ziberian Flagship Weaponry");
+	}
+	Rogue_Refresh_Remove();
+}
 public void Rogue_Refresh_Remove()
 {
 	// Refresh players when removed
@@ -20,43 +35,20 @@ static float GrigoriCoinPurseCalc()
 {
 	int Ingots = Rogue_GetIngots();
 	
-	return(Pow(0.993, (float(Ingots))));
-	//at 100 ingots, we double our attackspeed minimum
+	return 150.0 / (150.0 + float(Ingots));
+	//at 100 ingots, we double our attackspeed
 }
 
 public void Rogue_Item_GrigoriCoinPurse_Ally(int entity, StringMap map)
 {
 	float Multi = GrigoriCoinPurseCalc();
-	if(!b_NpcHasDied[entity])	// NPCs
-	{
-		if(i_NpcInternalId[entity] == CITIZEN)	// Rebel
-		{
-			Citizen npc = view_as<Citizen>(entity);
-
-			npc.m_fGunBonusReload *= Multi;
-			npc.m_fGunBonusFireRate *= Multi;
-		}
-		else
-		{
-			BarrackBody npc = view_as<BarrackBody>(entity);
-			if(npc.OwnerUserId)	// Barracks Unit
-			{
-				npc.BonusFireRate *= Multi;
-			}
-		}
-	}
+	RogueHelp_BodyAPSD(entity, map, 1.0 / Multi);
 }
 
 public void Rogue_Item_GrigoriCoinPurse_Weapon(int entity)
 {
 	float Multi = GrigoriCoinPurseCalc();
-
-
-	Attributes_SetMulti(entity, 6, Multi);
-	Attributes_SetMulti(entity, 97, Multi);
-	Attributes_SetMulti(entity, 733, Multi);
-	Attributes_SetMulti(entity, 8, Multi);
-	Attributes_SetMulti(entity, 6, (1.0 / Multi));
+	RogueHelp_WeaponAPSD(entity, 1.0 / Multi);
 }
 
 public void Rogue_Item_Provoked_Anger()
@@ -82,7 +74,7 @@ public void Rogue_Item_Malfunction_ShieldRemove()
 public void Rogue_Item_Bob_Exchange_Money()
 {
 	//give 18 dollars
-	Rogue_AddIngots(18);
+	Rogue_AddIngots(18, true);
 }
 
 public void Rogue_Item_ReleasingRadio()
@@ -121,47 +113,20 @@ public void Rogue_Item_ElasticFlyingCapeRemove()
 	b_ElasticFlyingCape = false;
 }
 
-public void Rogue_Item_HealingSalve()
-{
-	b_HealingSalve = true;
-}
-public void Rogue_Item_HealingSalveRemove()
-{
-	b_HealingSalve = false;
-}
-
-void Rogue_HealingSalve(int client, int &flHealth, flMaxHealth)
-{
-	if(b_HealingSalve)
-	{
-		if(flHealth < flMaxHealth)
-		{
-			int healing_Amount = 1;
-					
-			int newHealth = flHealth + healing_Amount;
-						
-			if(newHealth >= flMaxHealth)
-			{
-				healing_Amount -= newHealth - flMaxHealth;
-				newHealth = flMaxHealth;
-			}
-			ApplyHealEvent(client, healing_Amount);
-						
-			SetEntProp(client, Prop_Send, "m_iHealth", newHealth);
-			flHealth = newHealth;
-		}	
-	}
-}
-
 public void Rogue_SteelRazor_Weapon(int entity)
 {
 	// +15% damage bonus for melee's
 	char classname[36];
 	GetEntityClassname(entity, classname, sizeof(classname));
-			
-	if(TF2_GetClassnameSlot(classname) == TFWeaponSlot_Melee)
+	int WeaponSlot = TF2_GetClassnameSlot(classname, entity);
+	if(i_OverrideWeaponSlot[entity] != -1)
 	{
-		Attributes_SetMulti(entity, 2, 1.15);
+		WeaponSlot = i_OverrideWeaponSlot[entity];
+	}
+	if(WeaponSlot == TFWeaponSlot_Melee)
+	{
+		if(Attributes_Has(entity, 2))
+			Attributes_SetMulti(entity, 2, 1.15);
 	}
 }
 public void Rogue_Item_SteelRazor()
@@ -221,10 +186,10 @@ void OnTakeDamage_RogueItemGeneric(int attacker, float &damage, int damagetype, 
 	{
 		if(attacker > MaxClients || inflictor > MaxClients)
 		{
-			if(b_IsAlliedNpc[attacker] || b_IsAlliedNpc[inflictor])
+			if(GetTeam(attacker) == TFTeam_Red || GetTeam(inflictor) == TFTeam_Red)
 			{
-				//15%% more melee dmg for all allies
-				if(damagetype & (DMG_CLUB|DMG_SLASH))
+				//15％ more melee dmg for all allies
+				if(damagetype & (DMG_CLUB|DMG_TRUEDAMAGE))
 				{
 					damage *= 1.15;
 				}
@@ -235,10 +200,10 @@ void OnTakeDamage_RogueItemGeneric(int attacker, float &damage, int damagetype, 
 	{
 		if(attacker > MaxClients || inflictor > MaxClients)
 		{
-			if(b_IsAlliedNpc[attacker] || b_IsAlliedNpc[inflictor])
+			if(GetTeam(attacker) == TFTeam_Red || GetTeam(inflictor) == TFTeam_Red)
 			{
-				//15%% more Ranged dmg for all allies
-				if(damagetype & (DMG_CLUB|DMG_SLASH))
+				//15％ more Ranged dmg for all allies
+				if(damagetype & (DMG_CLUB|DMG_TRUEDAMAGE))
 				{
 
 				}
@@ -252,31 +217,34 @@ void OnTakeDamage_RogueItemGeneric(int attacker, float &damage, int damagetype, 
 	}
 	if(b_NickelInjectedPack)
 	{
-		int maxhealth;
-		if(attacker <= MaxClients)
+		if(attacker > 0 && (GetTeam(attacker) == TFTeam_Red || attacker <= MaxClients))
 		{
-			maxhealth = SDKCall_GetMaxHealth(attacker);
-		}
-		else
-		{
-			maxhealth = GetEntProp(attacker, Prop_Data, "m_iMaxHealth");
-		}	
-		int health = GetEntProp(attacker, Prop_Data, "m_iHealth");	
-		float damageMulti;
+			int maxhealth;
+			if(attacker <= MaxClients)
+			{
+				maxhealth = SDKCall_GetMaxHealth(attacker);
+			}
+			else
+			{
+				maxhealth = GetEntProp(attacker, Prop_Data, "m_iMaxHealth");
+			}	
+			int health = GetEntProp(attacker, Prop_Data, "m_iHealth");	
+			float damageMulti;
 
-		damageMulti = float(health) / float(maxhealth);
+			damageMulti = float(health) / float(maxhealth);
 
-		damageMulti *= 1.25;
+			damageMulti *= 1.25;
 
-		if(damageMulti > 1.0)
-		{
-			damageMulti = 1.0;
-		}
-		damageMulti += 0.35;
+			if(damageMulti > 1.0)
+			{
+				damageMulti = 1.0;
+			}
+			damageMulti += 0.25;
 
-		if(damageMulti > 1.0)
-		{
-			damage *= damageMulti;
+			if(damageMulti > 1.0)
+			{
+				damage *= damageMulti;
+			}
 		}
 	}
 }
@@ -285,58 +253,17 @@ void OnTakeDamage_RogueItemGeneric(int attacker, float &damage, int damagetype, 
 public void Rogue_Item_HandWrittenLetter()
 {
 	CurrentCash += 750;
-	for(int client = 1; client <= MaxClients; client++)
-	{
-		if(IsClientInGame(client))
-		{
-			CashRecievedNonWave[client] += 750;
-		}
-	}	
+	GlobalExtraCash += 750;	
 }
+
 public void Rogue_Item_HandWrittenLetter_Ally(int entity, StringMap map)
 {
-	if(map)	// Player
-	{
-		float value;
-
-		//3% more building damage
-		value = 1.0;
-		map.GetValue("287", value);
-		map.SetValue("287", value * 1.03);
-	}
-	else if(!b_NpcHasDied[entity])	// NPCs
-	{
-		if(i_NpcInternalId[entity] == CITIZEN)	// Rebel
-		{
-			Citizen npc = view_as<Citizen>(entity);
-
-			// +3% damage bonus
-			npc.m_fGunRangeBonus *= 1.03;
-		}
-		else
-		{
-			BarrackBody npc = view_as<BarrackBody>(entity);
-			if(npc.OwnerUserId)	// Barracks Unit
-			{
-				// +3% damage bonus
-				npc.BonusDamageBonus *= 1.03;
-			}
-		}
-	}
+	RogueHelp_BodyDamage(entity, map, 1.03);
 }
 
 public void Rogue_Item_HandWrittenLetter_Weapon(int entity)
 {
-	// +3% damage bonus
-	Attributes_SetMulti(entity, 2, 1.03);
-	Attributes_SetMulti(entity, 410, 1.03);
-	char buffer[36];
-	GetEntityClassname(entity, buffer, sizeof(buffer));
-	if(!StrEqual(buffer, "tf_weapon_medigun"))
-	{
-		Attributes_SetMulti(entity, 1, 1.03);
-	}
-	//Extra damage for mediguns.
+	RogueHelp_WeaponDamage(entity, 1.03);
 }
 
 
@@ -344,121 +271,35 @@ public void Rogue_Item_HandWrittenLetter_Weapon(int entity)
 public void Rogue_Item_CrudeFlute()
 {
 	CurrentCash += 500;
-	for(int client = 1; client <= MaxClients; client++)
-	{
-		if(IsClientInGame(client))
-		{
-			CashRecievedNonWave[client] += 500;
-		}
-	}	
+	GlobalExtraCash += 500;	
 }
 public void Rogue_Item_CrudeFlute_Ally(int entity, StringMap map)
 {
-	if(!b_NpcHasDied[entity])	// NPCs
-	{
-		if(i_NpcInternalId[entity] == CITIZEN)	// Rebel
-		{
-			Citizen npc = view_as<Citizen>(entity);
-
-			// +3% max health
-			int health = GetEntProp(npc.index, Prop_Data, "m_iMaxHealth");
-
-			health = RoundToCeil(float(health) * 1.03);
-
-			SetEntProp(npc.index, Prop_Data, "m_iHealth", health);
-			SetEntProp(npc.index, Prop_Data, "m_iMaxHealth", health);
-		}
-		else
-		{
-			BarrackBody npc = view_as<BarrackBody>(entity);
-			if(npc.OwnerUserId)	// Barracks Unit
-			{
-				// +3% max health
-				int health = GetEntProp(npc.index, Prop_Data, "m_iMaxHealth");
-
-				health = RoundToCeil(float(health) * 1.03);
-				SetEntProp(npc.index, Prop_Data, "m_iHealth", health);
-				SetEntProp(npc.index, Prop_Data, "m_iMaxHealth", health);
-			}
-		}
-	}
-	/*
-	else if(i_IsABuilding[entity])	// Building
-	{
-
-	}
-	*/
+	RogueHelp_BodyHealth(entity, map, 1.03);
 }
 
 
 public void Rogue_Item_ScrappedWallet()
 {
 	CurrentCash += 500;
-	for(int client = 1; client <= MaxClients; client++)
-	{
-		if(IsClientInGame(client))
-		{
-			CashRecievedNonWave[client] += 500;
-		}
-	}	
+	GlobalExtraCash += 500;	
 }
 
 public void Rogue_Item_ScrappedWallet_Weapon(int entity)
 {
-	// +1% damage bonus
-	Attributes_SetMulti(entity, 2, 1.01);
-	Attributes_SetMulti(entity, 410, 1.01);
-	char buffer[36];
-	GetEntityClassname(entity, buffer, sizeof(buffer));
-	if(!StrEqual(buffer, "tf_weapon_medigun"))
-	{
-		Attributes_SetMulti(entity, 1, 1.01);
-	}
-	//Extra damage for mediguns.
+	RogueHelp_WeaponDamage(entity, 1.01);
 }
 public void Rogue_Item_ScrappedWallet_Ally(int entity, StringMap map)
 {
-	if(map)	// Player
-	{
-		float value;
-
-		//1% more building damage
-		value = 1.0;
-		map.GetValue("287", value);
-		map.SetValue("287", value * 1.01);
-	}
-	else if(!b_NpcHasDied[entity])	// NPCs
-	{
-		if(i_NpcInternalId[entity] == CITIZEN)	// Rebel
-		{
-			Citizen npc = view_as<Citizen>(entity);
-
-			// +1% damage bonus
-			npc.m_fGunRangeBonus *= 1.01;
-		}
-		else
-		{
-			BarrackBody npc = view_as<BarrackBody>(entity);
-			if(npc.OwnerUserId)	// Barracks Unit
-			{
-				// +1% damage bonus
-				npc.BonusDamageBonus *= 1.01;
-			}
-		}
-	}
+	RogueHelp_BodyDamage(entity, map, 1.01);
 }
 
 public void Rogue_Item_GoldenCoin()
 {
-	for(int client = 1; client <= MaxClients; client++)
-	{
-		if(IsClientInGame(client))
-		{
-			CashRecievedNonWave[client] += 2000;
-			CashSpent[client] -= 2000;
-		}
-	}	
-	Rogue_AddIngots(10);
+	CurrentCash += 2000;
+	GlobalExtraCash += 2000;
+		
+	Rogue_AddIngots(10, true);
 }
 
 public void Rogue_Item_NickelInjectedPack()
@@ -477,18 +318,25 @@ public void Rogue_Item_SpanishSpecialisedGunpowder_Weapon(int entity)
 	// +15% damage bonus for ranged
 	char classname[36];
 	GetEntityClassname(entity, classname, sizeof(classname));
-
-
-	if(TF2_GetClassnameSlot(classname) != TFWeaponSlot_Melee) //anything that isnt melee
+	int WeaponSlot = TF2_GetClassnameSlot(classname, entity);
+	if(i_OverrideWeaponSlot[entity] != -1)
 	{
-		Attributes_SetMulti(entity, 2, 1.15);
+		WeaponSlot = i_OverrideWeaponSlot[entity];
 	}
 
-	Attributes_SetMulti(entity, 410, 1.15);
+	if(WeaponSlot != TFWeaponSlot_Melee) //anything that isnt melee
+	{
+		if(Attributes_Has(entity, 2))
+			Attributes_SetMulti(entity, 2, 1.15);
+	}
+
+	if(Attributes_Has(entity, 410))
+		Attributes_SetMulti(entity, 410, 1.15);
 
 	if(!StrContains(classname, "tf_weapon_medigun"))
 	{
-		Attributes_SetMulti(entity, 1, 1.15);
+		if(Attributes_Has(entity, 1))
+			Attributes_SetMulti(entity, 1, 1.15);
 	}
 }
 public void Rogue_Item_SpanishSpecialisedGunpowder()
@@ -511,4 +359,42 @@ public void Rogue_Item_SpanishSpecialisedGunpowder_Ally(int entity, StringMap ma
 		map.GetValue("287", value);
 		map.SetValue("287", value * 1.15);
 	}
+}
+
+public void Rogue_Item_GenericDamage5_Weapon(int entity)
+{
+	RogueHelp_WeaponDamage(entity, 1.05);
+}
+public void Rogue_Item_GenericDamage5_Ally(int entity, StringMap map)
+{
+	RogueHelp_BodyDamage(entity, map, 1.05);
+}
+
+public void Rogue_Item_GenericDamage10_Weapon(int entity)
+{
+	RogueHelp_WeaponDamage(entity, 1.1);
+}
+public void Rogue_Item_GenericDamage10_Ally(int entity, StringMap map)
+{
+	RogueHelp_BodyDamage(entity, map, 1.1);
+}
+
+public void Dimensional_Turbulence_Enemy(int iNpc)
+{
+	ApplyStatusEffect(iNpc, iNpc, "Dimensional Turbulence", 999999.9);
+	int Health = GetEntProp(iNpc, Prop_Data, "m_iMaxHealth");
+	SetEntProp(iNpc, Prop_Data, "m_iHealth", RoundToCeil(float(Health) * 1.5));
+	SetEntProp(iNpc, Prop_Data, "m_iMaxHealth", RoundToCeil(float(Health) * 1.5));
+	fl_GibVulnerablity[iNpc] *= 1.5;
+}
+public void Dimensional_Turbulence_Ally(int entity, StringMap map)
+{
+	ApplyStatusEffect(entity, entity, "Dimensional Turbulence", 999999.9);
+	RogueHelp_BodyHealth(entity, map, 1.5);
+	RogueHelp_BodySpeed(entity, map, 1.2);
+}
+
+public void Rogue_Chicken_Nugget_Box_Ally(int entity, StringMap map)
+{
+	RogueHelp_BodyHealth(entity, map, 1.15);
 }

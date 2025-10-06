@@ -21,13 +21,13 @@ public void Weapon_Wand_FireBallSpell(int client, int weapon, bool &result, int 
 {
 	if(weapon >= MaxClients)
 	{
-		int mana_cost = 35;
+		int mana_cost = 50;
 		if(mana_cost <= Current_Mana[client])
 		{
 			if (Ability_Check_Cooldown(client, slot) < 0.0)
 			{
-				Rogue_OnAbilityUse(weapon);
-				Ability_Apply_Cooldown(client, slot, 5.0);
+				Rogue_OnAbilityUse(client, weapon);
+				Ability_Apply_Cooldown(client, slot, 10.0);
 				
 				Attributes_Set(client, 698, 0.0);
 								
@@ -44,7 +44,7 @@ public void Weapon_Wand_FireBallSpell(int client, int weapon, bool &result, int 
 				CreateTimer(0.4, Fireball_Remove_Spell, client, TIMER_FLAG_NO_MAPCHANGE);
 				CreateTimer(0.4, Fireball_Remove_Spell_Entity, EntIndexToEntRef(spellbook), TIMER_FLAG_NO_MAPCHANGE);
 					
-				Mana_Regen_Delay[client] = GetGameTime() + 1.0;
+				SDKhooks_SetManaRegenDelayTime(client, 1.0);
 				Mana_Hud_Delay[client] = 0.0;
 				
 				Current_Mana[client] -= mana_cost;
@@ -84,13 +84,13 @@ public void Weapon_Wand_FireBallSpell2(int client, int weapon, bool &result, int
 		{
 			if (Ability_Check_Cooldown(client, slot) < 0.0)
 			{
-				Rogue_OnAbilityUse(weapon);
+				Rogue_OnAbilityUse(client, weapon);
 				Ability_Apply_Cooldown(client, slot, 10.0);
 				
 				Attributes_Set(client, 698, 0.0);
 								
 				TF2_RemoveWeaponSlot(client, 5);
-				f_FireBallDamage[client] = 150.0;
+				f_FireBallDamage[client] = 75.0;
 				f_FireBallDamage[client] *= Attributes_Get(weapon, 410, 1.0);
 				
 				int spellbook = SpawnWeapon_Special(client, "tf_weapon_spellbook", 1070, 100, 5, "");
@@ -104,7 +104,7 @@ public void Weapon_Wand_FireBallSpell2(int client, int weapon, bool &result, int
 				CreateTimer(0.4, Fireball_Remove_Spell, client, TIMER_FLAG_NO_MAPCHANGE);
 				CreateTimer(0.4, Fireball_Remove_Spell_Entity, EntIndexToEntRef(spellbook), TIMER_FLAG_NO_MAPCHANGE);
 					
-				Mana_Regen_Delay[client] = GetGameTime() + 1.0;
+				SDKhooks_SetManaRegenDelayTime(client, 1.0);
 				Mana_Hud_Delay[client] = 0.0;
 				
 				Current_Mana[client] -= mana_cost;
@@ -148,13 +148,13 @@ public void Weapon_Wand_FireBallSpell3(int client, int weapon, bool &result, int
 		{
 			if (Ability_Check_Cooldown(client, slot) < 0.0)
 			{
-				Rogue_OnAbilityUse(weapon);
+				Rogue_OnAbilityUse(client, weapon);
 				Ability_Apply_Cooldown(client, slot, 10.0);
 				
 				Attributes_Set(client, 698, 0.0);
 								
 				TF2_RemoveWeaponSlot(client, 5);
-				f_FireBallDamage[client] = 150.0;
+				f_FireBallDamage[client] = 75.0;
 				f_FireBallDamage[client] *= Attributes_Get(weapon, 410, 1.0);
 				
 				int spellbook = SpawnWeapon_Special(client, "tf_weapon_spellbook", 1070, 100, 5, "");
@@ -168,7 +168,7 @@ public void Weapon_Wand_FireBallSpell3(int client, int weapon, bool &result, int
 				CreateTimer(0.4, Fireball_Remove_Spell, client, TIMER_FLAG_NO_MAPCHANGE);
 				CreateTimer(0.4, Fireball_Remove_Spell_Entity, EntIndexToEntRef(spellbook), TIMER_FLAG_NO_MAPCHANGE);
 					
-				Mana_Regen_Delay[client] = GetGameTime() + 1.0;
+				SDKhooks_SetManaRegenDelayTime(client, 1.0);
 				Mana_Hud_Delay[client] = 0.0;
 				
 				Current_Mana[client] -= mana_cost;
@@ -212,13 +212,13 @@ public void Weapon_Wand_FireBallSpell4(int client, int weapon, bool &result, int
 		{
 			if (Ability_Check_Cooldown(client, slot) < 0.0)
 			{
-				Rogue_OnAbilityUse(weapon);
+				Rogue_OnAbilityUse(client, weapon);
 				Ability_Apply_Cooldown(client, slot, 10.0);
 				
 				Attributes_Set(client, 698, 0.0);
 								
 				TF2_RemoveWeaponSlot(client, 5);
-				f_FireBallDamage[client] = 150.0;
+				f_FireBallDamage[client] = 75.0;
 				f_FireBallDamage[client] *= Attributes_Get(weapon, 410, 1.0);
 				
 				int spellbook = SpawnWeapon_Special(client, "tf_weapon_spellbook", 1070, 100, 5, "");
@@ -232,7 +232,7 @@ public void Weapon_Wand_FireBallSpell4(int client, int weapon, bool &result, int
 				CreateTimer(0.4, Fireball_Remove_Spell, client, TIMER_FLAG_NO_MAPCHANGE);
 				CreateTimer(0.4, Fireball_Remove_Spell_Entity, EntIndexToEntRef(spellbook), TIMER_FLAG_NO_MAPCHANGE);
 					
-				Mana_Regen_Delay[client] = GetGameTime() + 1.0;
+				SDKhooks_SetManaRegenDelayTime(client, 1.0);
 				Mana_Hud_Delay[client] = 0.0;
 				
 				Current_Mana[client] -= mana_cost;
@@ -300,7 +300,7 @@ public Action FireMultipleFireBalls(Handle Timer, int ref)
 			if(mana_cost <= Current_Mana[client])
 			{
 
-				Mana_Regen_Delay[client] = GetGameTime() + 1.0;
+				SDKhooks_SetManaRegenDelayTime(client, 1.0);
 				Mana_Hud_Delay[client] = 0.0;
 				
 				Current_Mana[client] -= mana_cost;
@@ -311,7 +311,7 @@ public Action FireMultipleFireBalls(Handle Timer, int ref)
 				int i, weapon;
 				while(TF2_GetItem(client, weapon, i))
 				{
-					if(GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex") == 939)
+					if(i_CustomWeaponEquipLogic[weapon] == WEAPON_FIRE_WAND)
 					{
 						break;
 					}
@@ -336,10 +336,11 @@ public Action FireMultipleFireBalls(Handle Timer, int ref)
 				{
 					SetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity", client);
 					SetEntDataFloat(entity, FindSendPropInfo("CTFProjectile_Rocket", "m_iDeflected")+4, 0.0, true);	// Damage
-					SetEntProp(entity, Prop_Send, "m_iTeamNum", GetEntProp(client, Prop_Send, "m_iTeamNum"));
+					SetTeam(entity, GetTeam(client));
 					TeleportEntity(entity, fPos, fAng, NULL_VECTOR);
 					DispatchSpawn(entity);
 					TeleportEntity(entity, NULL_VECTOR, NULL_VECTOR, fVel);
+					SetEntPropEnt(entity, Prop_Send, "m_hLauncher", EntRefToEntIndex(weapon));
 					f_CustomGrenadeDamage[entity] = f_FireBallDamage[client];
 					
 				}

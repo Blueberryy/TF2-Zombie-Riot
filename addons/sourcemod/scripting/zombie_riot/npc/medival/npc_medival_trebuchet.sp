@@ -5,6 +5,25 @@ static const char NPCModel[] = "models/workshop/player/items/demo/taunt_drunk_ma
 
 #define TREBUCHET_LIGHTNING_RANGE 100.0
 
+void MedivalTrebuchet_OnMapStart()
+{
+
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Trebuchet");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_medival_trebuchet");
+	strcopy(data.Icon, sizeof(data.Icon), "soldier_spammer");
+	data.IconCustom = false;
+	data.Flags = 0;
+	data.Category = Type_Medieval;
+	data.Func = ClotSummon;
+	NPC_Add(data);
+
+}
+
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team)
+{
+	return MedivalTrebuchet(vecPos, vecAng, team);
+}
 methodmap MedivalTrebuchet < CClotBody
 {
 	public void PlayMeleeSound()
@@ -12,17 +31,17 @@ methodmap MedivalTrebuchet < CClotBody
 		EmitSoundToAll("weapons/mortar/mortar_fire1.wav", this.index, _, 130, _, 1.0, 100);
 	}
 	
-	public MedivalTrebuchet(int client, float vecPos[3], float vecAng[3], bool ally)
+	public MedivalTrebuchet(float vecPos[3], float vecAng[3], int ally)
 	{
 		MedivalTrebuchet npc = view_as<MedivalTrebuchet>(CClotBody(vecPos, vecAng, NPCModel, "1.35", "5000", ally));
-		i_NpcInternalId[npc.index] = MEDIVAL_TREBUCHET;
 		i_NpcWeight[npc.index] = 5;
 		
 		npc.m_iBleedType = BLEEDTYPE_METAL;
 		npc.m_iStepNoiseType = STEPSOUND_GIANT;
 		npc.m_iNpcStepVariation = 0;
 		
-		SDKHook(npc.index, SDKHook_Think, MedivalTrebuchet_ClotThink);
+		func_NPCDeath[npc.index] = MedivalTrebuchet_NPCDeath;
+		func_NPCThink[npc.index] = MedivalTrebuchet_ClotThink;
 		
 		npc.m_iState = 0;
 		npc.m_flSpeed = 150.0;
@@ -36,7 +55,7 @@ methodmap MedivalTrebuchet < CClotBody
 		b_DoNotChangeTargetTouchNpc[npc.index] = 1;
 		
 		npc.m_flMeleeArmor = 2.0;
-		npc.m_flRangedArmor = 0.25;
+		npc.m_flRangedArmor = 0.01;
 		SDKHook(npc.index, SDKHook_Touch, RamTouchDamageTouch);
 		
 		return npc;
@@ -45,8 +64,7 @@ methodmap MedivalTrebuchet < CClotBody
 	
 }
 
-//TODO 
-//Rewrite
+
 public void MedivalTrebuchet_ClotThink(int iNPC)
 {
 	ResolvePlayerCollisions_Npc(iNPC, /*damage crush*/ 10.0);
@@ -72,7 +90,7 @@ public void MedivalTrebuchet_ClotThink(int iNPC)
 	{
 		npc.m_iTarget = GetClosestTarget(npc.index,_,_,_,_,_,_,_,999999.9, true);
 		b_DoNotChangeTargetTouchNpc[npc.index] = 1;
-		if(npc.m_iTarget == -1)
+		if(npc.m_iTarget < 1)
 		{
 			b_DoNotChangeTargetTouchNpc[npc.index] = 0;
 			npc.m_iTarget = GetClosestTarget(npc.index);
@@ -84,15 +102,16 @@ public void MedivalTrebuchet_ClotThink(int iNPC)
 	
 	if(IsValidEnemy(npc.index, PrimaryThreatIndex))
 	{
-			float vecTarget[3]; vecTarget = WorldSpaceCenter(PrimaryThreatIndex);
+			float vecTarget[3]; WorldSpaceCenter(PrimaryThreatIndex, vecTarget);
 			
 		
-			float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+			float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+			float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 			
 			//Predict their pos.
 			if(flDistanceToTarget < npc.GetLeadRadius()) {
 				
-				float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, PrimaryThreatIndex);
+				float vPredictedPos[3]; PredictSubjectPosition(npc, PrimaryThreatIndex,_,_, vPredictedPos);
 				
 			/*	int color[4];
 				color[0] = 255;
@@ -105,9 +124,9 @@ public void MedivalTrebuchet_ClotThink(int iNPC)
 				TE_SetupBeamPoints(vPredictedPos, vecTarget, xd, xd, 0, 0, 0.25, 0.5, 0.5, 5, 5.0, color, 30);
 				TE_SendToAllInRange(vecTarget, RangeType_Visibility);*/
 				
-				NPC_SetGoalVector(npc.index, vPredictedPos);
+				npc.SetGoalVector(vPredictedPos);
 			} else {
-				NPC_SetGoalEntity(npc.index, PrimaryThreatIndex);
+				npc.SetGoalEntity(PrimaryThreatIndex);
 			}
 	
 			//Target close enough to hit
@@ -127,13 +146,14 @@ public void MedivalTrebuchet_ClotThink(int iNPC)
 							npc.m_flAttackHappens_bullshit = GetGameTime(npc.index)+2.54;
 							npc.m_flNextMeleeAttack = GetGameTime(npc.index) + 10.0;
 							npc.m_flAttackHappenswillhappen = true;
-							NPC_StopPathing(npc.index);
-							npc.m_bPathing = false;
+							npc.StopPathing();
+							
 						}
 					}
 					float vEnd[3];
-					vEnd = GetAbsOrigin(npc.m_iTarget);
-					spawnBeam(0.15, 255, 255, 255, 255, "materials/sprites/laserbeam.vmt", 4.0, 6.2, _, 2.0, vEnd, WorldSpaceCenter(npc.index));	
+					GetAbsOrigin(npc.m_iTarget, vEnd);
+					float WorldSpaceVec[3]; WorldSpaceCenter(npc.index, WorldSpaceVec);
+					spawnBeam(0.15, 255, 255, 255, 255, "materials/sprites/laserbeam.vmt", 4.0, 6.2, _, 2.0, vEnd, WorldSpaceVec);	
 						
 					if (npc.m_flAttackHappens < GetGameTime(npc.index) && npc.m_flAttackHappens_bullshit >= GetGameTime(npc.index) && npc.m_flAttackHappenswillhappen)
 					{
@@ -175,11 +195,11 @@ public void MedivalTrebuchet_ClotThink(int iNPC)
 	}
 	else
 	{
-		NPC_StopPathing(npc.index);
-		npc.m_bPathing = false;
+		npc.StopPathing();
+		
 		npc.m_flGetClosestTargetTime = 0.0;
 		npc.m_iTarget = GetClosestTarget(npc.index,_,_,_,_,_,_,_,999999.9, true);
-		if(npc.m_iTarget == -1)
+		if(npc.m_iTarget < 1)
 		{
 			npc.m_iTarget = GetClosestTarget(npc.index);
 		}
@@ -190,13 +210,12 @@ void MedivalTrebuchet_NPCDeath(int entity)
 {
 	MedivalTrebuchet npc = view_as<MedivalTrebuchet>(entity);
 	
-	SDKUnhook(npc.index, SDKHook_Think, MedivalTrebuchet_ClotThink);
 		
 	if(IsValidEntity(npc.m_iWearable1))
 		RemoveEntity(npc.m_iWearable1);
 	
 	float pos[3]; GetEntPropVector(entity, Prop_Data, "m_vecAbsOrigin", pos);
-	TE_Particle("asplode_hoodoo", pos, NULL_VECTOR, NULL_VECTOR, entity, _, _, _, _, _, _, _, _, _, 0.0);
+	TE_Particle("asplode_hoodoo", pos, NULL_VECTOR, NULL_VECTOR, _, _, _, _, _, _, _, _, _, _, 0.0);
 }
 
 
@@ -265,7 +284,7 @@ public Action Smite_Timer_Trebuchet(Handle Smite_Logic, DataPack pack)
 		RequestFrame(MakeExplosionFrameLater, pack_boom);
 		
 		CreateEarthquake(spawnLoc, 1.0, TREBUCHET_LIGHTNING_RANGE * 2.5, 16.0, 255.0);
-		Explode_Logic_Custom(damage, entity, entity, -1, spawnLoc, TREBUCHET_LIGHTNING_RANGE * 1.4,_,0.8, true, 15, false, 25.0);  //Explosion range increace
+		Explode_Logic_Custom(damage, entity, entity, -1, spawnLoc, TREBUCHET_LIGHTNING_RANGE * 1.4,_,0.8, true, 15, false, 25.0);  //Explosion range increase
 	
 		return Plugin_Stop;
 	}

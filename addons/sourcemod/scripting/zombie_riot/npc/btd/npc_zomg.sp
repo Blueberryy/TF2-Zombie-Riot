@@ -28,8 +28,11 @@ static float MoabSpeed()
 
 static int MoabHealth(bool fortified)
 {
-	float value = 790000.0;	// 200x3x3 + 700x3 + 4000 RGB
-	value *= 0.5;
+	float value = 7900.0;	// 200x3x3 + 700x3 + 4000 RGB
+	
+	value *= BLOON_HP_MULTI_GLOBAL;
+	if(IsValidEntity(RaidBossActive))
+		value *= 0.8;
 	
 	if(fortified)
 		value *= 2.0;
@@ -47,19 +50,41 @@ static int MoabHealth(bool fortified)
 		value *= 1.0 + (CurrentRound - 79) * 0.02;
 	}
 	
-	return RoundFloat(value) + (Bloon_Health(fortified, Bloon_Ceramic) * 27);	// 104x3x3x3 RGB
+	return RoundFloat((value + (Bloon_HPRatio(fortified, Bloon_Ceramic) * 27.0) * Bloon_BaseHealth()));	// 104x3x3x3 RGB
 }
 
 void Zomg_MapStart()
+{
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Zeppelin of Mighty Gargantuaness");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_zomg");
+	strcopy(data.Icon, sizeof(data.Icon), "special_blimp");
+	data.IconCustom = false;
+	data.Flags = 0;
+	data.Category = Type_BTD;
+	data.Func = ClotSummon;
+	data.Precache = ClotPrecache;
+	NPC_Add(data);
+}
+
+static void ClotPrecache()
 {
 	for(int i; i<sizeof(SoundZomgPop); i++)
 	{
 		PrecacheSoundCustom(SoundZomgPop[i]);
 	}
+	for(int i; i<sizeof(SoundMoabHit); i++)
+	{
+		PrecacheSoundCustom(SoundMoabHit[i]);
+	}
 	
 	PrecacheModel("models/zombie_riot/btd/zomg.mdl");
 }
 
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team, const char[] data)
+{
+	return Zomg(vecPos, vecAng, team, data);
+}
 methodmap Zomg < CClotBody
 {
 	property bool m_bFortified
@@ -91,7 +116,7 @@ methodmap Zomg < CClotBody
 		
 		SetEntProp(this.index, Prop_Send, "m_nSkin", type);
 	}
-	public Zomg(int client, float vecPos[3], float vecAng[3], bool ally, const char[] data)
+	public Zomg(float vecPos[3], float vecAng[3], int ally, const char[] data)
 	{
 		bool fortified = StrContains(data, "f") != -1;
 		
@@ -100,7 +125,6 @@ methodmap Zomg < CClotBody
 		
 		Zomg npc = view_as<Zomg>(CClotBody(vecPos, vecAng, "models/zombie_riot/btd/zomg.mdl", "1.0", buffer, ally, false, true));
 		
-		i_NpcInternalId[npc.index] = BTD_ZOMG;
 		i_NpcWeight[npc.index] = 4;
 		KillFeed_SetKillIcon(npc.index, "vehicle");
 		
@@ -108,8 +132,8 @@ methodmap Zomg < CClotBody
 		if(iActivity > 0) npc.StartActivity(iActivity);
 		
 		npc.m_iBleedType = BLEEDTYPE_RUBBER;
-		npc.m_iStepNoiseType = NOTHING;	
-		npc.m_iNpcStepVariation = NOTHING;	
+		npc.m_iStepNoiseType = STEPTYPE_NONE;	
+		npc.m_iNpcStepVariation = STEPTYPE_NONE;	
 		npc.m_bDissapearOnDeath = true;
 		npc.m_bisWalking = false;
 		
@@ -122,11 +146,13 @@ methodmap Zomg < CClotBody
 		npc.m_flNextRangedSpecialAttack = 0.0;
 		npc.m_flAttackHappenswillhappen = false;
 		npc.m_fbRangedSpecialOn = false;
+		npc.m_bDoNotGiveWaveDelay = true;
 		
+		func_NPCDeath[npc.index] = Zomg_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = Zomg_OnTakeDamage;
+		func_NPCThink[npc.index] = Zomg_ClotThink;
 		
 		SDKHook(npc.index, SDKHook_OnTakeDamagePost, Zomg_ClotDamagedPost);
-		SDKHook(npc.index, SDKHook_Think, Zomg_ClotThink);
-		
 		npc.StartPathing();
 		
 		
@@ -136,8 +162,7 @@ methodmap Zomg < CClotBody
 	
 }
 
-//TODO 
-//Rewrite
+
 public void Zomg_ClotThink(int iNPC)
 {
 	Zomg npc = view_as<Zomg>(iNPC);
@@ -175,77 +200,47 @@ public void Zomg_ClotThink(int iNPC)
 	
 	if(IsValidEnemy(npc.index, PrimaryThreatIndex))
 	{
-		float vecTarget[3]; vecTarget = WorldSpaceCenter(PrimaryThreatIndex);
+		float vecTarget[3]; WorldSpaceCenter(PrimaryThreatIndex, vecTarget);
 													
-		float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+		float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+		float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 		
 		//Predict their pos.
 		if(flDistanceToTarget < npc.GetLeadRadius())
 		{
-			//float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, PrimaryThreatIndex);
 			
-			NPC_SetGoalVector(npc.index, PredictSubjectPosition(npc, PrimaryThreatIndex));
+			
+			float VecPredictPos[3]; PredictSubjectPosition(npc, PrimaryThreatIndex,_,_, VecPredictPos);
+			npc.SetGoalVector(VecPredictPos);
 		}
 		else
 		{
-			NPC_SetGoalEntity(npc.index, PrimaryThreatIndex);
+			npc.SetGoalEntity(PrimaryThreatIndex);
 		}
 		
-		//Target close enough to hit
 		if(flDistanceToTarget < 20000)
 		{
-		//	npc.FaceTowards(vecTarget, 1000.0);
-			
 			if(npc.m_flNextMeleeAttack < gameTime)
 			{
 				npc.m_flNextMeleeAttack = gameTime + 0.35;
+				float WorldSpaceVec[3]; WorldSpaceCenter(PrimaryThreatIndex, WorldSpaceVec);
+				float damageDealDo = 40.0;
 				
-				Handle swingTrace;
-				if(npc.DoAimbotTrace(swingTrace, PrimaryThreatIndex))
-				{
-					int target = TR_GetEntityIndex(swingTrace);
-					if(target > 0)
-					{
-						float vecHit[3];
-						TR_GetEndPosition(vecHit, swingTrace);
-						
-						if(npc.m_bFortified)
-						{
-							if(!ShouldNpcDealBonusDamage(target))
-							{
-								SDKHooks_TakeDamage(target, npc.index, npc.index, 40.0, DMG_CLUB, -1, _, vecHit);
-							}
-							else
-							{
-								SDKHooks_TakeDamage(target, npc.index, npc.index, 300.0 * 2.0, DMG_CLUB, -1, _, vecHit);
-							}
-						}
-						else
-						{
-							if(!ShouldNpcDealBonusDamage(target))
-							{
-								
-								SDKHooks_TakeDamage(target, npc.index, npc.index, 25.0, DMG_CLUB, -1, _, vecHit);
-							}
-							else
-							{
-								SDKHooks_TakeDamage(target, npc.index, npc.index, 200.0 * 2.0, DMG_CLUB, -1, _, vecHit);
-							}							
-						}
-					}
+				if(npc.m_bFortified)
+					damageDealDo *= 1.4;
+				if(ShouldNpcDealBonusDamage(PrimaryThreatIndex))
+					damageDealDo *= 25.0;
 					
-					delete swingTrace;
-				}
+				SDKHooks_TakeDamage(PrimaryThreatIndex, npc.index, npc.index, damageDealDo, DMG_CLUB, -1, _, WorldSpaceVec);							
 			}
 		}
-		
 		npc.StartPathing();
 		
 	}
 	else
 	{
-		NPC_StopPathing(npc.index);
-		npc.m_bPathing = false;
+		npc.StopPathing();
+		
 		npc.m_flGetClosestTargetTime = 0.0;
 		npc.m_iTarget = GetClosestTarget(npc.index);
 	}
@@ -275,13 +270,15 @@ public void Zomg_NPCDeath(int entity)
 	
 	SDKUnhook(npc.index, SDKHook_OnTakeDamagePost, Zomg_ClotDamagedPost);
 	
-	SDKUnhook(npc.index, SDKHook_Think, Zomg_ClotThink);
-	
 	float pos[3], angles[3];
 	GetEntPropVector(entity, Prop_Data, "m_angRotation", angles);
 	GetEntPropVector(entity, Prop_Send, "m_vecOrigin", pos);
 	
-	int spawn_index = Npc_Create(BTD_BFB, -1, pos, angles, GetEntProp(entity, Prop_Send, "m_iTeamNum") == 2, npc.m_bFortified ? "f" : "");
+	int spawn_index = NPC_CreateByName("npc_bfb", -1, pos, angles, GetTeam(entity), npc.m_bFortified ? "f" : "");
 	if(spawn_index > MaxClients)
-		Zombies_Currently_Still_Ongoing += 1;
+	{
+		
+		NpcStats_CopyStats(npc.index, spawn_index);
+		NpcAddedToZombiesLeftCurrently(spawn_index, true);
+	}
 }

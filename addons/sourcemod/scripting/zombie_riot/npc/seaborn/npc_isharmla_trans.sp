@@ -41,6 +41,21 @@ void IsharmlaTrans_MapStart()
 	PrecacheSoundArray(g_IdleAlertedSounds);
 	PrecacheSoundArray(g_MeleeAttackSounds);
 	gLaser1 = PrecacheModel("materials/sprites/laser.vmt");
+
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Ishar'mla, Heart of Corruption");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_isharmla_trans");
+	strcopy(data.Icon, sizeof(data.Icon), "sea_isharmla");
+	data.IconCustom = true;
+	data.Flags = MVM_CLASS_FLAG_MISSION|MVM_CLASS_FLAG_MINIBOSS|MVM_CLASS_FLAG_ALWAYSCRIT;
+	data.Category = Type_Hidden;
+	data.Func = ClotSummon;
+	NPC_Add(data);
+}
+
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team)
+{
+	return IsharmlaTrans(vecPos, vecAng, team);
 }
 
 methodmap IsharmlaTrans < CClotBody
@@ -70,11 +85,10 @@ methodmap IsharmlaTrans < CClotBody
 		EmitSoundToAll("ui/halloween_boss_summoned_fx.wav");
 	}
 	
-	public IsharmlaTrans(int client, float vecPos[3], float vecAng[3], bool ally)
+	public IsharmlaTrans(float vecPos[3], float vecAng[3], int ally)
 	{
-		IsharmlaTrans npc = view_as<IsharmlaTrans>(CClotBody(vecPos, vecAng, "models/bots/headless_hatman.mdl", "1.5", "45000", ally, false, true));
+		IsharmlaTrans npc = view_as<IsharmlaTrans>(CClotBody(vecPos, vecAng, "models/bots/headless_hatman.mdl", "1.35", "45000", ally, false, true));
 		
-		i_NpcInternalId[npc.index] = ISHARMLA_TRANS;
 		i_NpcWeight[npc.index] = 6;
 		npc.SetActivity("ACT_MP_STAND_ITEM1");
 		KillFeed_SetKillIcon(npc.index, "headtaker");
@@ -83,7 +97,8 @@ methodmap IsharmlaTrans < CClotBody
 		npc.m_iStepNoiseType = STEPSOUND_GIANT;
 		npc.m_iNpcStepVariation = STEPTYPE_SEABORN;
 		
-		SDKHook(npc.index, SDKHook_Think, IsharmlaTrans_ClotThink);
+		func_NPCDeath[npc.index] = IsharmlaTrans_NPCDeath;
+		func_NPCThink[npc.index] = IsharmlaTrans_ClotThink;
 		
 		npc.m_flSpeed = 250.0;//100.0;	// 0.6 - 0.2 x 250
 		npc.m_flGetClosestTargetTime = 0.0;
@@ -93,10 +108,9 @@ methodmap IsharmlaTrans < CClotBody
 		npc.Anger = false;
 		npc.m_flMeleeArmor = 1.5;
 
-		b_ThisNpcIsSawrunner[npc.index] = true;
-		b_CannotBeKnockedUp[npc.index] = true;
+		ApplyStatusEffect(npc.index, npc.index, "Solid Stance", FAR_FUTURE);	
+		f_ExtraOffsetNpcHudAbove[npc.index] = 35.0;
 		
-		SetEntityRenderMode(npc.index, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(npc.index, 55, 55, 255, 255);
 		
 		npc.m_iWearable1 = npc.EquipItem("weapon_bone", "models/weapons/c_models/c_bigaxe/c_bigaxe.mdl");
@@ -133,14 +147,15 @@ public void IsharmlaTrans_ClotThink(int iNPC)
 
 	if(!npc.m_iTarget || npc.m_flGetClosestTargetTime < gameTime)
 	{
-		npc.m_iTarget = GetClosestTarget(npc.index, _, _, true);
+		npc.m_iTarget = GetClosestTarget(npc.index, _, _, false);
 		npc.m_flGetClosestTargetTime = gameTime + 1.0;
 	}
 	
 	if(npc.m_iTarget > 0)
 	{
-		float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
-		float distance = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);		
+		float vecTarget[3]; WorldSpaceCenter(npc.m_iTarget, vecTarget );
+		float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+		float distance = GetVectorDistance(vecTarget, VecSelfNpc, true);	
 		
 		if(npc.m_flAttackHappens)
 		{
@@ -150,11 +165,21 @@ public void IsharmlaTrans_ClotThink(int iNPC)
 				
 				if(ShouldNpcDealBonusDamage(npc.m_iTarget))
 				{
-					SDKHooks_TakeDamage(npc.m_iTarget, npc.index, npc.index, 500000.0, DMG_SLASH);
+					SDKHooks_TakeDamage(npc.m_iTarget, npc.index, npc.index, 500000.0, DMG_TRUEDAMAGE);
 					float pos[3];
 					GetEntPropVector(npc.m_iTarget, Prop_Send, "m_vecOrigin", pos);
 					pos[2] += 25.0;
 					IsharmlaEffect(npc.index, pos);
+					int enemy[6];
+					UnderTides npc1 = view_as<UnderTides>(iNPC);
+					GetHighDefTargets(npc1, enemy, sizeof(enemy));
+					for(int i; i < sizeof(enemy); i++)
+					{
+						if(enemy[i])
+						{
+							IsharMlarWaterAttack_Invoke(npc.index, enemy[i]);
+						}
+					}
 				}
 				else
 				{
@@ -168,8 +193,8 @@ public void IsharmlaTrans_ClotThink(int iNPC)
 							IsharMlarWaterAttack_Invoke(npc.index, enemy[i]);
 						}
 					}
-					vecTarget = PredictSubjectPositionForProjectiles(npc, npc.m_iTarget, 1000.0);
-					npc.FireParticleRocket(vecTarget, npc.Anger ? 750.0 : 500.0, 1000.0, 275.0, "drg_cow_rockettrail_burst_charged_blue", true, true, _, _, EP_DEALS_DROWN_DAMAGE);
+					PredictSubjectPositionForProjectiles(npc, npc.m_iTarget, 1000.0,_,vecTarget);
+					npc.FireParticleRocket(vecTarget, npc.Anger ? 750.0 : 500.0, 1000.0, 275.0, "drg_cow_rockettrail_burst_charged_blue", true, true, _, _, EP_DEALS_TRUE_DAMAGE);
 				}
 			}
 
@@ -187,6 +212,9 @@ public void IsharmlaTrans_ClotThink(int iNPC)
 					npc.m_iTarget = target;
 					npc.m_flGetClosestTargetTime = gameTime + 1.0;
 					npc.m_flNextMeleeAttack = gameTime + 4.45;
+					if(ShouldNpcDealBonusDamage(target))
+						npc.m_flNextMeleeAttack = gameTime + 2.5;
+
 					npc.PlayMeleeSound();
 
 					npc.AddGesture(ShouldNpcDealBonusDamage(target) ? "ACT_MP_GESTURE_VC_FINGERPOINT_MELEE" : "ACT_MP_GESTURE_VC_FISTPUMP_MELEE");
@@ -205,12 +233,12 @@ public void IsharmlaTrans_ClotThink(int iNPC)
 		{
 			if(distance < npc.GetLeadRadius())
 			{
-				float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, npc.m_iTarget);
-				NPC_SetGoalVector(npc.index, vPredictedPos);
+				float vPredictedPos[3]; PredictSubjectPosition(npc, npc.m_iTarget,_,_, vPredictedPos);
+				npc.SetGoalVector(vPredictedPos);
 			}
 			else 
 			{
-				NPC_SetGoalEntity(npc.index, npc.m_iTarget);
+				npc.SetGoalEntity(npc.m_iTarget);
 			}
 
 			npc.StartPathing();
@@ -231,8 +259,6 @@ void IsharmlaTrans_NPCDeath(int entity)
 	IsharmlaTrans npc = view_as<IsharmlaTrans>(entity);
 	npc.PlayDeathSound();
 	
-	SDKUnhook(npc.index, SDKHook_Think, IsharmlaTrans_ClotThink);
-
 	if(IsValidEntity(npc.m_iWearable1))
 		RemoveEntity(npc.m_iWearable1);
 	
@@ -273,7 +299,7 @@ public void IsharMlarWaterAttack_Invoke(int ref, int enemy)
 		float Dmg=500.0;
 		
 		float vecTarget[3];
-		vecTarget = WorldSpaceCenter(enemy);
+		WorldSpaceCenter(enemy, vecTarget );
 		vecTarget[2] += 1.0;
 		
 		
@@ -283,7 +309,7 @@ public void IsharMlarWaterAttack_Invoke(int ref, int enemy)
 		color[2] = 255;
 		color[3] = 255;
 		float UserLoc[3];
-		UserLoc = GetAbsOrigin(entity);
+		GetAbsOrigin(entity, UserLoc);
 		
 		UserLoc[2]+=75.0;
 		
@@ -299,8 +325,8 @@ public void IsharMlarWaterAttack_Invoke(int ref, int enemy)
 		WritePackFloat(data, vecTarget[0]);
 		WritePackFloat(data, vecTarget[1]);
 		WritePackFloat(data, vecTarget[2]);
-		WritePackCell(data, Range); // Range
-		WritePackCell(data, Dmg); // Damge
+		WritePackFloat(data, Range); // Range
+		WritePackFloat(data, Dmg); // Damge
 		WritePackCell(data, ref);
 		
 		spawnRing_Vectors(vecTarget, Range * 2.0, 0.0, 0.0, 0.0, "materials/sprites/laserbeam.vmt", 65, 65, 255, 200, 1, Time, 6.0, 0.1, 1, 1.0);
@@ -316,8 +342,8 @@ public Action Smite_Timer_IsharMlar(Handle Smite_Logic, DataPack data)
 	startPosition[0] = ReadPackFloat(data);
 	startPosition[1] = ReadPackFloat(data);
 	startPosition[2] = ReadPackFloat(data);
-	float Ionrange = ReadPackCell(data);
-	float Iondamage = ReadPackCell(data);
+	float Ionrange = ReadPackFloat(data);
+	float Iondamage = ReadPackFloat(data);
 	int client = EntRefToEntIndex(ReadPackCell(data));
 	
 	if (!IsValidEntity(client))

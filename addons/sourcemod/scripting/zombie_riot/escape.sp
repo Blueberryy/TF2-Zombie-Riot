@@ -1,17 +1,15 @@
-static int Carrying[MAXTF2PLAYERS] = {INVALID_ENT_REFERENCE, ...};
-static bool Waiting;
-
+static int Carrying[MAXPLAYERS] = {INVALID_ENT_REFERENCE, ...};
 void Escape_RoundStart()
 {
-	Waiting = true;
+	DeleteAndRemoveAllNpcs = 5.0;
+	mp_bonusroundtime.IntValue = 15;
 }
-
 
 void Escape_RoundEnd()
 {
 	//Just delete, dont wanna risk anything staying and that causing the server to lag like in the case of serious sam.
 //	RequestFrames(Remove_All, 300);
-	CreateTimer(5.0, Remove_All, _, TIMER_FLAG_NO_MAPCHANGE);
+	CreateTimer(DeleteAndRemoveAllNpcs, Remove_All, _, TIMER_FLAG_NO_MAPCHANGE);
 }
 
 public Action Remove_All(Handle Timer_Handle, any Null)
@@ -27,68 +25,41 @@ public Action Remove_All(Handle Timer_Handle, any Null)
 			}
 		}
 	}
-	entity = -1;
-	while((entity=FindEntityByClassname(entity, "zr_base_npc")) != -1)
+	int a;
+	while((entity = FindEntityByNPC(a)) != -1)
 	{
 		if(IsValidEntity(entity))
 		{
 			if(entity != 0)
 			{
-				if(!b_Map_BaseBoss_No_Layers[entity]) //Make sure map base_bosses dont get killed like this, might cause problems.
-				{
-					SDKHooks_TakeDamage(entity, 0, 0, 999999999.0, DMG_GENERIC); //Kill it so it triggers the neccecary shit.
-					SDKHooks_TakeDamage(entity, 0, 0, 999999999.0, DMG_GENERIC); //Kill it so it triggers the neccecary shit.
-					SDKHooks_TakeDamage(entity, 0, 0, 999999999.0, DMG_GENERIC); //Kill it so it triggers the neccecary shit.
-					SDKHooks_TakeDamage(entity, 0, 0, 999999999.0, DMG_GENERIC); //Kill it so it triggers the neccecary shit.
-				}
-			//	RemoveEntity(entity); Dont remove, cause infinite damage so all the hooks unhook properly.
+				b_DissapearOnDeath[entity] = true;
+				b_DoGibThisNpc[entity] = true;
+				SmiteNpcToDeath(entity);
+				SmiteNpcToDeath(entity);
+				SmiteNpcToDeath(entity);
+				SmiteNpcToDeath(entity);
 			}
 		}
 	}
-	return Plugin_Handled;
-}
-
-void Escape_SetupEnd()
-{
-	if(Waiting)
+	entity = -1;
+	while((entity=FindEntityByClassname(entity, "zr_base_stationary")) != -1)
 	{
-		int amount = CountPlayersOnRed();
-		
-		float multi = amount*0.25;
-		
-		if(multi < 0.25) //Have a minimum for 50% as i cant really balance bob, and escape maps alone are really hard anyways.
-			multi = 0.25;
-		
-		Waiting = false;
-		int entity = -1;
-		char buffer[64];
-		while((entity=FindEntityByClassname(entity, "npc_maker")) != -1)
+		if(IsValidEntity(entity))
 		{
-			GetEntPropString(entity, Prop_Data, "m_iName", buffer, sizeof(buffer));
-			if(!StrContains(buffer, "zr_", false))
+			if(entity != 0)
 			{
-				amount = GetEntProp(entity, Prop_Data, "m_nMaxNumNPCs");
-				if(amount)
-				{
-					amount = RoundToFloor(float(amount) * multi);
-					if(amount < 1)
-						amount = 1;
-					
-					SetVariantInt(amount);
-					AcceptEntityInput(entity, "SetMaxChildren");
-				}
-				
-				float time = GetEntPropFloat(entity, Prop_Data, "m_flSpawnFrequency");
-				if(time)
-				{
-					time *= (1.25 - (multi / 4));
-					
-					SetVariantFloat(time);
-					AcceptEntityInput(entity, "SetSpawnFrequency");
-				}
+				b_DissapearOnDeath[entity] = true;
+				b_DoGibThisNpc[entity] = true;
+				SmiteNpcToDeath(entity);
+				SmiteNpcToDeath(entity);
+				SmiteNpcToDeath(entity);
+				SmiteNpcToDeath(entity);
 			}
 		}
 	}
+	DeleteAndRemoveAllNpcs = 5.0;
+	mp_bonusroundtime.IntValue = 15;
+	return Plugin_Handled;
 }
 
 bool Escape_Interact(int client, int entity)

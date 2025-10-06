@@ -105,12 +105,12 @@ public void Weapon_CspyKnife(int client, int weapon, bool crit, int slot)
 					fl_IncreaseDamageTaken[client] = TF2Attrib_GetValue(address);
 					Attributes_Set(weapon, 412, fl_IncreaseDamageTaken[client] * TakeMoreDamageMultiplier);
 					CreateTimer(0.88, Reset_TakeMoreDmg, client, TIMER_FLAG_NO_MAPCHANGE);*/
-					TF2_AddCondition(client, TFCond_MarkedForDeathSilent, MinicritTimer, 0);
 					//PrintToChat(client, "Take More Dmg")
 				}
 				case 7:
 				{
-					TF2_StunPlayer(client, SlowStunTimer, SlownessAmount, TF_STUNFLAG_SLOWDOWN, _);
+					if(!HasSpecificBuff(client, "Fluid Movement"))
+						TF2_StunPlayer(client, SlowStunTimer, SlownessAmount, TF_STUNFLAG_SLOWDOWN, _);
 					//PrintToChat(client, "You got slowed ha!")
 				}
 			}
@@ -166,7 +166,8 @@ public void Weapon_CspyKnife_Pap(int client, int weapon, bool crit, int slot)
 				}
 				case 8:
 				{
-					TF2_StunPlayer(client, SlowStunTimer_Pap, SlownessAmount_Pap, TF_STUNFLAG_SLOWDOWN, _);
+					if(!HasSpecificBuff(client, "Fluid Movement"))
+						TF2_StunPlayer(client, SlowStunTimer_Pap, SlownessAmount_Pap, TF_STUNFLAG_SLOWDOWN, _);
 					//PrintToChat(client, "You got slowed ha!")
 				}
 				case 9:
@@ -196,7 +197,8 @@ public void Weapon_CspyKnife_Pap(int client, int weapon, bool crit, int slot)
 				case 13:
 				{
 					CreateTimer(0.01, MoreAttackSpeed, client, TIMER_FLAG_NO_MAPCHANGE);
-					TF2_StunPlayer(client, SlowStunTimer_Pap, SlownessAmount_Pap, TF_STUNFLAG_SLOWDOWN, _);
+					if(!HasSpecificBuff(client, "Fluid Movement"))
+						TF2_StunPlayer(client, SlowStunTimer_Pap, SlownessAmount_Pap, TF_STUNFLAG_SLOWDOWN, _);
 				}
 			}
 		}
@@ -209,6 +211,8 @@ public Action LessAttackSpeed(Handle cut_timer, int client)
 	{
 		int weapon = EntRefToEntIndex(weapon_id[client]);
 		fl_IncreaseAttackSpeed[client] = 1.0;
+		if(!IsValidEntity(weapon))
+			return Plugin_Handled;
 		/*Address address = TF2Attrib_GetByDefIndex(weapon, 6);
 		if(address != Address_Null)
 		fl_IncreaseAttackSpeed[client] = TF2Attrib_GetValue(address);
@@ -226,6 +230,8 @@ public Action MoreAttackSpeed(Handle cut_timer, int client)
 	{
 		int weapon = EntRefToEntIndex(weapon_id[client]);
 		fl_IncreaseAttackSpeed[client] = 1.0;
+		if(!IsValidEntity(weapon))
+			return Plugin_Handled;
 		/*Address address = TF2Attrib_GetByDefIndex(weapon, 6);
 		if(address != Address_Null)
 		fl_IncreaseAttackSpeed[client] = TF2Attrib_GetValue(address);
@@ -243,6 +249,8 @@ public Action DealMoreDmg(Handle cut_timer, int client)
 	{
 		int weapon = EntRefToEntIndex(weapon_id[client]);
 		fl_IncreaseDamage[client] = 1.0;
+		if(!IsValidEntity(weapon))
+			return Plugin_Handled;
 		/*Address address = TF2Attrib_GetByDefIndex(weapon, 2);
 		if(address != Address_Null)
 		fl_IncreaseDamage[client] = TF2Attrib_GetValue(address);
@@ -260,6 +268,8 @@ public Action DealLessDmg(Handle cut_timer, int client)
 	{
 		int weapon = EntRefToEntIndex(weapon_id[client]);
 		fl_IncreaseDamage[client] = 1.0;
+		if(!IsValidEntity(weapon))
+			return Plugin_Handled;
 		/*Address address = TF2Attrib_GetByDefIndex(weapon, 2);
 		if(address != Address_Null)
 		fl_IncreaseDamage[client] = TF2Attrib_GetValue(address);
@@ -278,7 +288,6 @@ public Action TakeMoreDmg(Handle cut_timer, int client)
 		//int weapon = EntRefToEntIndex(weapon_id[client]);
 		//ApplyTempAttrib(weapon, 412, TakeMoreDamageMultiplier_Pap, ResetTakeMoreDmgTimer);
 		//PrintToChat(client, "More Attack Damage works!")
-		TF2_AddCondition(client, TFCond_MarkedForDeathSilent, 0.44, 0);
 	}
 	return Plugin_Handled;
 }

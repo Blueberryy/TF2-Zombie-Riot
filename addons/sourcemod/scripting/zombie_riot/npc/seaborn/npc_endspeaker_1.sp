@@ -3,12 +3,11 @@
 
 methodmap EndSpeaker1 < EndSpeakerSmall
 {
-	public EndSpeaker1(int client, float vecPos[3], float vecAng[3], bool ally, const char[] data)
+	public EndSpeaker1(float vecPos[3], float vecAng[3], int ally, const char[] data)
 	{
 		EndSpeaker1 npc = view_as<EndSpeaker1>(CClotBody(vecPos, vecAng, "models/headcrabclassic.mdl", "1.0", "1200", ally, false, _, true));
 		// 10000 x 0.4 x 0.3
 
-		i_NpcInternalId[npc.index] = ENDSPEAKER_1;
 		i_NpcWeight[npc.index] = 0;
 		npc.SetActivity("ACT_RUN");
 		
@@ -18,14 +17,27 @@ methodmap EndSpeaker1 < EndSpeakerSmall
 		npc.m_bDissapearOnDeath = true;
 		npc.m_bHardMode = view_as<bool>(data[0]);
 		
-		SDKHook(npc.index, SDKHook_Think, EndSpeaker1_ClotThink);
+		func_NPCDeath[npc.index] = EndSpeaker1_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = EndSpeaker_OnTakeDamage;
+		func_NPCThink[npc.index] = EndSpeaker1_ClotThink;
 		
 		npc.m_flSpeed = 250.0;	// 0.8 + 0.2 x 250
 		npc.m_flGetClosestTargetTime = 0.0;
 		npc.m_flAttackHappens = 0.0;
 		
-		SetEntityRenderMode(npc.index, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(npc.index, 100, 100, 255, 255);
+
+		if(!npc.m_bHardMode && ally != TFTeam_Red && !IsValidEntity(RaidBossActive))
+		{
+			RaidBossActive = EntIndexToEntRef(npc.index);
+			RaidModeTime = GetGameTime() + 9000.0;
+			RaidModeScaling = MultiGlobalHealth;
+			if(RaidModeScaling == 1.0) //Dont show scaling if theres none.
+				RaidModeScaling = 0.0;
+			else
+				RaidModeScaling *= 1.5;
+			RaidAllowsBuildings = true;
+		}
 		return npc;
 	}
 }
@@ -46,7 +58,7 @@ public void EndSpeaker1_ClotThink(int iNPC)
 	
 	npc.m_flNextThinkTime = gameTime + 0.1;
 
-	npc.m_iBaseHealth = RoundToCeil(float(GetEntProp(npc.index, Prop_Data, "m_iMaxHealth")) / 0.4);
+	npc.m_iBaseHealth = RoundToCeil(float(ReturnEntityMaxHealth(npc.index)) / 0.4);
 
 	if(npc.m_iTarget && !IsValidEnemy(npc.index, npc.m_iTarget, true))
 		npc.m_iTarget = 0;
@@ -59,17 +71,18 @@ public void EndSpeaker1_ClotThink(int iNPC)
 	
 	if(npc.m_iTarget > 0)
 	{
-		float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
-		float distance = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+		float vecTarget[3]; WorldSpaceCenter(npc.m_iTarget, vecTarget );
+		float npc_vec[3]; WorldSpaceCenter(npc.index, npc_vec );
+		float distance = GetVectorDistance(vecTarget, npc_vec, true);
 		
 		if(distance < npc.GetLeadRadius())
 		{
-			vecTarget = PredictSubjectPosition(npc, npc.m_iTarget);
-			NPC_SetGoalVector(npc.index, vecTarget);
+			PredictSubjectPosition(npc, npc.m_iTarget, _,_,vecTarget);
+			npc.SetGoalVector(vecTarget);
 		}
 		else 
 		{
-			NPC_SetGoalEntity(npc.index, npc.m_iTarget);
+			npc.SetGoalEntity(npc.m_iTarget);
 		}
 
 		npc.StartPathing();
@@ -90,8 +103,6 @@ void EndSpeaker1_NPCDeath(int entity)
 	GetEntPropVector(npc.index, Prop_Data, "m_angRotation", angles);
 	GetEntPropVector(npc.index, Prop_Send, "m_vecOrigin", pos);
 	npc.SetSpawn(pos, angles);
-
-	SDKUnhook(npc.index, SDKHook_Think, EndSpeaker1_ClotThink);
 	
 	int entity_death = CreateEntityByName("prop_dynamic_override");
 	if(IsValidEntity(entity_death))
@@ -109,7 +120,6 @@ void EndSpeaker1_NPCDeath(int entity)
 		
 		HookSingleEntityOutput(entity_death, "OnAnimationDone", EndSpeaker_BurrowAnim, true);
 
-		SetEntityRenderMode(entity_death, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(entity_death, 100, 100, 255, 255);
 	}
 }

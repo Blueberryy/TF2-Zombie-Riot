@@ -30,25 +30,52 @@ static char g_IdleAlertedSounds[][] = {
 	"vo/spy_battlecry03.mp3",
 	"vo/spy_battlecry04.mp3",
 };
-static char g_MeleeHitSounds[][] = {
+static const char g_MeleeHitSounds[][] = {
 	"weapons/halloween_boss/knight_axe_hit.wav",
+};
+static const char g_MeleeAttackSounds[][] = {
+	"weapons/demo_sword_swing1.wav",
+	"weapons/demo_sword_swing2.wav",
+	"weapons/demo_sword_swing3.wav",
+};
+
+static const char g_MeleeMissSounds[][] = {
+	"weapons/bat_draw_swoosh1.wav",
+	"weapons/bat_draw_swoosh2.wav",
 };
 
 
-static char gLaser1;
 static char gExplosive1;
 
 public void Adiantum_OnMapStart_NPC()
 {
-	for (int i = 0; i < (sizeof(g_HurtSounds));		i++) { PrecacheSound(g_HurtSounds[i]);		}
-	for (int i = 0; i < (sizeof(g_IdleAlertedSounds)); i++) { PrecacheSound(g_IdleAlertedSounds[i]); }
-	for (int i = 0; i < (sizeof(g_MeleeHitSounds));	i++) { PrecacheSound(g_MeleeHitSounds[i]);	}
-	for (int i = 0; i < (sizeof(g_DeathSounds));	i++) { PrecacheSound(g_DeathSounds[i]);	}
-	for (int i = 0; i < (sizeof(g_IdleSounds));		i++) { PrecacheSound(g_IdleSounds[i]);		}
 	
-	gLaser1 = PrecacheModel("materials/sprites/laserbeam.vmt");
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Adiantum");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_ruina_adiantum");
+	data.Category = Type_Ruina;
+	data.Func = ClotSummon;
+	data.Precache = ClotPrecache;
+	strcopy(data.Icon, sizeof(data.Icon), "scout_stun_armored"); 		//leaderboard_class_(insert the name)
+	data.IconCustom = false;													//download needed?
+	data.Flags = MVM_CLASS_FLAG_MINIBOSS|MVM_CLASS_FLAG_ALWAYSCRIT;																//example: MVM_CLASS_FLAG_MINIBOSS|MVM_CLASS_FLAG_ALWAYSCRIT;, forces these flags.	
+	NPC_Add(data);
+}
+static void ClotPrecache()
+{
+	PrecacheSoundArray(g_HurtSounds);
+	PrecacheSoundArray(g_IdleAlertedSounds);
+	PrecacheSoundArray(g_MeleeHitSounds);
+	PrecacheSoundArray(g_MeleeAttackSounds);
+	PrecacheSoundArray(g_MeleeMissSounds);
+	PrecacheSoundArray(g_DeathSounds);
+	PrecacheSoundArray(g_IdleSounds);
 	
 	PrecacheSound("misc/halloween/gotohell.wav");
+}
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team)
+{
+	return Adiantum(vecPos, vecAng, team);
 }
 
 
@@ -60,9 +87,7 @@ methodmap Adiantum < CClotBody
 		EmitSoundToAll(g_IdleSounds[GetRandomInt(0, sizeof(g_IdleSounds) - 1)], this.index, SNDCHAN_VOICE, BOSS_ZOMBIE_SOUNDLEVEL, _, BOSS_ZOMBIE_VOLUME, RUINA_NPC_PITCH);
 		this.m_flNextIdleSound = GetGameTime(this.index) + GetRandomFloat(24.0, 48.0);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayIdleSound()");
-		#endif
+
 	}
 	public void PlayIdleAlertSound() {
 		if(this.m_flNextIdleSound > GetGameTime(this.index))
@@ -71,17 +96,24 @@ methodmap Adiantum < CClotBody
 		EmitSoundToAll(g_IdleAlertedSounds[GetRandomInt(0, sizeof(g_IdleAlertedSounds) - 1)], this.index, SNDCHAN_STATIC, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, RUINA_NPC_PITCH);
 		this.m_flNextIdleSound = GetGameTime(this.index) + GetRandomFloat(4.0, 7.0);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayIdleAlertSound()");
-		#endif
+		
 	}
 	
+	public void PlayMeleeSound() {
+		EmitSoundToAll(g_MeleeAttackSounds[GetRandomInt(0, sizeof(g_MeleeAttackSounds) - 1)], this.index, SNDCHAN_STATIC, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, RUINA_NPC_PITCH);
+		
+
+	}
 	public void PlayMeleeHitSound() {
 		EmitSoundToAll(g_MeleeHitSounds[GetRandomInt(0, sizeof(g_MeleeHitSounds) - 1)], this.index, SNDCHAN_STATIC, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, RUINA_NPC_PITCH);
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayMeleeHitSound()");
-		#endif
+
+	}
+
+	public void PlayMeleeMissSound() {
+		EmitSoundToAll(g_MeleeMissSounds[GetRandomInt(0, sizeof(g_MeleeMissSounds) - 1)], this.index, SNDCHAN_STATIC, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, RUINA_NPC_PITCH);
+		
+		
 	}
 	public void PlayDeathSound() {
 		
@@ -99,19 +131,16 @@ methodmap Adiantum < CClotBody
 		EmitSoundToAll(g_HurtSounds[GetRandomInt(0, sizeof(g_HurtSounds) - 1)], this.index, SNDCHAN_STATIC, NORMAL_ZOMBIE_SOUNDLEVEL, _, NORMAL_ZOMBIE_VOLUME, RUINA_NPC_PITCH);
 		
 		
-		#if defined DEBUG_SOUND
-		PrintToServer("CClot::PlayHurtSound()");
-		#endif
+		
 	}
-	public Adiantum(int client, float vecPos[3], float vecAng[3], bool ally)
+	public Adiantum(float vecPos[3], float vecAng[3], int ally)
 	{
 		Adiantum npc = view_as<Adiantum>(CClotBody(vecPos, vecAng, "models/player/spy.mdl", "1.0", "13500", ally));
 		
 		int iActivity = npc.LookupActivity("ACT_MP_RUN_MELEE_ALLCLASS");
 		if(iActivity > 0) npc.StartActivity(iActivity);
-		
-		
-		i_NpcInternalId[npc.index] = RUINA_ADIANTUM;
+
+		i_NpcWeight[npc.index] = 2;
 		
 		
 		npc.m_iBleedType = BLEEDTYPE_NORMAL;
@@ -121,10 +150,9 @@ methodmap Adiantum < CClotBody
 		npc.m_flNextMeleeAttack = 0.0;
 		
 		
-		SDKHook(npc.index, SDKHook_OnTakeDamage, Adiantum_ClotDamaged);
-		SDKHook(npc.index, SDKHook_Think, Adiantum_ClotThink);				
-		
-		
+		func_NPCDeath[npc.index] = view_as<Function>(NPC_Death);
+		func_NPCOnTakeDamage[npc.index] = view_as<Function>(OnTakeDamage);
+		func_NPCThink[npc.index] = view_as<Function>(ClotThink);
 		
 		npc.m_flGetClosestTargetTime = 0.0;
 		npc.StartPathing();
@@ -177,12 +205,12 @@ methodmap Adiantum < CClotBody
 		
 		Adiantum_Create_Wings(npc.index);
 		
-		Ruina_Set_Heirarchy(npc.index, 2);	//is a ranged npc
-		Ruina_Set_Master_Heirarchy(npc.index, false, true, true, 10, 3);	//attracts ranged npc's, can have a maxiumum of 10 of them, priority 3
+		Ruina_Set_Heirarchy(npc.index, RUINA_RANGED_NPC);	//is a ranged npc
+		Ruina_Set_Master_Heirarchy(npc.index, RUINA_RANGED_NPC, true, 10, 3);	//attracts ranged npc's, can have a maxiumum of 10 of them, priority 3
 		
 		Ruina_Master_Rally(npc.index, true);	//this npc is always rallying ranged npc's
 		
-		npc.m_flSpeed = 250.0;
+		npc.m_flSpeed = 225.0;
 		
 		npc.m_flCharge_Duration = 0.0;
 		npc.m_flCharge_delay = GetGameTime(npc.index) + 2.0;
@@ -196,9 +224,8 @@ methodmap Adiantum < CClotBody
 	
 }
 
-//TODO 
-//Rewrite
-public void Adiantum_ClotThink(int iNPC)
+
+static void ClotThink(int iNPC)
 {
 	Adiantum npc = view_as<Adiantum>(iNPC);
 	
@@ -237,102 +264,64 @@ public void Adiantum_ClotThink(int iNPC)
 	
 	if(IsValidEnemy(npc.index, PrimaryThreatIndex))
 	{
-			npc.PlayIdleSound();
+		npc.PlayIdleSound();
 		
-			float vecTarget[3]; vecTarget = WorldSpaceCenter(PrimaryThreatIndex);
-			
-			float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
-			
-			Ruina_Ai_Override_Core(npc.index, PrimaryThreatIndex);	//handles movement
 			
 			
+		Ruina_Ai_Override_Core(npc.index, PrimaryThreatIndex, GameTime);	//handles movement
 			
-			if(npc.m_flNextRangedBarrage_Spam < GameTime)
-			{
-				bool buff_array[3];
-				buff_array[0] = true;	//defense
-				buff_array[1] = false;	//speed
-				buff_array[2] = true;	//attack
-				float buff_array_amt[3];
-				buff_array_amt[0] = 0.2;	//20% dmg bonus
-				buff_array_amt[1] = 1.25;	//going bellow 1.0 will reduce speed
-				buff_array_amt[2] = 0.05;	//5% dmg resist
+		float vecTarget[3]; WorldSpaceCenter(PrimaryThreatIndex, vecTarget);
 			
-				Apply_Master_Buff(npc.index, buff_array, 250.0, 5.0, buff_array_amt);
-				Adiantum_Summon_Ion_Barrage(npc.index, vecTarget);
-				npc.m_flNextRangedBarrage_Spam = GameTime + 15.0;
-			}
-				
+		float VecSelfNpc[3]; WorldSpaceCenter(npc.index, VecSelfNpc);
+		float flDistanceToTarget = GetVectorDistance(vecTarget, VecSelfNpc, true);
 			
-			if(flDistanceToTarget < 10000 || npc.m_flAttackHappenswillhappen)
-			{
-				//Look at target so we hit.
-			//	npc.FaceTowards(vecTarget, 1000.0);
-				
-				//Can we attack right now?
-				if(npc.m_flNextMeleeAttack < GameTime)
-				{
-					//Play attack ani
-					if (!npc.m_flAttackHappenswillhappen)
-					{
-						npc.AddGesture("ACT_MP_ATTACK_STAND_MELEE_ALLCLASS");
-						npc.m_flAttackHappens = GameTime+0.4;
-						npc.m_flAttackHappens_bullshit = GameTime+0.54;
-						npc.m_flAttackHappenswillhappen = true;
-					}
-						
-					if (npc.m_flAttackHappens < GameTime && npc.m_flAttackHappens_bullshit >= GameTime && npc.m_flAttackHappenswillhappen)
-					{
-						Handle swingTrace;
-						npc.FaceTowards(vecTarget, 20000.0);
-						if(npc.DoSwingTrace(swingTrace, PrimaryThreatIndex))
-						{
-							int target = TR_GetEntityIndex(swingTrace);	
-							
-							float vecHit[3];
-							TR_GetEndPosition(vecHit, swingTrace);
-							
-							if(target > 0) 
-							{
-								if(!ShouldNpcDealBonusDamage(target))
-								{
-									SDKHooks_TakeDamage(target, npc.index, npc.index, 75.0, DMG_CLUB, -1, _, vecHit);	//kill!
-								}
-								else
-								{
-									SDKHooks_TakeDamage(target, npc.index, npc.index, 350.0, DMG_CLUB, -1, _, vecHit);	//kill!
-								}
-							
-								// Hit sound
-								npc.PlayMeleeHitSound();
-								
-							} 
-						}
-						delete swingTrace;
-						npc.m_flNextMeleeAttack = GameTime + 0.8;
-						npc.m_flAttackHappenswillhappen = false;
-					}
-					else if (npc.m_flAttackHappens_bullshit < GetGameTime(npc.index) && npc.m_flAttackHappenswillhappen)
-					{
-						npc.m_flAttackHappenswillhappen = false;
-						npc.m_flNextMeleeAttack = GameTime + 0.8;
-					}
-				}
-			}
-			else
-			{
-				npc.StartPathing();
-				
-			}
+		if(npc.m_flNextRangedBarrage_Spam < GameTime)
+		{
+			Master_Apply_Defense_Buff(npc.index, 250.0, 5.0, 0.75);	//25% dmg resist
+			Master_Apply_Attack_Buff(npc.index, 250.0, 5.0, 0.05);
+			Adiantum_Summon_Ion_Barrage(npc.index, vecTarget);
+			npc.m_flNextRangedBarrage_Spam = GameTime + 20.0;
+		}
+
+		Ruina_Self_Defense Melee;
+
+		Melee.iNPC = npc.index;
+		Melee.target = PrimaryThreatIndex;
+		Melee.fl_distance_to_target = flDistanceToTarget;
+		Melee.range = NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED;
+		Melee.damage = 75.0;
+		Melee.bonus_dmg = 350.0;
+		Melee.attack_anim = "ACT_MP_ATTACK_STAND_MELEE_ALLCLASS";
+		Melee.swing_speed = 0.54;
+		Melee.swing_delay = 0.4;
+		Melee.turn_speed = 20000.0;
+		Melee.gameTime = GameTime;
+		Melee.status = 0;
+		Melee.Swing_Melee(OnRuina_MeleeAttack);
+
+		switch(Melee.status)
+		{
+			case 1:	//we swung
+				npc.PlayMeleeSound();
+			case 2:	//we hit something
+				npc.PlayMeleeHitSound();
+			case 3:	//we missed
+				npc.PlayMeleeMissSound();
+			//0 means nothing.
+		}
 	}
 	else
 	{
-		NPC_StopPathing(npc.index);
-		npc.m_bPathing = false;
+		npc.StopPathing();
+		
 		npc.m_flGetClosestTargetTime = 0.0;
 		npc.m_iTarget = GetClosestTarget(npc.index);
 	}
 	npc.PlayIdleAlertSound();
+}
+static void OnRuina_MeleeAttack(int iNPC, int Target)
+{
+	Ruina_Add_Mana_Sickness(iNPC, Target, 0.25, 50);
 }
 static int i_particle_wings_index[MAXENTITIES][10];
 static int i_laser_wings_index[MAXENTITIES][10];
@@ -353,10 +342,10 @@ static void Adiantum_Create_Wings(int client)
 	f_end = 1.0;
 	amp = 1.0;
 	
-	int particle_0 = ParticleEffectAt({0.0,0.0,0.0}, "", 0.0);	//Root, from where all the stuff goes from
+	int particle_0 = InfoTargetParentAt({0.0,0.0,0.0}, "", 0.0);	//Root, from where all the stuff goes from
 	
 	
-	int particle_1 = ParticleEffectAt({0.0,0.0,0.0}, "", 0.0);
+	int particle_1 = InfoTargetParentAt({0.0,0.0,0.0}, "", 0.0);
 	
 	SetParent(particle_0, particle_1);
 	
@@ -368,8 +357,8 @@ static void Adiantum_Create_Wings(int client)
 	//ALL OF THESE ARE RELATIVE TO THE BACKPACK POINT THINGY, or well the viewmodel, but its easier to visualise if using the back
 	//Left?
 	
-	int particle_2 = ParticleEffectAt({20.0, 10.5, 2.5}, "", 0.0);	//x,y,z	//Z axis IS NOT UP/DOWN, its forward and backwards. somehow
-	int particle_2_1 = ParticleEffectAt({45.0, 35.0, -5.0}, "", 0.0);
+	int particle_2 = InfoTargetParentAt({20.0, 10.5, 2.5}, "", 0.0);	//x,y,z	//Z axis IS NOT UP/DOWN, its forward and backwards. somehow
+	int particle_2_1 = InfoTargetParentAt({45.0, 35.0, -5.0}, "", 0.0);
 	SetParent(particle_1, particle_2, "",_, true);
 	SetParent(particle_2, particle_2_1, "",_, true);
 
@@ -405,7 +394,7 @@ static void Adiantum_Destroy_Wings(int client)
 }
 static void Adiantum_Summon_Ion_Barrage(int client, float vecTarget[3])
 {
-	float current_loc[3]; current_loc=GetAbsOrigin(client);
+	float current_loc[3]; GetAbsOrigin(client, current_loc);
 	float vecAngles[3], Direction[3], endLoc[3];
 	
 	
@@ -421,7 +410,7 @@ static void Adiantum_Summon_Ion_Barrage(int client, float vecTarget[3])
 		
 		Ruina_Proper_To_Groud_Clip({24.0,24.0,24.0}, 300.0, endLoc);
 		
-		Adiantum_Ion_Invoke(client, endLoc, float(ion)/5.0);
+		Adiantum_Ion_Invoke(client, endLoc, float(ion)/5.0+1.0);
 	}
 }
 
@@ -436,13 +425,11 @@ public void Adiantum_Ion_Invoke(int ref, float vecTarget[3], float Time)
 		
 		int color[4] = {1, 175, 255, 255};
 		float UserLoc[3];
-		UserLoc = GetAbsOrigin(entity);
+		GetAbsOrigin(entity, UserLoc);
 		
 		UserLoc[2]+=75.0;
-		
-		int SPRITE_INT_2 = PrecacheModel("materials/sprites/lgtning.vmt", false);
 					
-		TE_SetupBeamPoints(vecTarget, UserLoc, SPRITE_INT_2, 0, 0, 0, 0.8, 22.0, 10.2, 1, 8.0, color, 0);
+		TE_SetupBeamPoints(vecTarget, UserLoc, g_Ruina_BEAM_Combine_Blue, 0, 0, 0, 0.8, 22.0, 10.2, 1, 8.0, color, 0);
 		TE_SendToAll();
 
 		EmitSoundToAll("misc/halloween/gotohell.wav", 0, SNDCHAN_AUTO, SNDLEVEL_NORMAL, SND_NOFLAGS, SNDVOL_NORMAL*0.5, SNDPITCH_NORMAL, -1, vecTarget);
@@ -452,11 +439,14 @@ public void Adiantum_Ion_Invoke(int ref, float vecTarget[3], float Time)
 		WritePackFloat(data, vecTarget[0]);
 		WritePackFloat(data, vecTarget[1]);
 		WritePackFloat(data, vecTarget[2]);
-		WritePackCell(data, Range); // Range
-		WritePackCell(data, Dmg); // Damge
+		WritePackFloat(data, Range); // Range
+		WritePackFloat(data, Dmg); // Damge
 		WritePackCell(data, ref);
-		
-		spawnRing_Vectors(vecTarget, Range * 2.0, 0.0, 0.0, 0.0, "materials/sprites/laserbeam.vmt", 1, 175, 255, 255, 1, Time, 6.0, 0.1, 1, 1.0);
+
+		//g_Ruina_BEAM_Diamond
+
+		TE_SetupBeamRingPoint(vecTarget, Range*2.0, 0.0, g_Ruina_BEAM_Laser, 0, 0, 1, Time, 6.0, 0.1, color, 1, 0);
+		TE_SendToAll();
 	}
 }
 
@@ -469,8 +459,8 @@ public Action Smite_Timer_Adiantum(Handle Smite_Logic, DataPack data)
 	startPosition[0] = ReadPackFloat(data);
 	startPosition[1] = ReadPackFloat(data);
 	startPosition[2] = ReadPackFloat(data);
-	float Ionrange = ReadPackCell(data);
-	float Iondamage = ReadPackCell(data);
+	float Ionrange = ReadPackFloat(data);
+	float Iondamage = ReadPackFloat(data);
 	int client = EntRefToEntIndex(ReadPackCell(data));
 	
 	if (!IsValidEntity(client))
@@ -487,11 +477,11 @@ public Action Smite_Timer_Adiantum(Handle Smite_Logic, DataPack data)
 	position[1] = startPosition[1];
 	position[2] += startPosition[2] + 900.0;
 	startPosition[2] += -200;
-	TE_SetupBeamPoints(startPosition, position, gLaser1, 0, 0, 0, 0.75, 15.0, 1.0, 0, 0.75, {1, 175, 255, 255}, 3);
+	TE_SetupBeamPoints(startPosition, position, g_Ruina_BEAM_Combine_Blue, 0, 0, 0, 0.75, 15.0, 1.0, 0, 0.75, {1, 175, 255, 255}, 3);
 	TE_SendToAll();
-	TE_SetupBeamPoints(startPosition, position, gLaser1, 0, 0, 0, 0.45, 25.0, 1.0, 0, 0.45, {1, 175, 255, 255}, 3);
+	TE_SetupBeamPoints(startPosition, position, g_Ruina_BEAM_Combine_Blue, 0, 0, 0, 0.45, 25.0, 1.0, 0, 0.45, {1, 175, 255, 255}, 3);
 	TE_SendToAll();
-	TE_SetupBeamPoints(startPosition, position, gLaser1, 0, 0, 0, 0.3, 40.0, 1.0, 0, 0.3, {1, 175, 255, 255}, 3);
+	TE_SetupBeamPoints(startPosition, position, g_Ruina_BEAM_Combine_Blue, 0, 0, 0, 0.3, 40.0, 1.0, 0, 0.3, {1, 175, 255, 255}, 3);
 	TE_SendToAll();
 	
 	position[2] = startPosition[2] + 50.0;
@@ -499,12 +489,15 @@ public Action Smite_Timer_Adiantum(Handle Smite_Logic, DataPack data)
 	return Plugin_Continue;
 }
 
-public Action Adiantum_ClotDamaged(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3], int damagecustom)
+static Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3], int damagecustom)
 {
 	//Valid attackers only.
 	if(attacker <= 0)
 		return Plugin_Continue;
+
 	Adiantum npc = view_as<Adiantum>(victim);
+
+	Ruina_NPC_OnTakeDamage_Override(npc.index, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
 	
 	if (npc.m_flHeadshotCooldown < GetGameTime(npc.index))
 	{
@@ -515,15 +508,14 @@ public Action Adiantum_ClotDamaged(int victim, int &attacker, int &inflictor, fl
 	return Plugin_Changed;
 }
 
-public void Adiantum_NPCDeath(int entity)
+static void NPC_Death(int entity)
 {
 	Adiantum npc = view_as<Adiantum>(entity);
+
+	Ruina_NPCDeath_Override(entity);
 	
 	Adiantum_Destroy_Wings(entity);
 	npc.PlayDeathSound();
-	
-	SDKUnhook(npc.index, SDKHook_OnTakeDamage, Adiantum_ClotDamaged);
-	SDKUnhook(npc.index, SDKHook_Think, Adiantum_ClotThink);	
 		
 	if(IsValidEntity(npc.m_iWearable2))
 		RemoveEntity(npc.m_iWearable2);

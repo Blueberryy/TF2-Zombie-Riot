@@ -1,1460 +1,64 @@
 #pragma semicolon 1
 #pragma newdecls required
 
-#define ITSTILIVES 666
+#define NORMAL_ENEMY_MELEE_RANGE_FLOAT 130.0
+// 130 * 130
+#define NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED 16900.0
 
-#define NORMAL_ENEMY_MELEE_RANGE_FLOAT 110.0
-// 120 * 120
-#define NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED 12100.0
+#define GIANT_ENEMY_MELEE_RANGE_FLOAT 160.0
+// 160 * 160
+#define GIANT_ENEMY_MELEE_RANGE_FLOAT_SQUARED 25600.0
 
-#define GIANT_ENEMY_MELEE_RANGE_FLOAT 150.0
-// 140 * 140
-#define GIANT_ENEMY_MELEE_RANGE_FLOAT_SQUARED 22500.0
+#define RAIDITEM_INDEX_WIN_COND 9999
 
 static float f_FactionCreditGain;
-static float f_FactionCreditGainReduction[MAXTF2PLAYERS];
+static float f_FactionCreditGainReduction[MAXPLAYERS];
 
-enum
+static ArrayList NPCList;
+
+/*
+int SaveCurrentHpAt = -1;
+int SaveCurrentHpAtFirst = -1;
+int SaveCurrentHurtAt = -1;
+int HurtIttirationAt = 0;
+float AntiChatSpamDebug;
+*/
+enum struct NPCData
 {
-	NOTHING 						= 0,	
-	HEADCRAB_ZOMBIE 				= 1,	
-	FORTIFIED_HEADCRAB_ZOMBIE 		= 2,	
-	FASTZOMBIE 						= 3,	
-	FORTIFIED_FASTZOMBIE 			= 4,
-	TORSOLESS_HEADCRAB_ZOMBIE 		= 5,	
-	FORTIFIED_GIANT_POISON_ZOMBIE 	= 6,	
-	POISON_ZOMBIE 					= 7,	
-	FORTIFIED_POISON_ZOMBIE 		= 8,	
-	FATHER_GRIGORI 					= 9,
-	COMBINE_POLICE_PISTOL			= 10,	
-	COMBINE_POLICE_SMG				= 11,	
-	COMBINE_SOLDIER_AR2				= 12,
-	COMBINE_SOLDIER_SHOTGUN			= 13,	
-	COMBINE_SOLDIER_SWORDSMAN		= 14,
-	COMBINE_SOLDIER_ELITE			= 15,
-	COMBINE_SOLDIER_GIANT_SWORDSMAN	= 16,
-	COMBINE_SOLDIER_DDT				= 17,
-	COMBINE_SOLDIER_COLLOSS			= 18, //Hetimus
-	COMBINE_OVERLORD				= 19, 
-	SCOUT_ZOMBIE					= 20,
-	ENGINEER_ZOMBIE					= 21,
-	HEAVY_ZOMBIE					= 22,
-	FLYINGARMOR_ZOMBIE				= 23,
-	FLYINGARMOR_TINY_ZOMBIE			= 24,
-	KAMIKAZE_DEMO					= 25,
-	MEDIC_HEALER					= 26,
-	HEAVY_ZOMBIE_GIANT				= 27,
-	SPY_FACESTABBER					= 28,
-	SOLDIER_ROCKET_ZOMBIE			= 29,
-	SOLDIER_ZOMBIE_MINION			= 30,
-	SOLDIER_ZOMBIE_BOSS				= 31,
-	SPY_THIEF						= 32,
-	SPY_TRICKSTABBER				= 33,
-	SPY_HALF_CLOACKED				= 34,
-	SNIPER_MAIN						= 35,
-	DEMO_MAIN						= 36,
-	BATTLE_MEDIC_MAIN				= 37,
-	GIANT_PYRO_MAIN					= 38,
-	COMBINE_DEUTSCH_RITTER			= 39,
-	SPY_MAIN_BOSS					= 40,
-	
-	
-	XENO_HEADCRAB_ZOMBIE 				= 41,	
-	XENO_FORTIFIED_HEADCRAB_ZOMBIE 		= 42,	
-	XENO_FASTZOMBIE 					= 43,	
-	XENO_FORTIFIED_FASTZOMBIE 			= 44,
-	XENO_TORSOLESS_HEADCRAB_ZOMBIE 		= 45,	
-	XENO_FORTIFIED_GIANT_POISON_ZOMBIE 	= 46,	
-	XENO_POISON_ZOMBIE 					= 47,	
-	XENO_FORTIFIED_POISON_ZOMBIE 		= 48,	
-	XENO_FATHER_GRIGORI 				= 49,
-	XENO_COMBINE_POLICE_PISTOL			= 50,	
-	XENO_COMBINE_POLICE_SMG				= 51,	
-	XENO_COMBINE_SOLDIER_AR2			= 52,
-	XENO_COMBINE_SOLDIER_SHOTGUN		= 53,	
-	XENO_COMBINE_SOLDIER_SWORDSMAN		= 54,
-	XENO_COMBINE_SOLDIER_ELITE			= 55,
-	XENO_COMBINE_SOLDIER_GIANT_SWORDSMAN	= 56,
-	XENO_COMBINE_SOLDIER_DDT			= 57,
-	XENO_COMBINE_SOLDIER_COLLOSS		= 58, //Hetimus
-	XENO_COMBINE_OVERLORD				= 59, 
-	XENO_SCOUT_ZOMBIE					= 60,
-	XENO_ENGINEER_ZOMBIE				= 61,
-	XENO_HEAVY_ZOMBIE					= 62,
-	XENO_FLYINGARMOR_ZOMBIE				= 63,
-	XENO_FLYINGARMOR_TINY_ZOMBIE		= 64,
-	XENO_KAMIKAZE_DEMO					= 65,
-	XENO_MEDIC_HEALER					= 66,
-	XENO_HEAVY_ZOMBIE_GIANT				= 67,
-	XENO_SPY_FACESTABBER				= 68,
-	XENO_SOLDIER_ROCKET_ZOMBIE			= 69,
-	XENO_SOLDIER_ZOMBIE_MINION			= 70,
-	XENO_SOLDIER_ZOMBIE_BOSS			= 71,
-	XENO_SPY_THIEF						= 72,
-	XENO_SPY_TRICKSTABBER				= 73,
-	XENO_SPY_HALF_CLOACKED				= 74,
-	XENO_SNIPER_MAIN					= 75,
-	XENO_DEMO_MAIN						= 76,
-	XENO_BATTLE_MEDIC_MAIN				= 77,
-	XENO_GIANT_PYRO_MAIN				= 78,
-	XENO_COMBINE_DEUTSCH_RITTER			= 79,
-	XENO_SPY_MAIN_BOSS					= 80,
-	
-	NAZI_PANZER							= 81,
-	BOB_THE_GOD_OF_GODS					= 82,
-	NECRO_COMBINE						= 83,
-	NECRO_CALCIUM						= 84,
-	CURED_FATHER_GRIGORI				= 85,
-	
-	ALT_COMBINE_MAGE					= 86,
-	
-	BTD_BLOON							= 87,
-	BTD_MOAB							= 88,
-	BTD_BFB								= 89,
-	BTD_ZOMG							= 90,
-	BTD_DDT								= 91,
-	BTD_BAD								= 92,
-	
-	ALT_MEDIC_APPRENTICE_MAGE			= 93,
-	SAWRUNNER							= 94,
-	
-	RAIDMODE_TRUE_FUSION_WARRIOR		= 95,
-	ALT_MEDIC_CHARGER					= 96,
-	ALT_MEDIC_BERSERKER					= 97,
-	
-	MEDIVAL_MILITIA						= 98,
-	MEDIVAL_ARCHER						= 99,
-	MEDIVAL_MAN_AT_ARMS					= 100,
-	MEDIVAL_SKIRMISHER					= 101,
-	MEDIVAL_SWORDSMAN					= 102,
-	MEDIVAL_TWOHANDED_SWORDSMAN			= 103,
-	MEDIVAL_CROSSBOW_MAN				= 104,
-	MEDIVAL_SPEARMEN					= 105,
-	MEDIVAL_HANDCANNONEER				= 106,
-	MEDIVAL_ELITE_SKIRMISHER			= 107,
-	RAIDMODE_BLITZKRIEG					= 108,
-	MEDIVAL_PIKEMAN						= 109,
-	ALT_MEDIC_SUPPERIOR_MAGE			= 110,
-	CITIZEN								= 111,
-	
-	MEDIVAL_EAGLE_SCOUT					= 112,
-	MEDIVAL_SAMURAI						= 113,
-	
-	THEADDICTION						= 114,
-	THEDOCTOR							= 115,
-	BOOKSIMON							= 116,
-	ALT_KAHMLSTEIN						= 117,
-	
-	L4D2_TANK							= 118,
-	ALT_COMBINE_DEUTSCH_RITTER			= 119,
-	ALT_SNIPER_RAILGUNNER				= 120,
-	
-	BTD_GOLDBLOON	= 121,
-	BTD_BLOONARIUS	= 122,
-	BTD_LYCH		= 123,
-	BTD_LYCHSOUL	= 124,
-	BTD_VORTEX	= 125,
-	
-	MEDIVAL_RAM	= 126,
-	ALT_SOLDIER_BARRAGER = 127,
-	ALT_The_Shit_Slapper = 128,
-	
-	BONEZONE_BASICBONES = 129,
-	
-	ALT_MECHA_ENGINEER			= 130,
-	ALT_MECHA_HEAVY				= 131,
-	ALT_MECHA_HEAVYGIANT		= 132,
-	ALT_MECHA_PYROGIANT			= 133,
-	ALT_MECHA_SCOUT				= 134,
-	ALT_DONNERKRIEG				= 135,
-	ALT_SCHWERTKRIEG			= 136,
-	PHANTOM_KNIGHT				= 137, //Lucian "Blood diamond"
-	ALT_MEDIC_HEALER_3			= 138, //3 being the 3rd stage of alt waves.
-	
-	THE_GAMBLER				= 139,
-	PABLO_GONZALES				= 140,
-	DOKTOR_MEDICK				= 141,
-	KAPTAIN_HEAVY				= 142,
-	BOOTY_EXECUTIONIER 			= 143,
-	SANDVICH_SLAYER 			= 144,
-	PAYDAYCLOAKER				= 145,
-	BUNKER_KAHML_VTWO			= 146,
-	TRUE_ZEROFUSE				= 147,
-	BUNKER_BOT_SOLDIER			= 148,
-	BUNKER_BOT_SNIPER			= 149,
-	BUNKER_SKELETON				= 150,
-	BUNKER_SMALL_SKELETON		= 151,
-	BUNKER_KING_SKELETON		= 152,
-	BUNKER_HEADLESSHORSE		= 153,
+	char Plugin[64];
+	char Name[64];
+	int Category;
+	Function Func;
+	int Flags;
+	char Icon[32];
+	bool IconCustom;
+	Function Precache;
+	Function Precache_data;
 
-	MEDIVAL_SCOUT				= 154,
-	MEDIVAL_VILLAGER			= 155,
-	MEDIVAL_BUILDING			= 156,
-	MEDIVAL_CONSTRUCT			= 157,
-	MEDIVAL_CHAMPION			= 158,
-	MEDIVAL_LIGHT_CAV			= 159,
-	MEDIVAL_HUSSAR				= 160,
-	MEDIVAL_KNIGHT				= 161,
-	MEDIVAL_OBUCH				= 162,
-	MEDIVAL_MONK				= 163,
-
-	BARRACK_MILITIA				= 164,
-	BARRACK_ARCHER				= 165,
-	BARRACK_MAN_AT_ARMS			= 166,
-
-	MEDIVAL_HALB				= 167,
-	MEDIVAL_BRAWLER				= 168,
-	MEDIVAL_LONGBOWMEN			= 169,
-	MEDIVAL_ARBALEST			= 170,
-	MEDIVAL_ELITE_LONGBOWMEN	= 171,
-
-	BARRACK_CROSSBOW			= 172,
-	BARRACK_SWORDSMAN			= 173,
-	BARRACK_ARBELAST			= 174,
-	BARRACK_TWOHANDED			= 175,
-	BARRACK_LONGBOW				= 176,
-	BARRACK_CHAMPION			= 177,
-	BARRACK_MONK				= 178,
-	BARRACK_HUSSAR				= 179,
-	
-	MEDIVAL_CAVALARY			= 180,
-	MEDIVAL_PALADIN				= 181,
-	MEDIVAL_CROSSBOW_GIANT		= 182,
-	MEDIVAL_SWORDSMAN_GIANT		= 183,
-	MEDIVAL_RIDDENARCHER		= 184,
-	MEDIVAL_EAGLE_WARRIOR		= 185,
-	MEDIVAL_EAGLE_GIANT			= 186,
-	MEDIVAL_SON_OF_OSIRIS		= 187,
-	MEDIVAL_ACHILLES			= 188,
-	MEDIVAL_TREBUCHET			= 189,
-	
-	ALT_IKUNAGAE				= 190,
-	ALT_MECHASOLDIER_BARRAGER	= 191,
-	NEARL_SWORD					= 192,
-	
-	STALKER_COMBINE		= 193,
-	STALKER_FATHER		= 194,
-	STALKER_GOGGLES		= 195,
-
-	XENO_RAIDBOSS_SILVESTER		= 196,
-	XENO_RAIDBOSS_BLUE_GOGGLES	= 197,
-	XENO_RAIDBOSS_SUPERSILVESTER	= 198,
-	XENO_RAIDBOSS_NEMESIS	= 199,
-
-	SEARUNNER	= 200,
-	SEARUNNER_ALT,
-	SEASLIDER	= 202,
-	SEASLIDER_ALT,
-	SEASPITTER	= 204,
-	SEASPITTER_ALT,
-	SEAREAPER	= 206,
-	SEAREAPER_ALT,
-	SEACRAWLER	= 208,
-	SEACRAWLER_ALT,
-	SEAPIERCER	= 210,
-	SEAPIERCER_ALT,
-	FIRSTTOTALK	= 212,
-	UNDERTIDES	= 213,
-	SEABORN_KAZIMIERZ_KNIGHT	= 214,
-	SEABORN_KAZIMIERZ_KNIGHT_ARCHER	= 215,
-	SEABORN_KAZIMIERZ_BESERKER	= 216,
-	SEABORN_KAZIMIERZ_LONGARCHER	= 217,
-	REMAINS		= 218,
-	ENDSPEAKER_1	= 219,
-	ENDSPEAKER_2	= 220,
-	ENDSPEAKER_3	= 221,
-	ENDSPEAKER_4	= 222,
-	SEAFOUNDER	= 223,
-	SEAFOUNDER_ALT,
-	SEAFOUNDER_CARRIER,
-	SEAPREDATOR	= 226,
-	SEAPREDATOR_ALT,
-	SEAPREDATOR_CARRIER,
-	SEABRANDGUIDER	= 229,
-	SEABRANDGUIDER_ALT,
-	SEABRANDGUIDER_CARRIER,
-	SEABORN_KAZIMIERZ_ASSASIN_MELEE	= 232,
-	SEASPEWER	= 233,
-	SEASPEWER_ALT,
-	SEASPEWER_CARRIER,
-	SEASWARMCALLER	= 236,
-	SEASWARMCALLER_ALT,
-	SEASWARMCALLER_CARRIER,
-	SEAREEFBREAKER	= 239,
-	SEAREEFBREAKER_ALT,
-	SEAREEFBREAKER_CARRIER,
-	BARRACK_THORNS	= 242,
-	RAIDMODE_GOD_ARKANTOS = 243,
-	SEABORN_SCOUT		= 244,
-	SEABORN_SOLDIER		= 245,
-	CITIZEN_RUNNER		= 246,
-	SEABORN_PYRO		= 247,
-	SEABORN_DEMO		= 248,
-	SEABORN_HEAVY		= 249,
-	SEABORN_ENGINEER	= 250,
-	SEABORN_MEDIC		= 251,
-	SEABORN_SNIPER		= 252,
-	SEABORN_SPY		= 253,
-	ALT_BARRACKS_SCHWERTKRIEG = 254,
-	ALT_BARRACK_IKUNAGAE = 255,
-	ALT_BARRACK_RAILGUNNER = 256,
-	ALT_BARRACK_BASIC_MAGE = 257,
-	ALT_BARRACK_INTERMEDIATE_MAGE = 258,
-	ALT_BARRACK_DONNERKRIEG = 259,
-	ALT_BARRACKS_HOLY_KNIGHT = 260,
-	ALT_BARRACK_MECHA_BARRAGER = 261,
-	ALT_BARRACK_BARRAGER = 262,
-	ALT_BARRACKS_BERSERKER = 263,
-	ALT_BARRACKS_CROSSBOW_MEDIC = 264,
-	LASTKNIGHT		= 265,
-	BARRACK_LASTKNIGHT	= 266,
-	SAINTCARMEN		= 267,
-	PATHSHAPER		= 268,
-	PATHSHAPER_FRACTAL	= 269,
-	BARRACKS_TEUTONIC_KNIGHT	= 270,
-	BARRACKS_VILLAGER			= 271,
-	BARRACKS_BUILDING			= 272,
-	TIDELINKED_BISHOP	= 273,
-	TIDELINKED_ARCHON	= 274,
-	ALT_BARRACK_SCIENTIFIC_WITCHERY = 275,
-	SEABORN_GUARD		= 276,
-	SEABORN_DEFENDER	= 277,
-	SEABORN_VANGUARD	= 278,
-	SEABORN_CASTER		= 279,
-	SEABORN_SPECIALIST	= 280,
-	SEABORN_SUPPORTER	= 281,
-	ISHARMLA		= 282,
-	ISHARMLA_TRANS		= 283,
-	
-	//ruina
-	RUINA_THEOCRACY = 284,
-	EXPIDONSA_BENERA = 285,
-	EXPIDONSA_PENTAL = 286,
-	EXPIDONSA_DEFANDA = 287,
-	EXPIDONSA_SELFAM_IRE = 288,
-	EXPIDONSA_VAUSMAGICA = 289,
-	EXPIDONSA_PISTOLEER = 290,
-	EXPIDONSA_DIVERSIONISTICO 	= 291,
-	RUINA_ADIANTUM 				= 292,
-	RUINA_LANIUS				= 293,
-	EXPIDONSA_HEAVYPUNUEL		= 294,
-	RUINA_MAGIA					= 295,
-	EXPIDONSA_SEARGENTIDEAL		= 296,
-
-	SEA_RAIDBOSS_SILVESTER		= 297,
-	SEA_RAIDBOSS_GOGGLES		= 298,
-	SEA_RAIDBOSS_DONNERKRIEG	= 299,
-	SEA_RAIDBOSS_SCHWERTKRIEG	= 300,
-	SEA_RAIDBOSS_GOD_ARKANTOS	= 301,
-	BOB_THE_FIRST			= 302,
-	SEA_ALLY_SILVESTER		= 303,
-	SEA_ALLY_GOGGLES		= 304,
-	SEA_ALLY_DONNERKRIEG		= 305,
-	SEA_ALLY_SCHWERTKRIEG		= 306,
-	SEA_ALLY_GOD_ARKANTOS		= 307,
-	VIP_BUILDING			= 308,
-	EXPIDONSA_RIFALMANU 	= 309,
-	EXPIDONSA_SICCERINO		= 310,
-	EXPIDONSA_SOLDINE_PROTOTYPE		= 311,
-	EXPIDONSA_SOLDINE				= 312,
-	EXPIDONSA_PROTECTA				= 313,
-	EXPIDONSA_SNIPONEER				= 314,
-	EXPIDONSA_EGABUNAR				= 315,
-	EXPIDONSA_ENEGAKAPUS			= 316,
-	EXPIDONSA_CAPTINOAGENTUS		= 317,
-	RAIDMODE_EXPIDONSA_SENSAL		= 318,
-	EXPIDONSA_DUALREA				= 319,
-	EXPIDONSA_GUARDUS				= 320,
-	EXPIDONSA_VAUSTECHICUS			= 321,
-	EXPIDONSA_MINIGUNASSISA			= 322,
-	EXPIDONSA_IGNITUS				= 323,
-	EXPIDONSA_HELENA				= 324,
-
-	EXPIDONSA_ERASUS				= 325,
-	EXPIDONSA_GIANTTANKUS			= 326,
-	EXPIDONSA_ANFUHREREISENHARD		= 327, //not as many gimmics as everything else has a million gimmics
-	EXPIDONSA_SPEEDUSADIVUS			= 328,
-	WEAPON_SENSAL_AFTERIMAGE		= 329
-	
+	// Don't touch below
+	bool Precached;
 }
 
-public const char NPC_Names[][] =
+// FileNetwork_ConfigSetup needs to be ran first
+void NPC_ConfigSetup()
 {
-	"nothing",
-	"Headcrab Zombie",
-	"Fortified Headcrab Zombie",
-	"Fast Zombie",
-	"Fortified Fast Zombie",
-	"Torsoless Headcrab Zombie",
-	"Fortified Giant Poison Zombie",
-	"Poison Zombie",
-	"Fortified Poison Zombie",
-	"Father Grigori",
-	"Metro Cop",
-	"Metro Raider",
-	"Combine Rifler",
-	"Combine Shotgunner",
-	"Combine Swordsman",
-	"Combine Elite",
-	"Combine Giant Swordsman",
-	"Combine DDT",
-	"Combine Golden Collos",
-	"Combine Overlord",
-	"Scout Assulter",
-	"Engineer Deconstructor",
-	"Heavy Brawler",
-	"Flying Armor",
-	"Tiny Flying Armor",
-	"Kamikaze Demo",
-	"Medic Supporter",
-	"Giant Heavy Brawler",
-	"Spy Facestabber",
-	"Soldier Rocketeer",
-	"Soldier Minion",
-	"Soldier Giant Summoner",
-	"Spy Thief",
-	"Spy Trickstabber",
-	"Half Cloaked Spy",
-	"Sniper Main",
-	"Demoknight Main",
-	"Battle Medic Main",
-	"Giant Pyro Main",
-	"Combine Deutsch Ritter",
-	"X10 Spy Main",
-	
-	//XENO
-	
-	"Xeno Headcrab Zombie",
-	"Xeno Fortified Headcrab Zombie",
-	"Xeno Fast Zombie",
-	"Xeno Fortified Fast Zombie",
-	"Xeno Torsoless Headcrab Zombie",
-	"Xeno Fortified Giant Poison Zombie",
-	"Xeno Poison Zombie",
-	"Xeno Fortified Poison Zombie",
-	"Xeno Father Grigori",
-	"Xeno Metro Cop",
-	"Xeno Metro Raider",
-	"Xeno Combine Rifler",
-	"Xeno Combine Shotgunner",
-	"Xeno Combine Swordsman",
-	"Xeno Combine Elite",
-	"Xeno Combine Giant Swordsman",
-	"Xeno Combine DDT",
-	"Xeno Combine Golden Collos",
-	"Xeno Combine Overlord",
-	"Xeno Scout Assulter",
-	"Xeno Engineer Deconstructor",
-	"Xeno Heavy Brawler",
-	"Xeno Flying Armor",
-	"Xeno Tiny Flying Armor",
-	"Xeno Kamikaze Demo",
-	"Xeno Medic Supporter",
-	"Xeno Giant Heavy Brawler",
-	"Xeno Spy Facestabber",
-	"Xeno Soldier Rocketeer",
-	"Xeno Soldier Minion",
-	"Xeno Soldier Giant Summoner",
-	"Xeno Spy Thief",
-	"Xeno Spy Trickstabber",
-	"Xeno Half Cloaked Spy",
-	"Xeno Sniper Main",
-	"Xeno Demoknight Main",
-	"Xeno Battle Medic Main",
-	"Xeno Giant Pyro Main",
-	"Xeno Combine Deutsch Ritter",
-	"Xeno X10 Spy Main",
-	
-	"Nazi Panzer",
-	"Bob the Overgod of gods and destroyer of multiverses",
-	"Revived Combine DDT",
-	"Spookmaster Boner",
-	"Cured Father Grigori",
-	"Combine Mage",
-	
-	"Bloon",
-	"Massive Ornery Air Blimp",
-	"Brutal Floating Behemoth",
-	"Zeppelin of Mighty Gargantuaness",
-	"Dark Dirigible Titan",
-	"Big Airship of Doom",
-	
-	
-	"Medic Apprentice Mage",
-	"Sawrunner",
-	"True Fusion Warrior",
-	"Medic Charger",
-	"Medic Berserker",
-	"Militia",
-	"Archer",
-	"Man-At-Arms",
-	"Skirmisher",
-	"Long Swordsman",
-	"Twohanded Swordsman",
-	"Crossbow Man",
-	"Spearman",
-	"Hand Cannoneer",
-	"Elite Skirmisher",
-	"Blitzkrieg",
-	"Pikeman",
-	"Medic Supperior Mage",
-	"Rebel",
-	"Eagle Scout",
-	"Samurai",
-	"The Addiction",
-	"The Doctor",
-	"Book Simon",
-	"Kahmlstein",
-	"L4D2 Tank",
-	"Holy Knight",
-	"Sniper Railgunner",
-	
-	"Gold Bloon",
-	"Bloonarius",
-	"Gravelord Lych",
-	"Lych-Soul",
-	"Vortex",
-	
-	"Capped Ram",
-	"Soldier Barrager",
-	"The Shit Slapper",
-	
-	"Basic Bones",
-	
-	"Mecha Engineer",
-	"Mecha Heavy",
-	"Mecha Giant Heavy",
-	"Mecha Giant Pyro",
-	"Mecha Scout",
-	"Donnerkrieg",
-	"Schwertkrieg",
-	"Phantom Knight",
-	"Medic Constructor",
-	
-	"Gambler",
-	"Pablo Gonzales",
-	"Doktor Medick",
-	"Eternal Kaptain Heavy",
-	"Booty Executioner",
-	"Sandvich Slayer",
-	"Payday Cloaker",
-	"Bunker Kahmlstein",
-	"Zerofuse",
-	"Bunker Bot Soldier",
-	"Bunker Bot Sniper",
-	"Bunker Skeleton",
-	"Bunker Small Skeleton",
-	"Bunker Skeleton King",
-	"Bunker Headless Horseman",
-
-	"Medival Scout",
-	"Medival Villager",
-	"Building",
-	"Medival Construct",
-	"Champion",
-	"Light Cavalry",
-	"Hussar",
-	"Knight",
-	"Obuch",
-	"Monk",
-
-	"Militia",
-	"Archer",
-	"Man-At-Arms",
-
-	"Medival Halberdier",
-	"Medival Brawler",
-	"Medival Longbowmen",
-	"Medival Abalest",
-	"Medival Elite Longbowmen",
-
-	"Crossbow Man",
-	"Long Swordsman",
-	"Medival Abalest",
-	"Twohanded Swordsman",
-	"Medival Longbowmen",
-	"Champion",
-	"Monk",
-	"Hussar",
-
-	"Cavalary",
-	"Paladin",
-	"Crossbow Giant",
-	"Swordsman Giant",
-	"Mounted Archer",
-	"Eagle Warrior",
-	"Giant Eagle Warrior",
-	"Son Of Osiris",
-	"Achilles",
-	"Trebuchet",
-	
-	"Ikunagae",
-	"Mecha Soldier Barrager",
-	"Nearl Radiant Sword",
-
-	"Spawned Combine",
-	"Spawned Father Grigori",
-	"Spawned Blue Goggles",
-
-	"Silvester",
-	"Blue Goggles",
-	"Angeled Silvester",
-	"Nemesis",
-
-	"Shell Sea Runner",
-	"Nourished Runner",
-	"Deep Sea Slider",
-	"Nourished Slider",
-	"Ridge Sea Spitter",
-	"Nourished Spitter",
-	"Basin Sea Reaper",
-	"Nourished Reaper",
-	"Pocket Sea Crawler",
-	"Nourished Crawler",
-	"Primal Sea Piercer",
-	"Nourished Piercer",
-	"The First To Talk",
-	"Sal Viento Bishop Quintus",
-	"Armorless Union Knight",
-	"Roar Knightclub Trainee",
-	"Bloodboil Knightclub Trainee",
-	"Armorless Union Cleanup Squad",
-	"Consumable Remains",
-	"The Endspeaker, Will of We Many",
-	"The Endspeaker, Will of We Many",
-	"The Endspeaker, Will of We Many",
-	"The Endspeaker, Will of We Many",
-	"Nethersea Founder",
-	"Nourished Founder",
-	"Regressed Founder",
-	"Nethersea Predator",
-	"Nourished Predator",
-	"Regressed Predator",
-	"Nethersea Brandguider",
-	"Nourished Brandguider",
-	"Regressed Brandguider",
-	"Armorless Union Assassin",
-	"Nethersea Spewer",
-	"Nourished Spewer",
-	"Regressed Spewer",
-	"Nethersea Swarmcaller",
-	"Nourished Swarmcaller",
-	"Regressed Swarmcaller",
-	"Nethersea Reefbreaker",
-	"Nourished Reefbreaker",
-	"Regressed Reefbreaker",
-	"Thorns",
-	"God Arkantos",
-	"Seaborn Scout",
-	"Seaborn Soldier",
-	"Citizen",
-	"Seaborn Pyro",
-	"Seaborn Demoman",
-	"Seaborn Heavy",
-	"Seaborn Engineer",
-	"Seaborn Medic",
-	"Seaborn Sniper",
-	"Seaborn Spy",
-	"Barracks SchwertKrieg",	
-	"Barracks Ikunagae",
-	"Barracks Railgunner",
-	"Barracks Basic Mage",
-	"Barracks Intermediate Mage",
-	"Barracks Donnerkrieg",
-	"Barracks Holy Knight",
-	"Barracks Mecha Barrager",
-	"Barracks Barrager",
-	"Barracks Berserker",
-	"Barracks Crossbow Medic",
-	"The Last Knight",
-	"Tide-Hunt Knight",
-	"Saint Carmen",
-	"Pathshaper",
-	"Pathshaper Fractal",
-	"Barracks Teutonic Knight",
-	"Barracks Villager",
-	"Barracks Building",
-	"Tidelinked Bishop",
-	"Tidelinked Archon",
-	"Scientific Witchery",
-	"Seaborn Guard",
-	"Seaborn Defender",
-	"Seaborn Vanguard",
-	"Seaborn Caster",
-	"Seaborn Specialist",
-	"Seaborn Supporter",
-	"Ishar'mla, Heart of Corruption",
-	"Ishar'mla, Heart of Corruption",
-	"Theocracy",
-	"Benera",
-	"Pental",
-	"Defanda",
-	"Selfam Ire",
-	"Vaus Magica",
-	"Pistoleer",
-	"Diversionistico",
-	"Adiantum",
-	"Lanius",
-	"Heavy Punuel",
-	"Magia",
-	"Seargent Ideal",
-
-	"Silvester",
-	"Blue Goggles",
-	"Donnerkrieg",
-	"Schwertkrieg",
-	"God Arkantos",
-	"Bob",
-	"Seaborn Silvester",
-	"Seaborn Blue Goggles",
-	"Seaborn Donnerkrieg",
-	"Seaborn Schwertkreig",
-	"Seaborn God Arkantos",
-	"VIP Building, The Objective",
-	"Rifal Manu",
-	"Siccerino",
-	"Soldine Prototype",
-	"Soldine",
-	"Protecta",
-	"Sniponeer",
-	"Ega Bunar",
-	"Enega Kapus",
-	"Captino Agentus",
-	"Sensal",
-	"Dual Rea",
-	"Guardus",
-	"Vaus Techicus",
-	"Minigun Assisa",
-	"Ignitus",
-	"Helena",
-	"Erasus",
-	"Giant Tankus",
-	"Anfuhrer Eisenhard",
-	"Speedus Adivus",
-	"Allied Sensal Afterimage"
-};
-// See items.sp for IDs to names
-public const int NPCCategory[] =
-{
-	-1,	// NOTHING 						= 0,	
-	3,	// HEADCRAB_ZOMBIE 				= 1,	
-	3,	// FORTIFIED_HEADCRAB_ZOMBIE 		= 2,	
-	3,	// FASTZOMBIE 						= 3,	
-	3,	// FORTIFIED_FASTZOMBIE 			= 4,
-	3,	// TORSOLESS_HEADCRAB_ZOMBIE 		= 5,	
-	3,	// FORTIFIED_GIANT_POISON_ZOMBIE 	= 6,	
-	3,	// POISON_ZOMBIE 					= 7,	
-	3,	// FORTIFIED_POISON_ZOMBIE 		= 8,	
-	3,	// FATHER_GRIGORI 					= 9,
-	3,	// COMBINE_POLICE_PISTOL			= 10,	
-	3,	// COMBINE_POLICE_SMG				= 11,	
-	3,	// COMBINE_SOLDIER_AR2				= 12,
-	3,	// COMBINE_SOLDIER_SHOTGUN			= 13,	
-	3,	// COMBINE_SOLDIER_SWORDSMAN		= 14,
-	3,	// COMBINE_SOLDIER_ELITE			= 15,
-	3,	// COMBINE_SOLDIER_GIANT_SWORDSMAN	= 16,
-	3,	// COMBINE_SOLDIER_DDT				= 17,
-	3,	// COMBINE_SOLDIER_COLLOSS			= 18, //Hetimus
-	3,	// COMBINE_OVERLORD				= 19, 
-	3,	// SCOUT_ZOMBIE					= 20,
-	3,	// ENGINEER_ZOMBIE					= 21,
-	3,	// HEAVY_ZOMBIE					= 22,
-	3,	// FLYINGARMOR_ZOMBIE				= 23,
-	3,	// FLYINGARMOR_TINY_ZOMBIE			= 24,
-	3,	// KAMIKAZE_DEMO					= 25,
-	3,	// MEDIC_HEALER					= 26,
-	3,	// HEAVY_ZOMBIE_GIANT				= 27,
-	3,	// SPY_FACESTABBER					= 28,
-	3,	// SOLDIER_ROCKET_ZOMBIE			= 29,
-	3,	// SOLDIER_ZOMBIE_MINION			= 30,
-	3,	// SOLDIER_ZOMBIE_BOSS				= 31,
-	3,	// SPY_THIEF						= 32,
-	3,	// SPY_TRICKSTABBER				= 33,
-	3,	// SPY_HALF_CLOACKED				= 34,
-	3,	// SNIPER_MAIN						= 35,
-	3,	// DEMO_MAIN						= 36,
-	3,	// BATTLE_MEDIC_MAIN				= 37,
-	3,	// GIANT_PYRO_MAIN					= 38,
-	3,	// COMBINE_DEUTSCH_RITTER			= 39,
-	3,	// SPY_MAIN_BOSS					= 40,
-
-	5,	// XENO_HEADCRAB_ZOMBIE 				= 41,	
-	5,	// XENO_FORTIFIED_HEADCRAB_ZOMBIE 		= 42,	
-	5,	// XENO_FASTZOMBIE 					= 43,	
-	5,	// XENO_FORTIFIED_FASTZOMBIE 			= 44,
-	5,	// XENO_TORSOLESS_HEADCRAB_ZOMBIE 		= 45,	
-	5,	// XENO_FORTIFIED_GIANT_POISON_ZOMBIE 	= 46,	
-	5,	// XENO_POISON_ZOMBIE 					= 47,	
-	5,	// XENO_FORTIFIED_POISON_ZOMBIE 		= 48,	
-	5,	// XENO_FATHER_GRIGORI 				= 49,
-	5,	// XENO_COMBINE_POLICE_PISTOL			= 50,	
-	5,	// XENO_COMBINE_POLICE_SMG				= 51,	
-	5,	// XENO_COMBINE_SOLDIER_AR2			= 52,
-	5,	// XENO_COMBINE_SOLDIER_SHOTGUN		= 53,	
-	5,	// XENO_COMBINE_SOLDIER_SWORDSMAN		= 54,
-	5,	// XENO_COMBINE_SOLDIER_ELITE			= 55,
-	5,	// XENO_COMBINE_SOLDIER_GIANT_SWORDSMAN	= 56,
-	5,	// XENO_COMBINE_SOLDIER_DDT			= 57,
-	5,	// XENO_COMBINE_SOLDIER_COLLOSS		= 58, //Hetimus
-	5,	// XENO_COMBINE_OVERLORD				= 59, 
-	5,	// XENO_SCOUT_ZOMBIE					= 60,
-	5,	// XENO_ENGINEER_ZOMBIE				= 61,
-	5,	// XENO_HEAVY_ZOMBIE					= 62,
-	5,	// XENO_FLYINGARMOR_ZOMBIE				= 63,
-	5,	// XENO_FLYINGARMOR_TINY_ZOMBIE		= 64,
-	5,	// XENO_KAMIKAZE_DEMO					= 65,
-	5,	// XENO_MEDIC_HEALER					= 66,
-	5,	// XENO_HEAVY_ZOMBIE_GIANT				= 67,
-	5,	// XENO_SPY_FACESTABBER				= 68,
-	5,	// XENO_SOLDIER_ROCKET_ZOMBIE			= 69,
-	5,	// XENO_SOLDIER_ZOMBIE_MINION			= 70,
-	5,	// XENO_SOLDIER_ZOMBIE_BOSS			= 71,
-	5,	// XENO_SPY_THIEF						= 72,
-	5,	// XENO_SPY_TRICKSTABBER				= 73,
-	5,	// XENO_SPY_HALF_CLOACKED				= 74,
-	5,	// XENO_SNIPER_MAIN					= 75,
-	5,	// XENO_DEMO_MAIN						= 76,
-	5,	// XENO_BATTLE_MEDIC_MAIN				= 77,
-	5,	// XENO_GIANT_PYRO_MAIN				= 78,
-	5,	// XENO_COMBINE_DEUTSCH_RITTER			= 79,
-	5,	// XENO_SPY_MAIN_BOSS					= 80,
-
-	1,	// NAZI_PANZER							= 81,
-	0,	// BOB_THE_GOD_OF_GODS					= 82,
-	0,	// NECRO_COMBINE						= 83,
-	0,	// NECRO_CALCIUM						= 84,
-	0,	// CURED_FATHER_GRIGORI				= 85,
-
-	4,	// ALT_COMBINE_MAGE					= 86,
-
-	6,	// BTD_BLOON							= 87,
-	6,	// BTD_MOAB							= 88,
-	6,	// BTD_BFB								= 89,
-	6,	// BTD_ZOMG							= 90,
-	6,	// BTD_DDT								= 91,
-	6,	// BTD_BAD								= 92,
-
-	4,	// ALT_MEDIC_APPRENTICE_MAGE			= 93,
-	1,	// SAWRUNNER							= 94,
-
-	2,	// RAIDMODE_TRUE_FUSION_WARRIOR		= 95,
-	4,	// ALT_MEDIC_CHARGER					= 96,
-	4,	// ALT_MEDIC_BERSERKER					= 97,
-
-	7,	// MEDIVAL_MILITIA						= 98,
-	7,	// MEDIVAL_ARCHER						= 99,
-	7,	// MEDIVAL_MAN_AT_ARMS					= 100,
-	7,	// MEDIVAL_SKIRMISHER					= 101,
-	7,	// MEDIVAL_SWORDSMAN					= 102,
-	7,	// MEDIVAL_TWOHANDED_SWORDSMAN			= 103,
-	7,	// MEDIVAL_CROSSBOW_MAN				= 104,
-	7,	// MEDIVAL_SPEARMEN					= 105,
-	7,	// MEDIVAL_HANDCANNONEER				= 106,
-	7,	// MEDIVAL_ELITE_SKIRMISHER			= 107,
-	2,	// RAIDMODE_BLITZKRIEG					= 108,
-	7,	// MEDIVAL_PIKEMAN						= 109,
-	4,	// ALT_MEDIC_SUPPERIOR_MAGE			= 110,
-	0,	// CITIZEN								= 111,
-
-	7,	// MEDIVAL_EAGLE_SCOUT					= 112,
-	7,	// MEDIVAL_SAMURAI						= 113,
-
-	8,	// THEADDICTION						= 114,
-	8,	// THEDOCTOR							= 115,
-	8,	// BOOKSIMON							= 116,
-	4,	// ALT_KAHMLSTEIN						= 117,
-
-	1,	// L4D2_TANK							= 118,
-	4,	// ALT_COMBINE_DEUTSCH_RITTER			= 119,
-	4,	// ALT_SNIPER_RAILGUNNER				= 120,
-
-	-1,	// BTD_GOLDBLOON	= 121,
-	2,	// BTD_BLOONARIUS	= 122,
-	-1,	// BTD_LYCH		= 123,
-	-1,	// BTD_LYCHSOUL	= 124,
-	-1,	// BTD_VORTEX	= 125,
-
-	7,	// MEDIVAL_RAM	= 126,
-	4,	// ALT_SOLDIER_BARRAGER = 127,
-	4,	// ALT_The_Shit_Slapper = 128,
-
-	0,	// BONEZONE_BASICBONES = 129,
-
-	4,	// ALT_MECHA_ENGINEER			= 130,
-	4,	// ALT_MECHA_HEAVY				= 131,
-	4,	// ALT_MECHA_HEAVYGIANT		= 132,
-	4,	// ALT_MECHA_PYROGIANT			= 133,
-	4,	// ALT_MECHA_SCOUT				= 134,
-	4,	// ALT_DONNERKRIEG				= 135,
-	4,	// ALT_SCHWERTKRIEG			= 136,
-	1,	// PHANTOM_KNIGHT				= 137, //Lucian "Blood diamond"
-	4,	// ALT_MEDIC_HEALER_3			= 138, //3 being the 3rd stage of alt waves.
-
-	-1,	// THE_GAMBLER				= 139,
-	-1,	// PABLO_GONZALES				= 140,
-	-1,	// DOKTOR_MEDICK				= 141,
-	-1,	// KAPTAIN_HEAVY				= 142,
-	-1,	// BOOTY_EXECUTIONIER 			= 143,
-	-1,	// SANDVICH_SLAYER 			= 144,
-	-1,	// PAYDAYCLOAKER				= 145,
-	-1,	// BUNKER_KAHML_VTWO			= 146,
-	-1,	// TRUE_ZEROFUSE				= 147,
-	-1,	// BUNKER_BOT_SOLDIER			= 148,
-	-1,	// BUNKER_BOT_SNIPER			= 149,
-	-1,	// BUNKER_SKELETON				= 150,
-	-1,	// BUNKER_SMALL_SKELETON		= 151,
-	-1,	// BUNKER_KING_SKELETON		= 152,
-	-1,	// BUNKER_HEADLESSHORSE		= 153,
-
-	7,	// MEDIVAL_SCOUT				= 154,
-	1,	// MEDIVAL_VILLAGER			= 155,
-	1,	// MEDIVAL_BUILDING			= 156,
-	7,	// MEDIVAL_CONSTRUCT			= 157,
-	7,	// MEDIVAL_CHAMPION			= 158,
-	7,	// MEDIVAL_LIGHT_CAV			= 159,
-	7,	// MEDIVAL_HUSSAR				= 160,
-	7,	// MEDIVAL_KNIGHT				= 161,
-	7,	// MEDIVAL_OBUCH				= 162,
-	7,	// MEDIVAL_MONK				= 163,
-
-	7,	// BARRACK_MILITIA				= 164,
-	7,	// BARRACK_ARCHER				= 165,
-	7,	// BARRACK_MAN_AT_ARMS			= 166,
-
-	7,	// MEDIVAL_HALB				= 167,
-	7,	// MEDIVAL_BRAWLER				= 168,
-	7,	// MEDIVAL_LONGBOWMEN			= 169,
-	7,	// MEDIVAL_ARBALEST			= 170,
-	7,	// MEDIVAL_ELITE_LONGBOWMEN	= 171,
-
-	7,	// BARRACK_CROSSBOW			= 172,
-	7,	// BARRACK_SWORDSMAN			= 173,
-	7,	// BARRACK_ARBELAST			= 174,
-	7,	// BARRACK_TWOHANDED			= 175,
-	7,	// BARRACK_LONGBOW				= 176,
-	7,	// BARRACK_CHAMPION			= 177,
-	7,	// BARRACK_MONK				= 178,
-	7,	// BARRACK_HUSSAR				= 179,
-
-	7,	// MEDIVAL_CAVALARY			= 180,
-	7,	// MEDIVAL_PALADIN				= 181,
-	7,	// MEDIVAL_CROSSBOW_GIANT		= 182,
-	7,	// MEDIVAL_SWORDSMAN_GIANT		= 183,
-	7,	// MEDIVAL_RIDDENARCHER		= 184,
-	7,	// MEDIVAL_EAGLE_WARRIOR		= 185,
-	7,	// MEDIVAL_EAGLE_GIANT			= 186,
-	7,	// MEDIVAL_SON_OF_OSIRIS		= 187,
-	7,	// MEDIVAL_ACHILLES			= 188,
-	7,	// MEDIVAL_TREBUCHET			= 189,
-
-	4,	// ALT_IKUNAGAE				= 190,
-	4,	// ALT_MECHASOLDIER_BARRAGER	= 191,
-	0,	// NEARL_SWORD					= 192,
-
-	1,	// STALKER_COMBINE		= 193,
-	1,	// STALKER_FATHER		= 194,
-	1,	// STALKER_GOGGLES		= 195,
-
-	2,	// XENO_RAIDBOSS_SILVESTER		= 196,
-	2,	// XENO_RAIDBOSS_BLUE_GOGGLES	= 197,
-	2,	// XENO_RAIDBOSS_SUPERSILVESTER	= 198,
-	2,	// XENO_RAIDBOSS_NEMESIS	= 199,
-
-	9,	// SEARUNNER	= 200,
-	9,	// SEARUNNER_ALT,
-	9,	// SEASLIDER	= 202,
-	9,	// SEASLIDER_ALT,
-	9,	// SEASPITTER	= 204,
-	9,	// SEASPITTER_ALT,
-	9,	// SEAREAPER	= 206,
-	9,	// SEAREAPER_ALT,
-	9,	// SEACRAWLER	= 208,
-	9,	// SEACRAWLER_ALT,
-	9,	// SEAPIERCER	= 210,
-	9,	// SEAPIERCER_ALT,
-	9,	// FIRSTTOTALK	= 212,
-	9,	// UNDERTIDES	= 213,
-	9,	// SEABORN_KAZIMIERZ_KNIGHT	= 214,
-	9,	// SEABORN_KAZIMIERZ_KNIGHT_ARCHER	= 215,
-	9,	// SEABORN_KAZIMIERZ_BESERKER	= 216,
-	9,	// SEABORN_KAZIMIERZ_LONGARCHER	= 217,
-	9,	// REMAINS		= 218,
-	9,	// ENDSPEAKER_1	= 219,
-	-1,	// ENDSPEAKER_2	= 220,
-	-1,	// ENDSPEAKER_3	= 221,
-	-1,	// ENDSPEAKER_4	= 222,
-	9,	// SEAFOUNDER	= 223,
-	9,	// SEAFOUNDER_ALT,
-	9,	// SEAFOUNDER_CARRIER,
-	9,	// SEAPREDATOR	= 226,
-	9,	// SEAPREDATOR_ALT,
-	9,	// SEAPREDATOR_CARRIER,
-	9,	// SEABRANDGUIDER	= 229,
-	9,	// SEABRANDGUIDER_ALT,
-	9,	// SEABRANDGUIDER_CARRIER,
-	9,	// SEABORN_KAZIMIERZ_ASSASIN_MELEE	= 232,
-	9,	// SEASPEWER	= 233,
-	9,	// SEASPEWER_ALT,
-	9,	// SEASPEWER_CARRIER,
-	9,	// SEASWARMCALLER	= 236,
-	9,	// SEASWARMCALLER_ALT,
-	9,	// SEASWARMCALLER_CARRIER,
-	9,	// SEAREEFBREAKER	= 239,
-	9,	// SEAREEFBREAKER_ALT,
-	9,	// SEAREEFBREAKER_CARRIER,
-	0,	// BARRACK_THORNS	= 242,
-	2,	// RAIDMODE_GOD_ARKANTOS = 243,
-	9,	// SEABORN_SCOUT		= 244,
-	9,	// SEABORN_SOLDIER		= 245,
-	0,	// CITIZEN_RUNNER		= 246,
-	9,	// SEABORN_PYRO		= 247,
-	9,	// SEABORN_DEMO		= 248,
-	9,	// SEABORN_HEAVY		= 249,
-	9,	// SEABORN_ENGINEER	= 250,
-	9,	// SEABORN_MEDIC		= 251,
-	9,	// SEABORN_SNIPER		= 252,
-	9,	// SEABORN_SPY		= 253,
-	0,	// ALT_BARRACKS_SCHWERTKRIEG = 254,
-	0,	// ALT_BARRACK_IKUNAGAE = 255,
-	0,	// ALT_BARRACK_RAILGUNNER = 256,
-	0,	// ALT_BARRACK_BASIC_MAGE = 257,
-	0,	// ALT_BARRACK_INTERMEDIATE_MAGE = 258,
-	0,	// ALT_BARRACK_DONNERKRIEG = 259,
-	0,	// ALT_BARRACKS_HOLY_KNIGHT = 260,
-	0,	// ALT_BARRACK_MECHA_BARRAGER = 261,
-	0,	// ALT_BARRACK_BARRAGER = 262,
-	0,	// ALT_BARRACKS_BERSERKER = 263,
-	0,	// ALT_BARRACKS_CROSSBOW_MEDIC = 264,
-	9,	// LASTKNIGHT		= 265,
-	0,	// BARRACK_LASTKNIGHT	= 266,
-	9,	// SAINTCARMEN		= 267,
-	9,	// PATHSHAPER		= 268,
-	9,	// PATHSHAPER_FRACTAL	= 269,
-	0,	// BARRACKS_TEUTONIC_KNIGHT	= 270,
-	0,	// BARRACKS_VILLAGER			= 271,
-	0,	// BARRACKS_BUILDING			= 272,
-	9,	// TIDELINKED_BISHOP	= 273,
-	9,	// TIDELINKED_ARCHON	= 274,
-	0,	// ALT_BARRACK_SCIENTIFIC_WITCHERY = 275,
-	9,	// SEABORN_GUARD		= 276,
-	9,	// SEABORN_DEFENDER	= 277,
-	9,	// SEABORN_VANGUARD	= 278,
-	9,	// SEABORN_CASTER		= 279,
-	9,	// SEABORN_SPECIALIST	= 280,
-	9,	// SEABORN_SUPPORTER	= 281,
-	9,	// ISHARMLA		= 282,
-	9,	// ISHARMLA_TRANS		= 283,
-
-	-1,	// RUINA_THEOCRACY = 284,
-	10,	// EXPIDONSA_BENERA = 285,
-	10,	// EXPIDONSA_PENTAL = 286,
-	10,	// EXPIDONSA_DEFANDA = 287,
-	10,	// EXPIDONSA_SELFAM_IRE = 288,
-	10,	// EXPIDONSA_VAUSMAGICA = 289,
-	10,	// EXPIDONSA_PISTOLEER = 290,
-	10,	// EXPIDONSA_DIVERSIONISTICO 	= 291,
-	-1,	// RUINA_ADIANTUM 				= 292,
-	-1,	// RUINA_LANIUS				= 293,
-	10,	// EXPIDONSA_HEAVYPUNUEL		= 294,
-	-1,	// RUINA_MAGIA					= 295,
-	10,	// EXPIDONSA_SEARGENTIDEAL		= 296,
-
-	-1,	// SEA_RAIDBOSS_SILVESTER		= 297,
-	-1,	// SEA_RAIDBOSS_GOGGLES		= 298,
-	-1,	// SEA_RAIDBOSS_DONNERKRIEG	= 299,
-	-1,	// SEA_RAIDBOSS_SCHWERTKRIEG	= 300,
-	-1,	// SEA_RAIDBOSS_GOD_ARKANTOS	= 301,
-	-1,	// BOB_THE_FIRST			= 302,
-	-1,	// SEA_ALLY_SILVESTER		= 303,
-	-1,	// SEA_ALLY_GOGGLES		= 304,
-	-1,	// SEA_ALLY_DONNERKRIEG		= 305,
-	-1,	// SEA_ALLY_SCHWERTKRIEG		= 306,
-	-1,	// SEA_ALLY_GOD_ARKANTOS		= 307,
-	0,	// VIP_BUILDING			= 308
-	10,	// EXPIDONSA_RIFALMANU		= 309,
-	10,	// EXPIDONSA_SICCERINO			= 310,
-	10,	// EXPIDONSA_SOLDINE_PROTOTYPE			= 311,
-	10,	// EXPIDONSA_SOLDINE					= 312,
-	10,	// EXPIDONSA_PROTECTA					= 313,
-	10,	// EXPIDONSA_SNIPONEER					= 314,
-	10,	// EXPIDONSA_EGABUNAR					= 315,
-	10,	// EXPIDONSA_ENEGAKAPUS					= 316,
-	10, // EXPIDONSA_CAPTINOAGENTUS				= 317,
-	2, // RAIDMODE_EXPIDONSA_SENSAL			= 318,
-	10, // EXPIDONSA_DUALREA					= 319,
-	10, // EXPIDONSA_GUARDUS					= 320,
-	10, // EXPIDONSA_VAUSTECHICUS				= 321,
-	10,	// EXPIDONSA_MINIGUNASSISA				= 322
-	10,	// EXPIDONSA_IGNITUS				= 323,
-	10,	// EXPIDONSA_HELENA				= 324,
-
-	10,	// EXPIDONSA_ERASUS				= 325,
-	10,	// EXPIDONSA_GIANTTANKUS			= 326,
-	10,	// EXPIDONSA_ANFUHREREISENHARD		= 327,
-	10, //EXPIDONSA_SPEEDUSADIVUS			= 328,
-	0, 	//WEAPON_SENSAL_AFTERIMAGE			= 329 
-};
-
-public const char NPC_Plugin_Names_Converted[][] =
-{
-	"npc_nothing",
-	"npc_headcrabzombie",
-	"npc_headcrabzombie_fortified",
-	"npc_fastzombie",
-	"npc_fastzombie_fortified",
-	"npc_torsoless_headcrabzombie",
-	"npc_poisonzombie_fortified_giant",
-	"npc_poisonzombie",
-	"npc_poisonzombie_fortified",
-	"npc_last_survivor",
-	"npc_combine_police_pistol",
-	"npc_combine_police_smg",
-	"npc_combine_soldier_ar2",
-	"npc_combine_soldier_shotgun",
-	"npc_combine_soldier_swordsman",
-	"npc_combine_soldier_elite",
-	"npc_combine_soldier_giant_swordsman",
-	"npc_combine_soldier_swordsman_ddt",
-	"npc_combine_soldier_collos_swordsman",
-	"npc_combine_soldier_overlord",
-	"npc_zombie_scout_grave",
-	"npc_zombie_engineer_grave",
-	"npc_zombie_heavy_grave",	
-	"npc_flying_armor",
-	"npc_flying_armor_tiny_swords",
-	"npc_kamikaze_demo",
-	"npc_medic_healer",
-	"npc_zombie_heavy_giant_grave",
-	"npc_zombie_spy_grave",
-	"npc_zombie_soldier_grave",
-	"npc_zombie_soldier_minion_grave",
-	"npc_zombie_soldier_giant_grave",
-	"npc_spy_thief",
-	"npc_spy_trickstabber",
-	"npc_spy_half_cloacked_main",
-	"npc_sniper_main",
-	"npc_zombie_demo_main",
-	"npc_medic_main",
-	"npc_zombie_pyro_giant_main",
-	"npc_combine_soldier_deutsch_ritter",
-	"npc_spy_boss",
-	
-	//XENO
-	
-	"npc_xeno_headcrabzombie",
-	"npc_xeno_headcrabzombie_fortified",
-	"npc_xeno_fastzombie",
-	"npc_xeno_fastzombie_fortified",
-	"npc_xeno_torsoless_headcrabzombie",
-	"npc_xeno_poisonzombie_fortified_giant",
-	"npc_xeno_poisonzombie",
-	"npc_xeno_poisonzombie_fortified",
-	"npc_xeno_last_survivor",
-	"npc_xeno_combine_police_pistol",
-	"npc_xeno_combine_police_smg",
-	"npc_xeno_combine_soldier_ar2",
-	"npc_xeno_combine_soldier_shotgun",
-	"npc_xeno_combine_soldier_swordsman",
-	"npc_xeno_combine_soldier_elite",
-	"npc_xeno_combine_soldier_giant_swordsman",
-	"npc_xeno_combine_soldier_swordsman_ddt",
-	"npc_xeno_combine_soldier_collos_swordsman",
-	"npc_xeno_combine_soldier_overlord",
-	"npc_xeno_zombie_scout_grave",
-	"npc_xeno_zombie_engineer_grave",
-	"npc_xeno_zombie_heavy_grave",
-	"npc_xeno_flying_armor",
-	"npc_xeno_flying_armor_tiny_swords",
-	"npc_xeno_kamikaze_demo",
-	"npc_xeno_medic_healer",
-	"npc_xeno_zombie_heavy_giant_grave",
-	"npc_xeno_zombie_spy_grave",
-	"npc_xeno_zombie_soldier_grave",
-	"npc_xeno_zombie_soldier_minion_grave",
-	"npc_xeno_zombie_soldier_giant_grave",
-	"npc_xeno_spy_thief",
-	"npc_xeno_spy_trickstabber",
-	"npc_xeno_spy_half_cloacked_main",
-	"npc_xeno_sniper_main",
-	"npc_xeno_zombie_demo_main",
-	"npc_xeno_medic_main",
-	"npc_xeno_zombie_pyro_giant_main",
-	"npc_xeno_combine_soldier_deutsch_ritter",
-	"npc_xeno_spy_boss",
-	
-	"npc_panzer",
-	"npc_bob_the_overlord",
-	"npc_necromancy_combine",
-	"npc_necromancy_calcium",
-	"npc_cured_last_survivor",
-	
-	"npc_alt_combine_soldier_mage",
-	
-	"npc_bloon",
-	"",
-	"",
-	"",
-	"",
-	"",
-	"npc_alt_medic_apprentice_mage",
-	"npc_sawrunner",
-	"npc_true_fusion_warrior",
-	"npc_alt_medic_charger",
-	"npc_alt_medic_berserker",
-	"npc_medival_militia",
-	"npc_medival_archer",
-	"npc_medival_man_at_arms",
-	"npc_medival_skrirmisher",
-	"npc_medival_swordsman",
-	"npc_medival_twohanded_swordsman",
-	"npc_medival_crossbow",
-	"npc_medival_spearmen",
-	"npc_medival_handcannoneer",
-	"npc_medival_elite_skirmisher",
-	"npc_blitzkrieg",
-	"npc_medival_pikeman",
-	"npc_alt_medic_supperior_mage",
-	"npc_citizen",
-	"npc_medival_eagle_scout",
-	"npc_medival_samurai",
-	"",
-	"",
-	"",
-	"npc_alt_kahml",
-	"npc_l4d2_tank",
-	"npc_alt_combine_soldier_deutsch_ritter",
-	"npc_alt_sniper_railgunner",
-	"npc_golden_bloon",
-	"",
-	"",
-	"",
-	"",
-	"npc_medival_ram",
-	"npc_alt_soldier_barrager",
-	"npc_alt_the_shit_slapper",
-	
-	"npc_basicbones",
-	
-	"npc_alt_mecha_engineer",
-	"npc_alt_mecha_heavy",
-	"npc_alt_mecha_heavy_giant",
-	"npc_alt_mecha_pyro_giant",
-	"npc_alt_mecha_scout",
-	"npc_alt_donnerkrieg",
-	"npc_alt_schwertkrieg",
-	"npc_phantom_knight",
-	"npc_alt_medic_healer_3",			//3 being the 3rd stage of alt waves.
-	
-	"npc_gambler",
-	"npc_pablo",
-	"npc_dokmedick",
-	"npc_kapheavy",
-	"npc_booty_execut",
-	"npc_sand_slayer",
-	"npc_payday_cloaker",
-	"npc_bunker_kahml",
-	"npc_zerofuse",
-	"npc_bunker_bot_soldier",
-	"npc_bunker_bot_sniper",
-	"npc_bunker_skeleton",
-	"npc_bunker_small_skeleton",
-	"npc_bunker_king_skeleton",
-	"npc_bunker_hhh",
-	"npc_medival_scout",
-	"npc_medival_villager",
-	"npc_medival_building",
-	"npc_medival_construct",
-	"npc_medival_champion",
-	"npc_medival_light_cav",
-	"npc_medival_hussar",
-	"npc_medival_knight",
-	"npc_medival_obuch",
-	"npc_medival_monk",
-
-	"",
-	"",
-	"",
-
-	"npc_medival_halbadeer",
-	"npc_medival_brawler",
-	"npc_medival_longbowmen",
-	"npc_medival_arbalest",
-	"npc_medival_elite_longbowmen",
-
-	"",
-	"",
-	"",
-	"",
-	"",
-	"",
-	"",
-	"npc_barrack_hussar",
-
-	"npc_medival_cavalary",
-	"npc_medival_paladin",
-	"npc_medival_crossbow_giant",
-	"npc_medival_swordsman_giant",
-	"npc_medival_riddenarcher",
-	"npc_medival_eagle_warrior",
-	"npc_medival_eagle_giant",
-	"npc_medival_son_of_osiris",
-	"npc_medival_achilles",
-	"npc_medival_trebuchet",
-	"npc_alt_ikunagae",
-	"npc_alt_mecha_soldier_barrager",
-	"",
-
-	"npc_stalker_combine",
-	"npc_stalker_father",
-	"npc_stalker_goggles",
-
-	"npc_xeno_raidboss_silvester",
-	"npc_xeno_raidboss_blue_goggles",
-	"",
-	"npc_xeno_raidboss_nemesis",
-
-	"npc_searunner",
-	"",
-	"npc_seaslider",
-	"",
-	"npc_seaspitter",
-	"",
-	"npc_seareaper",
-	"",
-	"npc_seacrawler",
-	"",
-	"npc_seapiercer",
-	"",
-	"npc_firsttotalk",
-	"npc_undertides",
-	"npc_seaborn_kazimersch_knight",
-	"npc_seaborn_kazimersch_archer",
-	"npc_seaborn_kazimersch_beserker",
-	"npc_seaborn_kazimersch_longrange",
-	"npc_endspeaker_freeplay",
-	"npc_endspeaker_1",
-	"npc_endspeaker_2",
-	"npc_endspeaker_3",
-	"npc_endspeaker_4",
-	"npc_netherseafounder",
-	"",
-	"",
-	"npc_netherseapredator",
-	"",
-	"",
-	"npc_netherseabrandguider",
-	"",
-	"",
-	"npc_seaborn_kazimersch_melee_assasin",
-	"npc_netherseaspewer",
-	"",
-	"",
-	"npc_netherseaswarmcaller",
-	"",
-	"",
-	"npc_netherseareefbreaker",
-	"",
-	"",
-	"",
-	"npc_god_arkantos",
-	"npc_seaborn_scout",
-	"npc_seaborn_soldier",
-	"npc_citizen_runner",
-	"npc_seaborn_pyro",
-	"npc_seaborn_demo",
-	"npc_seaborn_heavy",
-	"npc_seaborn_engineer",
-	"npc_seaborn_medic",
-	"npc_seaborn_sniper",
-	"npc_seaborn_spy",
-	
-	"",	//schwert
-	"",	//Iku
-	"",	//Railgunner
-	"",	//Basic Mage
-	"",	//Intermediate mage
-	"",	//Donnerkrieg
-	"",	//Holy Knights
-	"",	//mecha barragers
-	"",	//Barrager
-	"",	//Bereserker
-	"",	//Medic Crossbowman
-
-	"npc_lastknight",
-	"",
-	"npc_saintcarmen",
-	"npc_pathshaper",
-	"npc_pathshaper_fractal",
-	"",
-	"",
-	"",
-	"npc_tidelinkedbishop",
-	"npc_tidelinkedarchon",
-	"",	//Scientific Witchery
-	"npc_seaborn_guard",
-	"npc_seaborn_defender",
-	"npc_seaborn_vanguard",
-	"npc_seaborn_caster",
-	"npc_seaborn_specialist",
-	"npc_seaborn_supporter",
-	"npc_isharmla",
-	"npc_isharmla_trans",
-	
-	"npc_ruina_theocracy",	//warp
-	"npc_benera",
-	"npc_pental",
-	"npc_defanda",
-	"npc_selfam_ire",
-	"npc_vaus_magica",
-	"npc_benera_pistoleer",
-	"npc_diversionistico",
-	"npc_ruina_adiantum",
-	"npc_ruina_lanius",
-	"npc_heavy_punuel",
-	"npc_ruina_magia",
-	"npc_seargent_ideal",
-	
-	"npc_sea_silvester",
-	"npc_sea_goggles",
-	"Donnerkrieg",
-	"Schwertkreig",
-	"God Arkantos",
-	"npc_bob_the_first_last_savior",
-	"Seaborn Silvester",
-	"Seaborn Blue Goggles",
-	"Seaborn Donnerkrieg",
-	"Seaborn Schwertkreig",
-	"Seaborn God Arkantos",
-	"npc_vip_building",
-	"npc_rifal_manu",
-	"npc_siccerino",
-	"npc_soldine_prototype",
-	"npc_soldine",
-	"npc_protecta",
-	"npc_sniponeer",
-	"npc_ega_bunar",
-	"npc_enegakapus",
-	//wave 30+:
-	"npc_captino_agentus",
-	"npc_sensal", //Raid
-	"npc_dualrea",
-	"npc_guardus",
-	"npc_vaus_techicus",
-	"npc_minigun_assisa",
-	"npc_ignitus",
-	"npc_helena",
-	//wave 45+:
-	"npc_erasus",
-	"npc_gianttankus",
-	"npc_anfuhrer_eisenhard",
-	"npc_speedus_adivus",
-	"",
-};
-
-void NPC_MapStart()
-{
+//	AntiChatSpamDebug = 0.0;
 	f_FactionCreditGain = 0.0;
 	Zero(f_FactionCreditGainReduction);
+
+	Building_ConfigSetup();
+
+	delete NPCList;
+	NPCList = new ArrayList(sizeof(NPCData));
+
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "nothing");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_nothing");
+	data.Category = Type_Hidden;
+	data.Func = INVALID_FUNCTION;
+	strcopy(data.Icon, sizeof(data.Icon), "duck");
+	NPCList.PushArray(data);
+
 	HeadcrabZombie_OnMapStart_NPC();
 	Fortified_HeadcrabZombie_OnMapStart_NPC();
 	FastZombie_OnMapStart_NPC();
@@ -1464,6 +68,58 @@ void NPC_MapStart()
 	PoisonZombie_OnMapStart_NPC();
 	FortifiedPoisonZombie_OnMapStart_NPC();
 	FatherGrigori_OnMapStart_NPC();
+
+	// Buildings
+	ObjectBarricade_MapStart();
+	ObjectDecorative_MapStart();
+	ObjectAmmobox_MapStart();
+	ObjectArmorTable_MapStart();
+	ObjectPerkMachine_MapStart();
+	ObjectPackAPunch_MapStart();
+	ObjectHealingStation_MapStart();
+	ObjectTinkerAnvil_MapStart();
+	ObjectSentrygun_MapStart();
+	ObjectMortar_MapStart();
+	ObjectRailgun_MapStart();
+	ObjectBarracks_MapStart();
+	ObjectVillage_MapStart();
+	ObjectTinkerBrew_MapStart();
+	ObjectRevenant_Setup();
+	ObjectTinkerGrill_MapStart();
+	ObjectVintulumBomb_MapStart();
+	// Buildings
+
+	// Constructs
+	ObjectResearch_MapStart();
+	ObjectWall_MapStart();
+	ObjectPump_MapStart();
+	ObjectWood_MapStart();
+	ObjectStone_MapStart();
+	ObjectSupply_MapStart();
+	ObjectStove_MapStart();
+	ObjectFactory_MapStart();
+	ObjectMinter_MapStart();
+	ObjectConstruction_LightHouse_MapStart();
+	ObjectHeavyCaliberTurret_MapStart();
+	Object_MinigunTurret_MapStart();
+	Object_TeslarsMedusa_MapStart();
+	ObjectStunGun_MapStart();
+	ObjectDispenser_MapStart();
+	ObjectFurniture_MapStart();
+	ObjectHelper_MapStart();
+	ObjectVoidstone_MapStart();
+	// Constructs
+
+	// Vehicles
+	VehicleHL2_Setup();
+	VehicleFullJeep_Setup();
+	VehicleAmbulance_Setup();
+//	VehicleBus_Setup(); This vehicle is too big.
+	VehicleCamper_Setup();
+	VehicleDumpTruck_Setup();
+	VehicleLandrover_Setup();
+	VehiclePickup_Setup();
+	// Vehicles
 	
 	Combine_Police_Pistol_OnMapStart_NPC();
 	CombinePoliceSmg_OnMapStart_NPC();
@@ -1500,7 +156,7 @@ void NPC_MapStart()
 	Alt_CombineDeutsch_OnMapStart_NPC();
 	SpyMainBoss_OnMapStart_NPC();
 	MedivalVillager_OnMapStart_NPC();
-	/*
+	
 	XenoHeadcrabZombie_OnMapStart_NPC();
 	XenoFortified_HeadcrabZombie_OnMapStart_NPC();
 	XenoFastZombie_OnMapStart_NPC();
@@ -1509,9 +165,9 @@ void NPC_MapStart()
 	XenoFortifiedGiantPoisonZombie_OnMapStart_NPC();
 	XenoPoisonZombie_OnMapStart_NPC();
 	XenoFortifiedPoisonZombie_OnMapStart_NPC();
-	*/
+	
 	XenoFatherGrigori_OnMapStart_NPC();
-	/*
+	
 	XenoCombine_Police_Pistol_OnMapStart_NPC();
 	XenoCombinePoliceSmg_OnMapStart_NPC();
 	XenoCombineSoldierAr2_OnMapStart_NPC();
@@ -1532,12 +188,14 @@ void NPC_MapStart()
 	MedicHealer_OnMapStart_NPC();
 	XenoHeavyGiant_OnMapStart_NPC();
 	XenoSpy_OnMapStart_NPC();
+	XenoInfectedLabDoctor_OnMapStart_NPC();
 	XenoSoldier_OnMapStart_NPC();
 	XenoSoldierMinion_OnMapStart_NPC();
 	XenoSoldierGiant_OnMapStart_NPC();
-	*/
+	XenoMedicHealer_OnMapStart_NPC();
 	
-	/*
+	
+	
 	XenoSpyThief_OnMapStart_NPC();
 	XenoSpyTrickstabber_OnMapStart_NPC();
 	XenoSpyCloaked_OnMapStart_NPC();
@@ -1547,14 +205,25 @@ void NPC_MapStart()
 	XenoPyroGiant_OnMapStart_NPC();
 	XenoCombineDeutsch_OnMapStart_NPC();
 	XenoSpyMainBoss_OnMapStart_NPC();
-	*/
-	NaziPanzer_OnMapStart_NPC();
+
+
+	XenoAcclaimedSwordsman_OnMapStart_NPC();
+	XenoFortifiedEarlyZombie_OnMapStart_NPC();
+	XenoPatientFew_OnMapStart_NPC();
+	XenoOuroborosEkas_OnMapStart_NPC();
+
+	
+	WanderingSpirit_OnMapStart_NPC();
+	VengefullSpirit_OnMapStart_NPC();
 	BobTheGod_OnMapStart_NPC();
 	NecroCombine_OnMapStart_NPC();
 	NecroCalcium_OnMapStart_NPC();
 	CuredFatherGrigori_OnMapStart_NPC();
+	FallenWarrior_OnMapStart();
+	ThirtySixFifty_OnMapStart();
+	JohnTheAllmighty_OnMapStart_NPC();
+	RavagingIntellect_OnMapStart();
 	
-	AltMedicApprenticeMage_OnMapStart_NPC();
 	SawRunner_OnMapStart_NPC();
 	AltMedicCharger_OnMapStart_NPC();
 	AltMedicBerseker_OnMapStart_NPC();
@@ -1576,15 +245,22 @@ void NPC_MapStart()
 	MedivalSamurai_OnMapStart_NPC();
 	Kahmlstein_OnMapStart_NPC();
 	Sniper_railgunner_OnMapStart_NPC();
+	MedivalTrebuchet_OnMapStart();
+	AltCombineMage_OnMapStart_NPC();
 	
 	L4D2_Tank_OnMapStart_NPC();
 	MedivalRam_OnMapStart();
 	
 	Soldier_Barrager_OnMapStart_NPC();
 	The_Shit_Slapper_OnMapStart_NPC();
-	
+	/*
 	BasicBones_OnMapStart_NPC();
-	Itstilives_MapStart();
+	BeefyBones_OnMapStart_NPC();
+	BrittleBones_OnMapStart_NPC();
+	BigBones_OnMapStart_NPC();*/
+	AlliedLeperVisualiserAbility_OnMapStart_NPC();
+	AlliedKiryuVisualiserAbility_OnMapStart_NPC();
+	AlliedRitualistAbility_OnMapStart_NPC();
 	
 	Mecha_Engineer_OnMapStart_NPC();
 	Mecha_Heavy_OnMapStart_NPC();
@@ -1595,8 +271,9 @@ void NPC_MapStart()
 	Donnerkrieg_OnMapStart_NPC();
 	Schwertkrieg_OnMapStart_NPC();
 	PhantomKnight_OnMapStart_NPC();
+	BeheadedKamiKaze_OnMapStart_NPC();
 	Alt_Medic_Constructor_OnMapStart_NPC();	//3rd alt medic.
-	
+	/*
 	TheGambler_OnMapStart_NPC();
 	Pablo_Gonzales_OnMapStart_NPC();
 	Doktor_Medick_OnMapStart_NPC();
@@ -1612,7 +289,7 @@ void NPC_MapStart()
 	BunkerSkeletonSmall_OnMapStart_NPC();
 	BunkerSkeletonKing_OnMapStart_NPC();
 	BunkerHeadlessHorse_OnMapStart_NPC();
-
+	*/
 	MedivalScout_OnMapStart_NPC();
 	MedivalBuilding_OnMapStart_NPC();
 	MedivalConstruct_OnMapStart_NPC();
@@ -1631,32 +308,138 @@ void NPC_MapStart()
 	MedivalRiddenArcher_OnMapStart_NPC();
 	MedivalSonOfOsiris_OnMapStart_NPC();
 	MedivalAchilles_OnMapStart_NPC();
+	MedivalCavalary_OnMapStart_NPC();
+	MedivalCrossbowGiant_OnMapStart();
+	MedivalPaladin_OnMapStart_NPC();
+	SpecialDoctor_OnMapStart();
+	MedivalSwordsmanGiant_OnMapStart();
+	MedivalEagleGiant_OnMapStart();
 	
 	Ikunagae_OnMapStart_NPC();
 	MechaSoldier_Barrager_OnMapStart_NPC();
 	NearlSwordAbility_OnMapStart_NPC();
 
 	SeaRunner_MapStart();
-	SeaPiercer_MapStart();
+	SeaSlider_Precache();
+	SeaSpitter_Precache();
+	SeaReaper_Precache();
 	SeaCrawler_MapStart();
+	SeaPiercer_MapStart();
 	FirstToTalk_MapStart();
 	UnderTides_MapStart();
+	Remain_MapStart();
+	SeaFounder_Precache();
+	SeaPredator_Precache();
+	SeaBrandguider_Precache();
+	SeaSpewer_Precache();
+	SeaSwarmcaller_Precache();
+	SeaReefbreaker_Precache();
+	EndSpeaker_MapStart();
+	SeabornScout_Precache();
+	SeabornSoldier_Precache();
+	CitizenRunner_Precache();
+	SeabornPyro_Precache();
+	SeabornDemo_Precache();
+	SeabornHeavy_Precache();
+	SeabornEngineer_Precache();
+	SeabornMedic_Precache();
+	SeabornSniper_Precache();
+	SeabornSpy_Precache();
 	KazimierzKnight_OnMapStart_NPC();
 	KazimierzKnightArcher_OnMapStart_NPC();
 	KazimierzBeserker_OnMapStart_NPC();
 	KazimierzLongArcher_OnMapStart_NPC();
-	EndSpeaker_MapStart();
-	Remain_MapStart();
 	KazimierzKnightAssasin_OnMapStart_NPC();
+	LastKnight_Precache();
+	SeabornGuard_Precache();
+	SeabornVanguard_Precache();
+	SeabornDefender_Precache();
+	SeabornCaster_Precache();
+	SeabornSpecialist_Precache();
+	SeabornSupporter_Precache();
+	SaintCarmen_Precache();
+	TidelinkedArchon_Precache();
+	TidelinkedBishop_Precache();
+	Pathshaper_Precache();
+	PathshaperFractal_Precache();
+	Isharmla_Precache();
 	IsharmlaTrans_MapStart();
 	
+#if defined RUINA_BASE
 	//Ruina waves	//warp
 	Ruina_Ai_Core_Mapstart();
+	//Stage 1.
 	Theocracy_OnMapStart_NPC();
 	Adiantum_OnMapStart_NPC();
 	Lanius_OnMapStart_NPC();
 	Magia_OnMapStart_NPC();
-	
+	Helia_OnMapStart_NPC();
+	Astria_OnMapStart_NPC();
+	Aether_OnMapStart_NPC();
+	Europa_OnMapStart_NPC();
+	Ruina_Drone_OnMapStart_NPC();
+	Ruriana_OnMapStart_NPC();
+	Venium_OnMapStart_NPC();
+	Daedalus_OnMapStart_NPC();
+	Malius_OnMapStart_NPC();
+	Laz_OnMapStart_NPC();
+	//Stage 2.
+	Laniun_OnMapStart_NPC();
+	Magnium_OnMapStart_NPC();
+	Heliara_OnMapStart_NPC();
+	Astriana_OnMapStart_NPC();
+	Europis_OnMapStart_NPC();
+	Draedon_OnMapStart_NPC();
+	Aetheria_OnMapStart_NPC();
+	Maliana_OnMapStart_NPC();
+	Ruianus_OnMapStart_NPC();
+	Lazius_OnMapStart_NPC();
+	Dronian_OnMapStart_NPC();
+	Lex_OnMapStart_NPC();
+	Iana_OnMapStart_NPC();
+	//Stage 3.
+	Magianas_OnMapStart_NPC();
+	Loonaris_OnMapStart_NPC();
+	Heliaris_OnMapStart_NPC();
+	Astrianis_OnMapStart_NPC();
+	Eurainis_OnMapStart_NPC();
+	Draeonis_OnMapStart_NPC();
+	Aetherium_OnMapStart_NPC();
+	Malianium_OnMapStart_NPC();
+	Rulius_OnMapStart_NPC();
+	Lazines_OnMapStart_NPC();
+	Dronis_OnMapStart_NPC();
+	Ruliana_OnMapStart_NPC();
+	//Stage 4.
+	Aetherianus_OnMapStart_NPC();
+	Astrianious_OnMapStart_NPC();
+	Draconia_OnMapStart_NPC();
+	Dronianis_OnMapStart_NPC();
+	Euranionis_OnMapStart_NPC();
+	Heliarionus_OnMapStart_NPC();
+	Lazurus_OnMapStart_NPC();
+	Loonarionus_OnMapStart_NPC();
+	Magianius_OnMapStart_NPC();
+	Malianius_OnMapStart_NPC();
+	Rulianius_OnMapStart_NPC();
+	Lancelot_OnMapStart_NPC();
+
+	//Special.
+	Twirl_OnMapStart_NPC();
+	Magia_Anchor_OnMapStart_NPC();
+	Ruina_Storm_Weaver_MapStart();
+	Ruina_Storm_Weaver_Mid_MapStart();
+
+	Interstellar_Weaver_MapStart();
+	Interstellar_Weaver_MapStart_Mid();
+
+#endif
+
+
+	Kit_Fractal_NPC_MapStart();
+
+	Lelouch_OnMapStart_NPC();
+	Manipulation_OnMapStart_NPC();
 
 	//Expidonsa Waves
 //wave 1-15:
@@ -1668,7 +451,7 @@ void NPC_MapStart()
 	Pistoleer_OnMapStart_NPC();
 	Diversionistico_OnMapStart_NPC();	//reused in waves all over
 	HeavyPunuel_OnMapStart_NPC();
-	SeargentIdeal_OnMapStart_NPC();	
+	SergeantIdeal_OnMapStart_NPC();	
 //wave 16-30:
 	RifalManu_OnMapStart_NPC();
 	Siccerino_OnMapStart_NPC();
@@ -1687,27 +470,288 @@ void NPC_MapStart()
 	Ignitus_OnMapStart_NPC();
 	Helena_OnMapStart_NPC();
 //wave 45-60 there arent as many enemies as im running out of ideas and i want to resuse top enemies
-	Erasus_OnMapStart_NPC();
 	GiantTankus_OnMapStart_NPC();
 	AnfuhrerEisenhard_OnMapStart_NPC();
 	SpeedusAdivus_OnMapStart_NPC();
+
+//internius
+	DesertAhim_OnMapStart_NPC();
+	DesertInabdil_OnMapStart_NPC();
+	DesertKhazaan_OnMapStart_NPC();
+	DesertSakratan_OnMapStart_NPC();
+	DesertYadeam_OnMapStart_NPC();
+	DesertRajul_OnMapStart_NPC();
+	DesertQanaas_OnMapStart_NPC();
+	DesertAtilla_OnMapStart_NPC();
+	DesertAncientDemon_OnMapStart_NPC();
+	WinterSniper_OnMapStart_NPC();
+	WinterZiberianMiner_OnMapStart_NPC();
+	WinterSnoweyGunner_OnMapStart_NPC();
+	WinterFreezingCleaner_OnMapStart_NPC();
+	WinterAirbornExplorer_OnMapStart_NPC();
+	WinterArcticMage_OnMapStart_NPC();
+	WinterFrostHunter_OnMapStart_NPC();
+	WinterSkinHunter_OnMapStart_NPC();
+	WinterIrritatedPerson_OnMapStart_NPC();
+	AnarchyRansacker_OnMapStart_NPC();
+	AnarchyRunover_OnMapStart_NPC();
+	AnarchyHitman_OnMapStart_NPC();
+	AnarchyMadDoctor_OnMapStart_NPC();
+	AnarchyAbomination_OnMapStart_NPC();
+	AnarchyEnforcer_OnMapStart_NPC();
+	AnarchyBraindead_OnMapStart_NPC();
+	AnarchyBehemoth_OnMapStart_NPC();
+	AnarchyAbsoluteIncinirator_OnMapStart_NPC();
+	MajorSteam_MapStart();
+	AegirOnMapStart();
+	CautusOnMapStart();
+	CaprinaeOnMapStart();
+	ArchosauriaOnMapStart();
+	AslanOnMapStart();
+	LiberiOnMapStart();
+	PerroOnMapStart();
+	UrsusOnMapStart();
+	VulpoOnMapStart();
+
+	VoidPortal_OnMapStart_NPC();
+//VoidCreatures and affected
+//1-15
+	VoidEaling_OnMapStart_NPC();
+	VoidFramingVoider_OnMapStart_NPC();
+	GrowingExat_OnMapStart_NPC();
+	VoidMutatingBlob_OnMapStart_NPC();
+	VoidSpreader_OnMapStart_NPC();
+	VoidInfestor_OnMapStart_NPC();
+	VoidHardCrust_OnMapStart_NPC();
+	VoidCarrier_OnMapStart_NPC();
+	//boss
+	VoidIxufan_OnMapStart_NPC();
+
+//16-30
+	VoidEnFramedVoider_OnMapStart_NPC();
+	VoidBloodPollutor_OnMapStart_NPC();
+	VoidExpidonsanFortifier_OnMapStart_NPC();
+	VoidParticle_OnMapStart_NPC();
+	VoidHostingBlob_OnMapStart_NPC();
+	VoidBlobbingMonster_OnMapStart_NPC();
+	VoudSprayer_OnMapStart_NPC();
+
+	//boss
+	VoidEncasulator_OnMapStart_NPC();
+
+//31-45
+	VoudExpidonsanCleaner_OnMapStart_NPC();
+	VoidExpidonsanContainer_OnMapStart_NPC();
+	VoidSacraficer_OnMapStart_NPC();
+	VoidingBedrock_OnMapStart_NPC();
+	VoidHeavyPerisher_OnMapStart_NPC();
+	VoidMinigateKeeper_OnMapStart_NPC();
+
+//boss
+	VoidBroodingPetra_OnMapStart_NPC();
+
+//46-60
+	VoidKunul_OnMapStart_NPC();
+	VoidTotalGrowth_OnMapStart_NPC();
+	VoidsOffspring_OnMapStart_NPC();
+	VoidRejuvinator_OnMapStart_NPC();
+	VoidedErasus_OnMapStart_NPC();
+
+//boss
+	VoidSpeechless_OnMapStart_NPC();
+//Raids
+	VoidUnspeakable_OnMapStart_NPC();
+
+	//void events
+	VoidedDiversionistico_OnMapStart_NPC();
+
+//Iberia Expidonsa
+	//Overall usage
+	Iberia_Beacon_OnMapStart_NPC();
+	IberiaBeaconConstructor_OnMapStart_NPC();
+	Iberia_Lighthouse_OnMapStart_NPC();
+	Huirgrajo_Precache();
 	
+// wave 1-15
+	Iberia_Cambino_OnMapStart_NPC();
+	Iberia_Irani_OnMapStart_NPC();
+	Iberia_Kinat_OnMapStart_NPC();
+	Iberia_Ginus_OnMapStart_NPC();
+	Iberia_SpeedusInitus_OnMapStart_NPC();
+	Iberia_Anania_OnMapStart_NPC();
+	Iberia_Victorian_OnMapStart_NPC();
+	Iberia_inqusitor_iidutas_OnMapStart_NPC();
+  
+
+//wave 16 -30
+	IberiaVivintu_OnMapStart_NPC();
+	IberiaCenula_OnMapStart_NPC();
+	IberiaKumbai_OnMapStart_NPC();
+	IberiaSpeedusInstantus_OnMapStart_NPC();
+	IberiaCombastia_OnMapStart_NPC();
+	IberiaMorato_OnMapStart_NPC();
+	IberiaSeaXploder_OnMapStart_NPC();
+	Iberia_AntiSeaRobot_OnMapStart_NPC();
+
+// 31-45
+
+	IberiaRanka_S_OnMapStart_NPC();
+	IberiaMurdarato_OnMapStart_NPC();
+	IberiaEliteKinat_OnMapStart_NPC();
+	Iberia_SeabornAnnihilator_OnMapStart_NPC();
+	IberianSentinel_OnMapStart_NPC();
+	IberianIronborus_OnMapStart_NPC();
+	IberianDestructius_OnMapStart_NPC();
+	IberiaSpeedusItus_OnMapStart_NPC();
+
+//wave 45-60
+
+	IberiaSpeedusElitus_OnMapStart_NPC();
+	IberiaSeaDryer_OnMapStart_NPC();
+	IberiaRunaka_OnMapStart_NPC();
+	IberiaDeathMarker_OnMapStart_NPC();
+	Iberia_inqusitor_irene_OnMapStart_NPC();
+
+//Victorian Raid
+//wave 1~15
+	Victoria_Batter_OnMapStart_NPC();
+	Victorian_Charger_OnMapStart_NPC();
+	Victorian_Teslar_OnMapStart_NPC();
+	VictorianBallista_OnMapStart_NPC();
+	VictorianVanguard_OnMapStart_NPC();
+	VictorianSupplier_OnMapStart_NPC();
+	VictorianIgniter_OnMapStart_NPC();
+	VictorianGrenadier_OnMapStart_NPC();
+	VictorianSquadleader_OnMapStart_NPC();
+	VictorianSignaller_OnMapStart_NPC();
+	
+//wave 16~30
+	VictorianHumbee_MapStart();
+	VictorianShotgunner_OnMapStart_NPC();
+	Bulldozer_OnMapStart_NPC();
+	VictorianHardener_OnMapStart_NPC();
+	VictorianRaider_OnMapStart_NPC();
+	Zapper_OnMapStart_NPC();
+	VictorianPayback_OnMapStart_NPC();
+	Blocker_OnMapStart_NPC();
+	VictoriaDestructor_Precache();
+	VictorianIronShield_OnMapStart_NPC();
+	Aviator_OnMapStart_NPC();
+	
+//wave 31~45
+	Victoria_BaseBreaker_OnMapStart_NPC();
+	VictoriaAntiarmorInfantry_OnMapStart_NPC();
+	VictoriaAssulter_OnMapStart_NPC();
+	VictorianMechafist_OnMapStart_NPC();
+	VictorianBooster_OnMapStart_NPC();
+	VictoriaScorcher_OnMapStart_NPC();
+	VictoriaMowdown_OnMapStart_NPC();
+	VictoriaMortar_OnMapStart_NPC();
+	VictoriaBreachcart_MapStart();
+	VictoriaBombcart_Precache();
+	VictoriaBigpipe_OnMapStart_NPC();
+	VictoriaHarbringer_OnMapStart_NPC();
+	VictoriaBirdeye_OnMapStart_NPC();
+
+//wave 46~60
+	VictorianCaffeinator_OnMapStart_NPC();
+	VictorianMechanist_as_OnMapStart_NPC();
+	VictorianOfflineAvangard_MapStart();
+	VictorianWelder_OnMapStart_NPC();
+	VIctorianTanker_OnMapStart_NPC();
+	VictorianPulverizer_OnMapStart_NPC();
+	VIctorianAmbusher_OnMapStart_NPC();
+	VictoriaTank_MapStart();
+	VictoriaTaser_OnMapStart_NPC();
+	VictoriaRadiomast_OnMapStart_NPC();
+	VictoriaRepair_OnMapStart_NPC();
+	Victorian_Radioguard_OnMapStart_NPC();
+
+//raid
+	Atomizer_OnMapStart_NPC();
+	Huscarls_OnMapStart_NPC();
+	Harrison_OnMapStart_NPC();
+	Castellan_OnMapStart_NPC();
+
 	//Alt Barracks
 	Barrack_Alt_Ikunagae_MapStart();
 	Barrack_Alt_Shwertkrieg_MapStart();
 	Barrack_Railgunner_MapStart();
 	Barrack_Alt_Basic_Mage_MapStart();
 	Barrack_Alt_Intermediate_Mage_MapStart();
+	Barrack_Alt_Advanced_Mage_MapStart();
 	Barrack_Alt_Donnerkrieg_MapStart();
 	Barrack_Alt_Holy_Knight_MapStart();
 	Barrack_Alt_Mecha_Barrager_MapStart();
 	Barrack_Alt_Barrager_MapStart();
-	Barrack_Alt_Berserker_MapStart();
+	Barrack_Alt_Mecha_Loader_MapStart();
 	Barrack_Alt_Crossbowmedic_MapStart();
 	Barrack_Alt_Scientific_Witchery_MapStart();
-	Barracks_Thorns();
 	VIPBuilding_MapStart();
 	AlliedSensalAbility_OnMapStart_NPC();
+	BarrackVillagerOnMapStart();
+	BarrackBuildingOnMapStart();
+	BarrackTwoHandedOnMapStart();
+	BarrackTeutonOnMapStart();
+	BarrackSwordsmanOnMapStart();
+	BarrackMonkOnMapStart();
+	BarrackMilitiaOnMapStart();
+	BarrackManAtArmsOnMapStart();
+	BarrackLongbowOnMapStart();
+	BarrackHussarOnMapStart();
+	BarrackLastKnightOnMapStart();
+	BarrackCrossbowOnMapStart();
+	BarrackChampionOnMapStart();
+	BarrackHandCannoneerOnMapStart();
+	BarrackArcherOnMapStart();
+	BarrackArbelastOnMapStart();
+	AlliedKahmlAbilityOnMapStart();
+	RitualistInstinct_MapStart();
+
+	//Combine Barracks
+	Barracks_Combine_Pistol_Precache();
+	Barracks_Combine_Smg_Precache();
+	
+	Barracks_Combine_Sword_Precache();
+	Barracks_Combine_Ar2_Precache();
+	
+	Barracks_Combine_Ddt_Precache();
+	Barracks_Combine_Shotgun_Precache();
+	
+	Barracks_Combine_Collos_Precache();
+	Barracks_Combine_Elite_Precache();
+	
+	Barracks_Combine_Sniper_Precache();
+	Barracks_Combine_Giant_DDT_Precache();
+	
+	Barracks_Combine_Super_Precache();
+	Barracks_Combine_Chaos_Containment_Unit_Precache();
+	
+	Barracks_Combine_Commander_Precache();
+
+	//Iberia Barracks
+	Barracks_Iberia_Runner_Precache();
+	Barracks_Iberia_Gunner_Precache();
+
+	Barracks_Iberia_Tanker_Precache();
+	Barracks_Iberia_Rocketeer_Precache();
+
+	Barracks_Iberia_Healer_Precache();
+	Barracks_Iberia_Boomstick_Precache();
+	
+	Barracks_Iberia_Healtanker_Precache();
+	Barracks_Iberia_Elite_Gunner_Precache();
+	
+	Barracks_Iberia_Guards_Precache();
+	Barracks_Iberia_Commando_Precache();
+
+	Barracks_Iberia_Headhunter_Precache();
+	Barrack_Iberia_Inquisitor_Lynsen_Precache();
+
+	Barracks_Iberia_Lighthouse_Guardian_Precache();
+	
+	//Iberia Last Hope
+	Barracks_Thorns();
 
 	// Raid Low Prio
 	TrueFusionWarrior_OnMapStart();
@@ -1715,14 +759,20 @@ void NPC_MapStart()
 	RaidbossSilvester_OnMapStart();
 	RaidbossBlueGoggles_OnMapStart();
 	RaidbossNemesis_OnMapStart();
-	GodArkantos_OnMapStart();
+	RaidbossMrX_OnMapStart();
+	GodAlaxios_OnMapStart();
 	Sensal_OnMapStart_NPC();
-	Raidboss_Schwertkrieg_OnMapStart_NPC();
-	Raidboss_Donnerkrieg_OnMapStart_NPC();
+	Karlas_OnMapStart_NPC();
+	Stella_OnMapStart_NPC();
+	RaidbossBobTheFirst_OnMapStart();
+	TheMessenger_OnMapStart_NPC();
+	ChaosKahmlstein_OnMapStart_NPC();
+	ThePurge_MapStart();
+	Nemal_OnMapStart_NPC();
+	Silvester_OnMapStart_NPC();
 
 	// Bloon Low Prio
 	Bloon_MapStart();
-	GoldBloon_MapStart();
 	Moab_MapStart();
 	Bfb_MapStart();
 	Zomg_MapStart();
@@ -1733,1867 +783,532 @@ void NPC_MapStart()
 	StalkerCombine_MapStart();
 	StalkerFather_MapStart();
 	StalkerGoggles_OnMapStart();
+	Wisp_Setup();
 
 	// COF Low Prio
 	Addiction_OnMapStart_NPC();
 	Doctor_MapStart();
 	Simon_MapStart();
+	Sewmo_OnMapStart_NPC();
+	Faster_OnMapStart_NPC();
+	Psycho_OnMapStart_NPC();
+	Suicider_OnMapStart_NPC();
+	Crazylady_OnMapStart_NPC();
+	Children_OnMapStart_NPC();
+	Taller_OnMapStart_NPC();
+	Baby_OnMapStart_NPC();
+	Stranger_OnMapStart_NPC();
+	CuredPurnell_OnMapStart_NPC();
+	CorruptedBarney_OnMapStart_NPC();
+	XenoMalfuncRobot_OnMapStart_NPC();
+	
 
 	// Bloon Raid Low Prio
 	Bloonarius_MapStart();
+
+	// Rogue Mode Low Prio
+	OverlordRogue_OnMapStart_NPC();
+	RaidbossBladedance_MapStart();
+	//whiteflower special:
+	Whiteflower_Boss_OnMapStart_NPC();
+	WFOuroborosEkas_OnMapStart_NPC();
+	Whiteflower_Ekas_Piloteer_OnMapStart_NPC();
+	AcclaimedSwordsman_OnMapStart_NPC();
+	Whiteflower_ExtremeKnightGiant_OnMapStart_NPC();
+	Whiteflower_RagingBlader_OnMapStart_NPC();
+	Whiteflower_FloweringDarkness_OnMapStart_NPC();
+
+	//Normal rogue again:
+	RogueCondition_Setup();
+	GogglesFollower_Setup();
+	TheHunter_Setup();
+	FinalHunter_Setup();
+	KahmlsteinFollower_Setup();
+	Vhxis_OnMapStart_NPC();
+	ChaosMage_OnMapStart_NPC();
+	ChaosSupporter_OnMapStart_NPC();
+	ChaosInsane_OnMapStart_NPC();
+	ChaosSickKnight_OnMapStart_NPC();
+	ChaosInjuredCultist_OnMapStart_NPC();
+	ChaosEvilDemon_OnMapStart_NPC();
+	HallamGreatDemon_OnMapStart_NPC();
+	HallamDemonWhisperer_OnMapStart_NPC();
+	ChaosSwordsman_OnMapStart_NPC();
+	NightmareSwordsman_OnMapStart_NPC();
+	MajorVoided_MapStart();
+	DuckFollower_Setup();
+	BobTheFirstFollower_Setup();
+	TwirlFollower_Setup();
+	
+	// Construction
+	BaseBuilding_MapStart();
+	ZeinaFreeFollower_Setup();
+
+	// Survival
+	Nightmare_OnMapStart_NPC();
+	PetrisBaron_OnMapStart_NPC();
+	Sphynx_OnMapStart_NPC();
+	ZombineSurvival_OnMapStart_NPC();
+	ZMainHeadcrabZombie_OnMapStart_NPC();
+	Headcrab_MapStart();
+	PoisonHeadcrab_MapStart();
+	ZMainPoisonZombie_OnMapStart_NPC();
+	ZMainHeadcrab_OnMapStart_NPC();
+
+	// Matrix
+	AgentAlan_OnMapStart_NPC();
+	AgentAlexander_OnMapStart_NPC();
+	AgentChase_OnMapStart_NPC();
+	AgentDave_OnMapStart_NPC();
+	AgentGraham_OnMapStart_NPC();
+	AgentJames_OnMapStart_NPC();
+	AgentJohn_OnMapStart_NPC();
+	AgentSteve_OnMapStart_NPC();
+	AgentEric_OnMapStart_NPC();
+	AgentJack_OnMapStart_NPC();
+	AgentJim_OnMapStart_NPC();
+	AgentJosh_OnMapStart_NPC();
+	AgentKenneth_OnMapStart_NPC();
+	AgentPaul_OnMapStart_NPC();
+	AgentTyler_OnMapStart_NPC();
+	AgentWayne_OnMapStart_NPC();
+	Merovingian_OnMapStart_NPC();
+	AgentBen_OnMapStart_NPC();
+	AgentChad_OnMapStart_NPC();
+	AgentChris_OnMapStart_NPC();
+	AgentDick_OnMapStart_NPC();
+	AgentIan_OnMapStart_NPC();
+	AgentJackson_OnMapStart_NPC();
+	AgentMike_OnMapStart_NPC();
+	AgentSam_OnMapStart_NPC();
+	AgentZack_OnMapStart_NPC();
+	AgentConnor_OnMapStart_NPC();
+	AgentHenry_OnMapStart_NPC();
+	AgentJeremy_OnMapStart_NPC();
+	AgentJones_OnMapStart_NPC();
+	AgentKurt_OnMapStart_NPC();
+	AgentLogan_OnMapStart_NPC();
+	AgentRoss_OnMapStart_NPC();
+	AgentSpencer_OnMapStart_NPC();
+	AgentTodd_OnMapStart_NPC();
+
+	//Matrix Giants
+	GiantHaste_OnMapStart_NPC();
+	GiantKnockout_OnMapStart_NPC();
+	GiantReflector_OnMapStart_NPC();
+	GiantRegeneration_OnMapStart_NPC();
+
+	//Matrix Raids
+	AgentJohnson_OnMapStart_NPC();
+	AgentThompson_OnMapStart_NPC();
+	Twin1_OnMapStart_NPC();
+	AgentSmith_OnMapStart_NPC();
+
+	//Matrix Freeplay
+	AgentDaveFreeplay_OnMapStart_NPC();
+	AgentWayneFreeplay_OnMapStart_NPC();
+	AgentIanFreeplay_OnMapStart_NPC();
+	AgentSpencerFreeplay_OnMapStart_NPC();
+
+	//Victoria stuff? idfk, come back in 1.5 years and comment on it Beep
+	VictorianFactory_MapStart();
+	VictorianDroneFragments_MapStart();
+	VictorianDroneAnvil_MapStart();
+	Victorian_Tacticalunit_OnMapStart_NPC();
+	Victorian_TacticalProtector_OnMapStart_NPC();
+
+
+	BossSummonRandom_OnMapStart_NPC();
+	//Combine Mutation
+	OmegaRaid_OnMapStart_NPC();
+	LostKnight_OnMapStart_NPC();
+	Merlton_Boss_OnMapStart_NPC();
+	BobFollower_Setup();
+	Hunter_OnMapStart_NPC();
+	Void_Combine_Police_Pistol_OnMapStart_NPC();
+	VoidCombinePoliceSmg_OnMapStart_NPC();
+	VoidCombineElite_OnMapStart_NPC();
+	VoidCombineSoldierAr2_OnMapStart_NPC();
+	VoidCombineSoldierShotgun_OnMapStart_NPC();
+	Seaborn_Combine_Police_Pistol_OnMapStart_NPC();
+	SeabornCombinePoliceSmg_OnMapStart_NPC();
+	SeabornCombineElite_OnMapStart_NPC();
+	SeabornCombineSoldierAr2_OnMapStart_NPC();
+	SeabornCombineSoldierShotgun_OnMapStart_NPC();
+
+	// Freeplay
+	DimensionalFragment_OnMapStart_NPC();
+	ImmutableHeavy_OnMapStart_NPC();
+	VanishingMatter_OnMapStart_NPC();
+	Erasus_OnMapStart_NPC();
+	AnnoyingSpirit_OnMapStart_NPC();
+	FogOrbHeavy_OnMapStart_NPC();
+
+	// Construction
+	MaterialCash_MapStart();
+	MaterialCopper_MapStart();
+	MaterialCrystal_MapStart();
+	MaterialIron_MapStart();
+	MaterialJalan_MapStart();
+	MaterialOssunia_MapStart();
+	MaterialStone_MapStart();
+	MaterialWizuh_MapStart();
+	MaterialWood_MapStart();
+	MaterialEvilExpi_MapStart();
+	MaterialGift_MapStart();
+
+	//April Fools
+	PackaPunch_OnMapStart();
+	PerkMachiner_OnMapStart();
+	AmmoBox_OnMapStart();
+	Male07_OnMapStart();
+	SpiritRunner_OnMapStart_NPC();
+	ErrorMelee_OnMapStart_NPC();
+	ErrorRanged_OnMapStart_NPC();
+	ToddHoward_OnMapStart();
+	KevinMery_OnMapStart_NPC();
+	RedHeavy_OnMapStart_NPC();
+	BlueHeavy_OnMapStart_NPC();
+	CyanHeavy_OnMapStart_NPC();
+	GreenHeavy_OnMapStart_NPC();
+	OrangeHeavy_OnMapStart_NPC();
+	YellowHeavy_OnMapStart_NPC();
+	PurpleHeavy_OnMapStart_NPC();
+	Temperals_Buster_OnMapStart_NPC();
+	TrollAr2_OnMapStart_NPC();
+	TrollPistol_OnMapStart_NPC();
+	TrollRPG_OnMapStart_NPC();
+	TrollBrawler_OnMapStart_NPC();
+
+	//Expidonsa Rogue forces in Construction
+	Eirasus_OnMapStart_NPC();
+	Haltera_OnMapStart_NPC();
+	Flaigus_OnMapStart_NPC();
+	BigGunAssisa_OnMapStart_NPC();
+	HiaRejuvinator_OnMapStart_NPC();
+	CuttusSiccino_OnMapStart_NPC();
+	ArmsaManu_OnMapStart_NPC();
+	SpeedusAbsolutos_OnMapStart_NPC();
+	VausShaldus_OnMapStart_NPC();
+	SoldinusIlus_OnMapStart_NPC();
+	SelfamScythus_OnMapStart_NPC();
+	Diversionistico_Elitus_OnMapStart_NPC();
+	Construction_Raid_Zilius_OnMapStart();
+	ZeinaPrisoner_OnMapStart_NPC();
+
+	//Aperture
+	ApertureCombatant_OnMapStart_NPC();
+	ApertureShotgunner_OnMapStart_NPC();
+	ApertureDevastator_OnMapStart_NPC();
+	ApertureHuntsman_OnMapStart_NPC();
+	ApertureJumper_OnMapStart_NPC();
+	AperturePhaser_OnMapStart_NPC();
+	ApertureSniper_OnMapStart_NPC();
+	ApertureRepulsor_OnMapStart_NPC();
+	ApertureMinigunner_OnMapStart_NPC();
+	ApertureSpecialist_OnMapStart_NPC();
+	ApertureSupporter_OnMapStart_NPC();
+	ApertureCombatantV2_OnMapStart_NPC();
+	ApertureShotgunnerV2_OnMapStart_NPC();
+	ApertureHuntsmanV2_OnMapStart_NPC();
+	ApertureJumperV2_OnMapStart_NPC();
+	AperturePhaserV2_OnMapStart_NPC();
+	ApertureSniperV2_OnMapStart_NPC();
+	ApertureSpecialistV2_OnMapStart_NPC();
+	ApertureDemolisherV2_OnMapStart_NPC();
+	ApertureDevastatorV2_OnMapStart_NPC();
+	ApertureMinigunnerV2_OnMapStart_NPC();
+	ApertureRepulsorV2_OnMapStart_NPC();
+	ApertureSupporterV2_OnMapStart_NPC();
+	ApertureCombatantPerfected_OnMapStart_NPC();
+	ApertureShotgunnerPerfected_OnMapStart_NPC();
+	ApertureHuntsmanPerfected_OnMapStart_NPC();
+	ApertureSniperPerfected_OnMapStart_NPC();
+	AperturePhaserPerfected_OnMapStart_NPC();
+	ApertureJumperPerfected_OnMapStart_NPC();
+	ApertureSpecialistPerfected_OnMapStart_NPC();
+	ApertureDemolisherPerfected_OnMapStart_NPC();
+	ApertureDevastatorPerfected_OnMapStart_NPC();
+	ApertureMinigunnerPerfected_OnMapStart_NPC();
+	ApertureRepulsorPerfected_OnMapStart_NPC();
+	ApertureSupporterPerfected_OnMapStart_NPC();
+	ApertureBuilder_OnMapStart_NPC();
+	ApertureSentry_OnMapStart_NPC();
+	ApertureDispenser_OnMapStart_NPC();
+	ApertureTeleporter_OnMapStart_NPC();
+	ApertureDemolisher_OnMapStart_NPC();
+	ApertureContainer_OnMapStart_NPC();
+	ApertureTraveller_OnMapStart_NPC();
+	PortalGate_OnMapStart_NPC();
+	FatherGrigoriScience_OnMapStart_NPC();
+	ApertureExterminator_OnMapStart_NPC();
+	ApertureSpokesman_OnMapStart_NPC();
+	ApertureResearcher_OnMapStart_NPC();
+	RefragmentedHeadcrabZombie_OnMapStart_NPC();
+	RefragmentedFastZombie_OnMapStart_NPC();
+	RefragmentedPoisonZombie_OnMapStart_NPC();
+	Refragmented_Combine_Police_Pistol_OnMapStart_NPC();
+	RefragmentedCombinePoliceSmg_OnMapStart_NPC();
+	RefragmentedCombineSoldierAr2_OnMapStart_NPC();
+	RefragmentedCombineElite_OnMapStart_NPC();
+	RefragmentedHeavy_OnMapStart_NPC();
+	RefragmentedMedic_OnMapStart_NPC();
+	RefragmentedSpy_OnMapStart_NPC();
+	Parasihtta_OnMapStart_NPC();
+	Talker_OnMapStart_NPC();
+	Hostis_OnMapStart_NPC();
+	Defectio_OnMapStart_NPC();
+	ApertureCollector_OnMapStart_NPC();
+	ApertureFueler_OnMapStart_NPC();
+	ApertureHalter_OnMapStart_NPC();
+	ApertureSuppressor_OnMapStart_NPC();
+	CAT_OnMapStart_NPC();
+	ARIS_OnMapStart_NPC();
+	ARISBeacon_OnMapStart_NPC();
+	CHIMERA_OnMapStart_NPC();
+	RefragmentedWinterSniper_OnMapStart_NPC();
+	RefragmentedWinterFrostHunter_OnMapStart_NPC();
+	Vincent_OnMapStart_NPC();
+	Vincent_Beacon_OnMapStart_NPC();
+
+	//rogue 3
+	Umbral_Ltzens_OnMapStart_NPC();
+	Umbral_Refract_OnMapStart_NPC();
+	Umbral_Koulm_OnMapStart_NPC();
+	HHH_OnMapStart_NPC();
+	GentleSpy_OnMapStart_NPC();
+	ChristianBrutalSniper_OnMapStart_NPC();
+	Umbral_Spuud_OnMapStart_NPC();
+	Umbral_Keitosis_OnMapStart_NPC();
+	AlmagestSeinr_OnMapStart_NPC();
+	AlmagestJkei_OnMapStart_NPC();
+	JkeiDrone_OnMapStart_NPC();
+	RandomizerBaseFlamethrower_OnMapStart_NPC();
+	RandomizerBaseHuntsman_OnMapStart_NPC();
+	RandomizerBaseSouthernHospitality_OnMapStart_NPC();
+	Randomizer_OnMapStart_NPC();
+	BossReila_OnMapStart_NPC();
+	ReilaBeacon_OnMapStart_NPC();
+	ReilaFollower_Setup();
+	Umbral_Automaton_OnMapStart_NPC();
+	OmegaFollower_Setup();
+	VhxisFollower_Setup();
+	Shadow_FloweringDarkness_OnMapStart_NPC();
+	Shadowing_Darkness_Boss_OnMapStart_NPC();
+	TornUmbralGate_OnMapStart_NPC();
+	Umbral_WF_OnMapStart_NPC();
+	AlliedWarpedCrystal_Visualiser_OnMapStart_NPC();
+	Umbral_Rouam_OnMapStart_NPC();
+	WinTimer_MapStart();
+	SensalFollower_Setup();
+	OverlordFollower_Setup();
 }
 
-any Npc_Create(int Index_Of_Npc, int client, float vecPos[3], float vecAng[3], bool ally, const char[] data="") //dmg mult only used for summonings
+int NPC_Add(NPCData data)
 {
-	any entity = -1;
-	switch(Index_Of_Npc)
+	if(!data.Func || data.Func == INVALID_FUNCTION)
+		ThrowError("Invalid function name");
+
+	if(!TranslationPhraseExists(data.Name))
 	{
-		case HEADCRAB_ZOMBIE:
-			entity = HeadcrabZombie(client, vecPos, vecAng, ally);
-		
-		case FORTIFIED_HEADCRAB_ZOMBIE:
-			entity = FortifiedHeadcrabZombie(client, vecPos, vecAng, ally);
-		
-		case FASTZOMBIE:
-			entity = FastZombie(client, vecPos, vecAng, ally);
-		
-		case FORTIFIED_FASTZOMBIE:
-			entity = FortifiedFastZombie(client, vecPos, vecAng, ally);
-		
-		case TORSOLESS_HEADCRAB_ZOMBIE:
-			entity = TorsolessHeadcrabZombie(client, vecPos, vecAng, ally);
-		
-		case FORTIFIED_GIANT_POISON_ZOMBIE:
-			entity = FortifiedGiantPoisonZombie(client, vecPos, vecAng, ally);
-		
-		case POISON_ZOMBIE:
-			entity = PoisonZombie(client, vecPos, vecAng, ally);
-		
-		case FORTIFIED_POISON_ZOMBIE:
-			entity = FortifiedPoisonZombie(client, vecPos, vecAng, ally);
-		
-		case FATHER_GRIGORI:
-			entity = FatherGrigori(client, vecPos, vecAng, ally);
-		
-		case COMBINE_POLICE_PISTOL:
-			entity = Combine_Police_Pistol(client, vecPos, vecAng, ally);
-		
-		case COMBINE_POLICE_SMG:
-			entity = CombinePoliceSmg(client, vecPos, vecAng, ally);
-		
-		case COMBINE_SOLDIER_AR2:
-			entity = CombineSoldierAr2(client, vecPos, vecAng, ally);
-		
-		case COMBINE_SOLDIER_SHOTGUN:
-			entity = CombineSoldierShotgun(client, vecPos, vecAng, ally);
-		
-		case COMBINE_SOLDIER_SWORDSMAN:
-			entity = CombineSwordsman(client, vecPos, vecAng, ally);
-		
-		case COMBINE_SOLDIER_ELITE:
-			entity = CombineElite(client, vecPos, vecAng, ally);
-		
-		case COMBINE_SOLDIER_GIANT_SWORDSMAN:
-			entity = CombineGaint(client, vecPos, vecAng, ally);
-		
-		case COMBINE_SOLDIER_DDT:
-			entity = CombineDDT(client, vecPos, vecAng, ally);
-		
-		case COMBINE_SOLDIER_COLLOSS:
-			entity = CombineCollos(client, vecPos, vecAng, ally);
-		
-		case COMBINE_OVERLORD:
-			entity = CombineOverlord(client, vecPos, vecAng, ally);
-		
-		case SCOUT_ZOMBIE:
-			entity = Scout(client, vecPos, vecAng, ally);
-		
-		case ENGINEER_ZOMBIE:
-			entity = Engineer(client, vecPos, vecAng, ally);
-		
-		case HEAVY_ZOMBIE:
-			entity = Heavy(client, vecPos, vecAng, ally);
-		
-		case FLYINGARMOR_ZOMBIE:
-			entity = FlyingArmor(client, vecPos, vecAng, ally);
-		
-		case FLYINGARMOR_TINY_ZOMBIE:
-			entity = FlyingArmorTiny(client, vecPos, vecAng, ally);
-		
-		case KAMIKAZE_DEMO:
-			entity = Kamikaze(client, vecPos, vecAng, ally);
-		
-		case MEDIC_HEALER:
-			entity = MedicHealer(client, vecPos, vecAng, ally);
-		
-		case HEAVY_ZOMBIE_GIANT:
-			entity = HeavyGiant(client, vecPos, vecAng, ally);
-		
-		case SPY_FACESTABBER:
-			entity = Spy(client, vecPos, vecAng, ally);
-		
-		case SOLDIER_ROCKET_ZOMBIE:
-			entity = Soldier(client, vecPos, vecAng, ally);
-		
-		case SOLDIER_ZOMBIE_MINION:
-			entity = SoldierMinion(client, vecPos, vecAng, ally);
-		
-		case SOLDIER_ZOMBIE_BOSS:
-			entity = SoldierGiant(client, vecPos, vecAng, ally);
-		
-		case SPY_THIEF:
-			entity = SpyThief(client, vecPos, vecAng, ally);
-		
-		case SPY_TRICKSTABBER:
-			entity = SpyTrickstabber(client, vecPos, vecAng, ally);
-		
-		case SPY_HALF_CLOACKED:
-			entity = SpyCloaked(client, vecPos, vecAng, ally);
-		
-		case SNIPER_MAIN:
-			entity = SniperMain(client, vecPos, vecAng, ally);
-		
-		case DEMO_MAIN:
-			entity = DemoMain(client, vecPos, vecAng, ally);
-		
-		case BATTLE_MEDIC_MAIN:
-			entity = MedicMain(client, vecPos, vecAng, ally);
-		
-		case GIANT_PYRO_MAIN:
-			entity = PyroGiant(client, vecPos, vecAng, ally);
-		
-		case COMBINE_DEUTSCH_RITTER:
-			entity = CombineDeutsch(client, vecPos, vecAng, ally);
-		
-		case ALT_COMBINE_DEUTSCH_RITTER:
-			entity = Alt_CombineDeutsch(client, vecPos, vecAng, ally);
-		
-		case SPY_MAIN_BOSS:
-			entity = SpyMainBoss(client, vecPos, vecAng, ally);
-		
-		case XENO_HEADCRAB_ZOMBIE:
-			entity = XenoHeadcrabZombie(client, vecPos, vecAng, ally);
-		
-		case XENO_FORTIFIED_HEADCRAB_ZOMBIE:
-			entity = XenoFortifiedHeadcrabZombie(client, vecPos, vecAng, ally);
-		
-		case XENO_FASTZOMBIE:
-			entity = XenoFastZombie(client, vecPos, vecAng, ally);
-		
-		case XENO_FORTIFIED_FASTZOMBIE:
-			entity = XenoFortifiedFastZombie(client, vecPos, vecAng, ally);
-		
-		case XENO_TORSOLESS_HEADCRAB_ZOMBIE:
-			entity = XenoTorsolessHeadcrabZombie(client, vecPos, vecAng, ally);
-		
-		case XENO_FORTIFIED_GIANT_POISON_ZOMBIE:
-			entity = XenoFortifiedGiantPoisonZombie(client, vecPos, vecAng, ally);
-		
-		case XENO_POISON_ZOMBIE:
-			entity = XenoPoisonZombie(client, vecPos, vecAng, ally);
-		
-		case XENO_FORTIFIED_POISON_ZOMBIE:
-			entity = XenoFortifiedPoisonZombie(client, vecPos, vecAng, ally);
-		
-		case XENO_FATHER_GRIGORI:
-			entity = XenoFatherGrigori(client, vecPos, vecAng, ally);
-		
-		case XENO_COMBINE_POLICE_PISTOL:
-			entity = XenoCombinePolicePistol(client, vecPos, vecAng, ally);
-		
-		case XENO_COMBINE_POLICE_SMG:
-			entity = XenoCombinePoliceSmg(client, vecPos, vecAng, ally);
-		
-		case XENO_COMBINE_SOLDIER_AR2:
-			entity = XenoCombineSoldierAr2(client, vecPos, vecAng, ally);
-		
-		case XENO_COMBINE_SOLDIER_SHOTGUN:
-			entity = XenoCombineSoldierShotgun(client, vecPos, vecAng, ally);
-		
-		case XENO_COMBINE_SOLDIER_SWORDSMAN:
-			entity = XenoCombineSwordsman(client, vecPos, vecAng, ally);
-		
-		case XENO_COMBINE_SOLDIER_ELITE:
-			entity = XenoCombineElite(client, vecPos, vecAng, ally);
-		
-		case XENO_COMBINE_SOLDIER_GIANT_SWORDSMAN:
-			entity = XenoCombineGaint(client, vecPos, vecAng, ally);
-		
-		case XENO_COMBINE_SOLDIER_DDT:
-			entity = XenoCombineDDT(client, vecPos, vecAng, ally);
-		
-		case XENO_COMBINE_SOLDIER_COLLOSS:
-			entity = XenoCombineCollos(client, vecPos, vecAng, ally);
-		
-		case XENO_COMBINE_OVERLORD:
-			entity = XenoCombineOverlord(client, vecPos, vecAng, ally);
-		
-		case XENO_SCOUT_ZOMBIE:
-			entity = XenoScout(client, vecPos, vecAng, ally);
-		
-		case XENO_ENGINEER_ZOMBIE:
-			entity = XenoEngineer(client, vecPos, vecAng, ally);
-		
-		case XENO_HEAVY_ZOMBIE:
-			entity = XenoHeavy(client, vecPos, vecAng, ally);
-		
-		case XENO_FLYINGARMOR_ZOMBIE:
-			entity = XenoFlyingArmor(client, vecPos, vecAng, ally);
-		
-		case XENO_FLYINGARMOR_TINY_ZOMBIE:
-			entity = XenoFlyingArmorTiny(client, vecPos, vecAng, ally);
-		
-		case XENO_KAMIKAZE_DEMO:
-			entity = XenoKamikaze(client, vecPos, vecAng, ally);
-		
-		case XENO_MEDIC_HEALER:
-			entity = XenoMedicHealer(client, vecPos, vecAng, ally);
-		
-		case XENO_HEAVY_ZOMBIE_GIANT:
-			entity = XenoHeavyGiant(client, vecPos, vecAng, ally);
-		
-		case XENO_SPY_FACESTABBER:
-			entity = XenoSpy(client, vecPos, vecAng, ally);
-		
-		case XENO_SOLDIER_ROCKET_ZOMBIE:
-			entity = XenoSoldier(client, vecPos, vecAng, ally);
-		
-		case XENO_SOLDIER_ZOMBIE_MINION:
-			entity = XenoSoldierMinion(client, vecPos, vecAng, ally);
-		
-		case XENO_SOLDIER_ZOMBIE_BOSS:
-			entity = XenoSoldierGiant(client, vecPos, vecAng, ally);
-		
-		case XENO_SPY_THIEF:
-			entity = XenoSpyThief(client, vecPos, vecAng, ally);
-		
-		case XENO_SPY_TRICKSTABBER:
-			entity = XenoSpyTrickstabber(client, vecPos, vecAng, ally);
-		
-		case XENO_SPY_HALF_CLOACKED:
-			entity = XenoSpyCloaked(client, vecPos, vecAng, ally);
-		
-		case XENO_SNIPER_MAIN:
-			entity = XenoSniperMain(client, vecPos, vecAng, ally);
-		
-		case XENO_DEMO_MAIN:
-			entity = XenoDemoMain(client, vecPos, vecAng, ally);
-		
-		case XENO_BATTLE_MEDIC_MAIN:
-			entity = XenoMedicMain(client, vecPos, vecAng, ally);
-		
-		case XENO_GIANT_PYRO_MAIN:
-			entity = XenoPyroGiant(client, vecPos, vecAng, ally);
-		
-		case XENO_COMBINE_DEUTSCH_RITTER:
-			entity = XenoCombineDeutsch(client, vecPos, vecAng, ally);
-		
-		case XENO_SPY_MAIN_BOSS:
-			entity = XenoSpyMainBoss(client, vecPos, vecAng, ally);
-		
-		case NAZI_PANZER:
-			entity = NaziPanzer(client, vecPos, vecAng, ally);
-		
-		case BOB_THE_GOD_OF_GODS:
-			entity = BobTheGod(client, vecPos, vecAng);
-		
-		case NECRO_COMBINE:
-			entity = NecroCombine(client, vecPos, vecAng, StringToFloat(data));
-		
-		case NECRO_CALCIUM:
-			entity = NecroCalcium(client, vecPos, vecAng, StringToFloat(data));
-		
-		case CURED_FATHER_GRIGORI:
-			entity = CuredFatherGrigori(client, vecPos, vecAng);
-		
-		case ALT_COMBINE_MAGE:
-			entity = AltCombineMage(client, vecPos, vecAng, ally);
-		
-		case BTD_BLOON:
-			entity = Bloon(client, vecPos, vecAng, ally, data);
-		
-		case BTD_MOAB:
-			entity = Moab(client, vecPos, vecAng, ally, data);
-		
-		case BTD_BFB:
-			entity = BFB(client, vecPos, vecAng, ally, data);
-		
-		case BTD_ZOMG:
-			entity = Zomg(client, vecPos, vecAng, ally, data);
-		
-		case BTD_DDT:
-			entity = DDT(client, vecPos, vecAng, ally, data);
-		
-		case BTD_BAD:
-			entity = Bad(client, vecPos, vecAng, ally, data);
-		
-		case ALT_MEDIC_APPRENTICE_MAGE:
-			entity = AltMedicApprenticeMage(client, vecPos, vecAng, ally);
-		
-		case SAWRUNNER:
-			entity = SawRunner(client, vecPos, vecAng, ally);
-		
-		case RAIDMODE_TRUE_FUSION_WARRIOR:
-			entity = TrueFusionWarrior(client, vecPos, vecAng, ally);
-		
-		case ALT_MEDIC_CHARGER:
-			entity = AltMedicCharger(client, vecPos, vecAng, ally);
-		
-		case ALT_MEDIC_BERSERKER:
-			entity = AltMedicBerseker(client, vecPos, vecAng, ally);
-		
-		case MEDIVAL_MILITIA:
-			entity = MedivalMilitia(client, vecPos, vecAng, ally);
-		
-		case MEDIVAL_ARCHER:
-			entity = MedivalArcher(client, vecPos, vecAng, ally);
-		
-		case MEDIVAL_MAN_AT_ARMS:
-			entity = MedivalManAtArms(client, vecPos, vecAng, ally);
-		
-		case MEDIVAL_SKIRMISHER:
-			entity = MedivalSkirmisher(client, vecPos, vecAng, ally);
-		
-		case MEDIVAL_SWORDSMAN:
-			entity = MedivalSwordsman(client, vecPos, vecAng, ally);
-		
-		case MEDIVAL_TWOHANDED_SWORDSMAN:
-			entity = MedivalTwoHandedSwordsman(client, vecPos, vecAng, ally);
-		
-		case MEDIVAL_CROSSBOW_MAN:
-			entity = MedivalCrossbowMan(client, vecPos, vecAng, ally);
-		
-		case MEDIVAL_SPEARMEN:
-			entity = MedivalSpearMan(client, vecPos, vecAng, ally);
-		
-		case MEDIVAL_HANDCANNONEER:
-			entity = MedivalHandCannoneer(client, vecPos, vecAng, ally);
-		
-		case MEDIVAL_ELITE_SKIRMISHER:
-			entity = MedivalEliteSkirmisher(client, vecPos, vecAng, ally);
-		
-		case RAIDMODE_BLITZKRIEG:
-			entity = Blitzkrieg(client, vecPos, vecAng, ally);
-		
-		case MEDIVAL_PIKEMAN:
-			entity = MedivalPikeman(client, vecPos, vecAng, ally);
-		
-		case ALT_MEDIC_SUPPERIOR_MAGE:
-			entity = NPC_ALT_MEDIC_SUPPERIOR_MAGE(client, vecPos, vecAng, ally);
-		
-		case CITIZEN:
-			entity = Citizen(client, vecPos, vecAng, data);
-		
-		case MEDIVAL_EAGLE_SCOUT:
-			entity = MedivalEagleScout(client, vecPos, vecAng, ally);
-		
-		case MEDIVAL_SAMURAI:
-			entity = MedivalSamurai(client, vecPos, vecAng, ally);
-		
-		case THEADDICTION:
-			entity = Addicition(client, vecPos, vecAng, ally, data);
-		
-		case THEDOCTOR:
-			entity = Doctor(client, vecPos, vecAng, ally, data);
-		
-		case BOOKSIMON:
-			entity = Simon(client, vecPos, vecAng, ally, data);
-		
-		case ALT_KAHMLSTEIN:
-			entity = Kahmlstein(client, vecPos, vecAng, ally);
-		
-		case L4D2_TANK:
-			entity = L4D2_Tank(client, vecPos, vecAng, ally);
-		
-		case ALT_SNIPER_RAILGUNNER:
-			entity = Sniper_railgunner(client, vecPos, vecAng, ally);
-		
-		case BTD_GOLDBLOON:
-			entity = GoldBloon(client, vecPos, vecAng, ally, data);
-		
-		case BTD_BLOONARIUS:
-			entity = Bloonarius(client, vecPos, vecAng, ally, data);
-		
-		case MEDIVAL_RAM:
-			entity = MedivalRam(client, vecPos, vecAng, ally, data);
-		
-		case ALT_SOLDIER_BARRAGER:
-			entity = Soldier_Barrager(client, vecPos, vecAng, ally);
-		
-		case ALT_The_Shit_Slapper:
-			entity = The_Shit_Slapper(client, vecPos, vecAng, ally);
-		
-		case BONEZONE_BASICBONES:
-			entity = BasicBones(client, vecPos, vecAng, ally);
-		
-		case ITSTILIVES:
-			entity = Itstilives(client, vecPos, vecAng);
-		
-		case ALT_MECHA_ENGINEER:
-			entity = Mecha_Engineer(client, vecPos, vecAng, ally);
-		
-		case ALT_MECHA_HEAVY:
-			entity = Mecha_Heavy(client, vecPos, vecAng, ally);
-		
-		case ALT_MECHA_HEAVYGIANT:
-			entity = Mecha_HeavyGiant(client, vecPos, vecAng, ally);
-		
-		case ALT_MECHA_PYROGIANT:
-			entity = Mecha_PyroGiant(client, vecPos, vecAng, ally);
-		
-		case ALT_MECHA_SCOUT:
-			entity = Mecha_Scout(client, vecPos, vecAng, ally);
-		
-		case ALT_DONNERKRIEG:
-			entity = Donnerkrieg(client, vecPos, vecAng, ally);
-		
-		case ALT_SCHWERTKRIEG:
-			entity = Schwertkrieg(client, vecPos, vecAng, ally);
-		
-		case PHANTOM_KNIGHT:
-			entity = PhantomKnight(client, vecPos, vecAng, ally);
-		
-		case ALT_MEDIC_HEALER_3:	//3 being the 3rd stage of alt waves.
-			entity = Alt_Medic_Constructor(client, vecPos, vecAng, ally);
-		
-		case THE_GAMBLER:
-			entity = TheGambler(client, vecPos, vecAng, ally);
-		
-		case PABLO_GONZALES:
-			entity = Pablo_Gonzales(client, vecPos, vecAng, ally);
-		
-		case DOKTOR_MEDICK:
-			entity = Doktor_Medick(client, vecPos, vecAng, ally);
-		
-		case KAPTAIN_HEAVY:
-			entity = Eternal_Kaptain_Heavy(client, vecPos, vecAng, ally);
-		
-		case BOOTY_EXECUTIONIER:
-			entity = BootyExecutioner(client, vecPos, vecAng, ally);
-		
-		case SANDVICH_SLAYER:
-			entity = SandvichSlayer(client, vecPos, vecAng, ally);
-		
-		case PAYDAYCLOAKER:
-			entity = Payday_Cloaker(client, vecPos, vecAng, ally);
-		
-		case BUNKER_KAHML_VTWO:
-			entity = BunkerKahml(client, vecPos, vecAng, ally);
-		
-		case TRUE_ZEROFUSE:
-			entity = TrueZerofuse(client, vecPos, vecAng, ally);
-		
-		case BUNKER_BOT_SOLDIER:
-			entity = BunkerBotSoldier(client, vecPos, vecAng, ally);
-		
-		case BUNKER_BOT_SNIPER:
-			entity = BunkerBotSniper(client, vecPos, vecAng, ally);
-		
-		case BUNKER_SKELETON:
-			entity = BunkerSkeleton(client, vecPos, vecAng, ally);
-		
-		case BUNKER_SMALL_SKELETON:
-			entity = BunkerSkeletonKing(client, vecPos, vecAng, ally);
-		
-		case BUNKER_KING_SKELETON:
-			entity = BunkerSkeletonKing(client, vecPos, vecAng, ally);
-		
-		case BUNKER_HEADLESSHORSE:
-			entity = BunkerHeadlessHorse(client, vecPos, vecAng, ally);
-		
-		case MEDIVAL_SCOUT:
-			entity = MedivalScout(client, vecPos, vecAng, ally);
-		
-		case MEDIVAL_VILLAGER:
-			entity = MedivalVillager(client, vecPos, vecAng, ally);
-		
-		case MEDIVAL_BUILDING:
-			entity = MedivalBuilding(client, vecPos, vecAng, ally, data);
-		
-		case MEDIVAL_CONSTRUCT:
-			entity = MedivalConstruct(client, vecPos, vecAng, ally);
-		
-		case MEDIVAL_CHAMPION:
-			entity = MedivalChampion(client, vecPos, vecAng, ally);
-		
-		case MEDIVAL_LIGHT_CAV:
-			entity = MedivalLightCav(client, vecPos, vecAng, ally);
-		
-		case MEDIVAL_HUSSAR:
-			entity = MedivalHussar(client, vecPos, vecAng, ally);
-		
-		case MEDIVAL_KNIGHT:
-			entity = MedivalKnight(client, vecPos, vecAng, ally);
-		
-		case MEDIVAL_OBUCH:
-			entity = MedivalObuch(client, vecPos, vecAng, ally);
-		
-		case MEDIVAL_MONK:
-			entity = MedivalMonk(client, vecPos, vecAng, ally);
-		
-		case BARRACK_MILITIA:
-			entity = BarrackMilitia(client, vecPos, vecAng, ally);
-		
-		case BARRACK_ARCHER:
-			entity = BarrackArcher(client, vecPos, vecAng, ally);
-		
-		case BARRACK_MAN_AT_ARMS:
-			entity = BarrackManAtArms(client, vecPos, vecAng, ally);
-		
-		case MEDIVAL_HALB:
-			entity = MedivalHalb(client, vecPos, vecAng, ally);
-		
-		case MEDIVAL_BRAWLER:
-			entity = MedivalBrawler(client, vecPos, vecAng, ally);
-		
-		case MEDIVAL_LONGBOWMEN:
-			entity = MedivalLongbowmen(client, vecPos, vecAng, ally);
-		
-		case MEDIVAL_ARBALEST:
-			entity = MedivalArbalest(client, vecPos, vecAng, ally);
-		
-		case MEDIVAL_ELITE_LONGBOWMEN:
-			entity = MedivalEliteLongbowmen(client, vecPos, vecAng, ally);
-		
-		case BARRACK_CROSSBOW:
-			entity = BarrackCrossbow(client, vecPos, vecAng, ally);
-		
-		case BARRACK_SWORDSMAN:
-			entity = BarrackSwordsman(client, vecPos, vecAng, ally);
-		
-		case BARRACK_ARBELAST:
-			entity = BarrackArbelast(client, vecPos, vecAng, ally);
-		
-		case BARRACK_TWOHANDED:
-			entity = BarrackTwoHanded(client, vecPos, vecAng, ally);
-		
-		case BARRACK_LONGBOW:
-			entity = BarrackLongbow(client, vecPos, vecAng, ally);
-		
-		case BARRACK_CHAMPION:
-			entity = BarrackChampion(client, vecPos, vecAng, ally);
-		
-		case BARRACK_MONK:
-			entity = BarrackMonk(client, vecPos, vecAng, ally);
-		
-		case BARRACK_HUSSAR:
-			entity = BarrackHussar(client, vecPos, vecAng, ally);
-		
-		case MEDIVAL_CAVALARY:
-			entity = MedivalCavalary(client, vecPos, vecAng, ally);
-		
-		case MEDIVAL_PALADIN:
-			entity = MedivalPaladin(client, vecPos, vecAng, ally);
-		
-		case MEDIVAL_CROSSBOW_GIANT:
-			entity = MedivalCrossbowGiant(client, vecPos, vecAng, ally);
-		
-		case MEDIVAL_SWORDSMAN_GIANT:
-			entity = MedivalSwordsmanGiant(client, vecPos, vecAng, ally);
-		
-		case MEDIVAL_EAGLE_WARRIOR:
-			entity = MedivalEagleWarrior(client, vecPos, vecAng, ally);
-		
-		case MEDIVAL_RIDDENARCHER:
-			entity = MedivalRiddenArcher(client, vecPos, vecAng, ally);
-		
-		case MEDIVAL_EAGLE_GIANT:
-			entity = MedivalEagleGiant(client, vecPos, vecAng, ally);
-		
-		case MEDIVAL_SON_OF_OSIRIS:
-			entity = MedivalSonOfOsiris(client, vecPos, vecAng, ally);
-		
-		case MEDIVAL_ACHILLES:
-			entity = MedivalAchilles(client, vecPos, vecAng, ally);
-		
-		case MEDIVAL_TREBUCHET:
-			entity = MedivalTrebuchet(client, vecPos, vecAng, ally);
-		
-		case ALT_IKUNAGAE:
-			entity = Ikunagae(client, vecPos, vecAng, ally);
-		
-		case ALT_MECHASOLDIER_BARRAGER:
-			entity = MechaSoldier_Barrager(client, vecPos, vecAng, ally);
-		
-		case NEARL_SWORD:
-			entity = NearlSwordAbility(client, vecPos, vecAng, ally);
-		
-		case STALKER_COMBINE:
-			entity = StalkerCombine(client, vecPos, vecAng, false);
-		
-		case STALKER_FATHER:
-			entity = StalkerFather(client, vecPos, vecAng, false);
-		
-		case STALKER_GOGGLES:
-			entity = StalkerGoggles(client, vecPos, vecAng, false);
-		
-		case XENO_RAIDBOSS_SILVESTER:
-			entity = RaidbossSilvester(client, vecPos, vecAng, false);
-		
-		case XENO_RAIDBOSS_BLUE_GOGGLES:
-			entity = RaidbossBlueGoggles(client, vecPos, vecAng, false);
-		
-		case XENO_RAIDBOSS_SUPERSILVESTER:
-			entity = RaidbossSilvester(client, vecPos, vecAng, false);
-		
-		case XENO_RAIDBOSS_NEMESIS:
-			entity = RaidbossNemesis(client, vecPos, vecAng, false);
-		
-		case SEARUNNER, SEARUNNER_ALT:
-			entity = SeaRunner(client, vecPos, vecAng, ally, data);
-		
-		case SEASLIDER, SEASLIDER_ALT:
-			entity = SeaSlider(client, vecPos, vecAng, ally, data);
-		
-		case SEASPITTER, SEASPITTER_ALT:
-			entity = SeaSpitter(client, vecPos, vecAng, ally, data);
-		
-		case SEAREAPER, SEAREAPER_ALT:
-			entity = SeaReaper(client, vecPos, vecAng, ally, data);
-		
-		case SEACRAWLER, SEACRAWLER_ALT:
-			entity = SeaCrawler(client, vecPos, vecAng, ally, data);
-		
-		case SEAPIERCER, SEAPIERCER_ALT:
-			entity = SeaPiercer(client, vecPos, vecAng, ally, data);
-		
-		case FIRSTTOTALK:
-			entity = FirstToTalk(client, vecPos, vecAng, ally);
-		
-		case UNDERTIDES:
-			entity = UnderTides(client, vecPos, vecAng, ally, data);
-		
-		case SEABORN_KAZIMIERZ_KNIGHT:
-			entity = KazimierzKnight(client, vecPos, vecAng, ally);
-		
-		case SEABORN_KAZIMIERZ_KNIGHT_ARCHER:
-			entity = KazimierzKnightArcher(client, vecPos, vecAng, ally, data);
-		
-		case SEABORN_KAZIMIERZ_BESERKER:
-			entity = KazimierzBeserker(client, vecPos, vecAng, ally);
-		
-		case SEABORN_KAZIMIERZ_LONGARCHER:
-			entity = KazimierzLongArcher(client, vecPos, vecAng, ally);
-		
-		case REMAINS:
-			entity = Remains(client, vecPos, vecAng, data);
-		
-		case ENDSPEAKER_1:
-			entity = EndSpeaker1(client, vecPos, vecAng, ally, data);
-		
-		case ENDSPEAKER_2:
-			entity = EndSpeaker2(ally);
-		
-		case ENDSPEAKER_3:
-			entity = EndSpeaker3(ally);
-		
-		case ENDSPEAKER_4:
-			entity = EndSpeaker4(ally);
-		
-		case SEAFOUNDER, SEAFOUNDER_ALT, SEAFOUNDER_CARRIER:
-			entity = SeaFounder(client, vecPos, vecAng, ally, data);
-		
-		case SEAPREDATOR, SEAPREDATOR_ALT, SEAPREDATOR_CARRIER:
-			entity = SeaPredator(client, vecPos, vecAng, ally, data);
-		
-		case SEABRANDGUIDER, SEABRANDGUIDER_ALT, SEABRANDGUIDER_CARRIER:
-			entity = SeaBrandguider(client, vecPos, vecAng, ally, data);
-
-		case SEABORN_KAZIMIERZ_ASSASIN_MELEE:
-			entity = KazimierzKnightAssasin(client, vecPos, vecAng, ally);
-		
-		case SEASPEWER, SEASPEWER_ALT, SEASPEWER_CARRIER:
-			entity = SeaSpewer(client, vecPos, vecAng, ally, data);
-		
-		case SEASWARMCALLER, SEASWARMCALLER_ALT, SEASWARMCALLER_CARRIER:
-			entity = SeaSwarmcaller(client, vecPos, vecAng, ally, data);
-		
-		case SEAREEFBREAKER, SEAREEFBREAKER_ALT, SEAREEFBREAKER_CARRIER:
-			entity = SeaReefbreaker(client, vecPos, vecAng, ally, data);
-		
-		case BARRACK_THORNS:
-			entity = BarrackThorns(client, vecPos, vecAng, ally);
-		
-		case RAIDMODE_GOD_ARKANTOS:
-			entity = GodArkantos(client, vecPos, vecAng, ally);
-		
-		case SEABORN_SCOUT:
-			entity = SeabornScout(client, vecPos, vecAng, ally);
-		
-		case SEABORN_SOLDIER:
-			entity = SeabornSoldier(client, vecPos, vecAng, ally);
-		
-		case CITIZEN_RUNNER:
-			entity = CitizenRunner(client, vecPos, vecAng, data);
-		
-		case SEABORN_PYRO:
-			entity = SeabornPyro(client, vecPos, vecAng, ally);
-		
-		case SEABORN_DEMO:
-			entity = SeabornDemo(client, vecPos, vecAng, ally);
-		
-		case SEABORN_HEAVY:
-			entity = SeabornHeavy(client, vecPos, vecAng, ally);
-		
-		case SEABORN_ENGINEER:
-			entity = SeabornEngineer(client, vecPos, vecAng, ally);
-		
-		case SEABORN_MEDIC:
-			entity = SeabornMedic(client, vecPos, vecAng, ally);
-		
-		case SEABORN_SNIPER:
-			entity = SeabornSniper(client, vecPos, vecAng, ally);
-		
-		case SEABORN_SPY:
-			entity = SeabornSpy(client, vecPos, vecAng, ally);
-		
-		case ALT_BARRACKS_SCHWERTKRIEG:
-			entity = Barrack_Alt_Shwertkrieg(client, vecPos, vecAng, ally);
-			
-		case ALT_BARRACK_IKUNAGAE:
-			entity = Barrack_Alt_Ikunagae(client, vecPos, vecAng, ally);
-			
-		case ALT_BARRACK_RAILGUNNER:
-			entity = Barrack_Alt_Raigunner(client, vecPos, vecAng, ally);
-			
-		case ALT_BARRACK_BASIC_MAGE:
-			entity = Barrack_Alt_Basic_Mage(client, vecPos, vecAng, ally);
-			
-		case ALT_BARRACK_INTERMEDIATE_MAGE:
-			entity = Barrack_Alt_Intermediate_Mage(client, vecPos, vecAng, ally);
-			
-		case ALT_BARRACK_DONNERKRIEG:
-			entity = Barrack_Alt_Donnerkrieg(client, vecPos, vecAng, ally);
-
-		case ALT_BARRACKS_HOLY_KNIGHT:
-			entity = Barrack_Alt_Holy_Knight(client, vecPos, vecAng, ally);
-		
-		case ALT_BARRACK_MECHA_BARRAGER:
-			entity = Barrack_Alt_Mecha_Barrager(client, vecPos, vecAng, ally);
-			
-		case ALT_BARRACK_BARRAGER:
-			entity = Barrack_Alt_Barrager(client, vecPos, vecAng, ally);
-			
-		case ALT_BARRACKS_BERSERKER:
-			entity = Barrack_Alt_Berserker(client, vecPos, vecAng, ally);
-			
-		case ALT_BARRACKS_CROSSBOW_MEDIC:
-			entity = Barrack_Alt_Crossbowmedic(client, vecPos, vecAng, ally);
-		
-		case LASTKNIGHT:
-			entity = LastKnight(client, vecPos, vecAng, ally, data);
-		
-		case BARRACK_LASTKNIGHT:
-			entity = BarrackLastKnight(client, vecPos, vecAng, ally);
-		
-		case SAINTCARMEN:
-			entity = SaintCarmen(client, vecPos, vecAng, ally);
-		
-		case PATHSHAPER:
-			entity = Pathshaper(client, vecPos, vecAng, ally);
-		
-		case PATHSHAPER_FRACTAL:
-			entity = PathshaperFractal(client, vecPos, vecAng, ally);
-			
-		case BARRACKS_TEUTONIC_KNIGHT:
-			entity = BarrackTeuton(client, vecPos, vecAng, ally);
-
-		case BARRACKS_VILLAGER:
-			entity = BarrackVillager(client, vecPos, vecAng, ally);
-
-		case BARRACKS_BUILDING:
-			entity = BarrackBuilding(client, vecPos, vecAng, ally);
-
-		case TIDELINKED_BISHOP:
-			entity = TidelinkedBishop(client, vecPos, vecAng, ally);
-
-		case TIDELINKED_ARCHON:
-			entity = TidelinkedArchon(client, vecPos, vecAng, ally);
-			
-		case ALT_BARRACK_SCIENTIFIC_WITCHERY:
-			entity = Barrack_Alt_Scientific_Witchery(client, vecPos, vecAng, ally);
-
-		case SEABORN_GUARD:
-			entity = SeabornGuard(client, vecPos, vecAng, ally);
-
-		case SEABORN_DEFENDER:
-			entity = SeabornDefender(client, vecPos, vecAng, ally);
-
-		case SEABORN_VANGUARD:
-			entity = SeabornVanguard(client, vecPos, vecAng, ally);
-
-		case SEABORN_CASTER:
-			entity = SeabornCaster(client, vecPos, vecAng, ally);
-
-		case SEABORN_SPECIALIST:
-			entity = SeabornSpecialist(client, vecPos, vecAng, ally);
-
-		case SEABORN_SUPPORTER:
-			entity = SeabornSupporter(client, vecPos, vecAng, ally);
-
-		case ISHARMLA:
-			entity = Isharmla(client, vecPos, vecAng, ally);
-
-		case ISHARMLA_TRANS:
-			entity = IsharmlaTrans(client, vecPos, vecAng, ally);
-			
-		case RUINA_THEOCRACY:	//warp
-			entity = Theocracy(client, vecPos, vecAng, ally);
-		
-		case RUINA_ADIANTUM:
-			entity = Adiantum(client, vecPos, vecAng, ally);
-			
-		case RUINA_LANIUS:
-			entity = Lanius(client, vecPos, vecAng, ally);
-			
-		case RUINA_MAGIA:
-			entity = Magia(client, vecPos, vecAng, ally);
-			
-		case SEA_RAIDBOSS_DONNERKRIEG:
-			entity = Raidboss_Donnerkrieg(client, vecPos, vecAng, ally);
-			
-		case SEA_RAIDBOSS_SCHWERTKRIEG:
-			entity = Raidboss_Schwertkrieg(client, vecPos, vecAng, ally);
-		
-		case SEA_ALLY_SILVESTER:
-			entity = SeaAllySilvester(vecPos, vecAng);
-		
-		case SEA_ALLY_GOGGLES:
-			entity = SeaAllyGoggles(vecPos, vecAng);
-
-		case EXPIDONSA_BENERA:
-			entity = Benera(client, vecPos, vecAng, ally);
-			
-		case EXPIDONSA_PENTAL:
-			entity = Pental(client, vecPos, vecAng, ally);
-
-		case EXPIDONSA_DEFANDA:
-			entity = Defanda(client, vecPos, vecAng, ally);
-
-		case EXPIDONSA_SELFAM_IRE:
-			entity = SelfamIre(client, vecPos, vecAng, ally);
-
-		case EXPIDONSA_VAUSMAGICA:
-			entity = VausMagica(client, vecPos, vecAng, ally);
-
-		case EXPIDONSA_PISTOLEER:
-			entity = Pistoleer(client, vecPos, vecAng, ally);
-
-		case EXPIDONSA_DIVERSIONISTICO:
-			entity = Diversionistico(client, vecPos, vecAng, ally);
-
-		case EXPIDONSA_HEAVYPUNUEL:
-			entity = HeavyPunuel(client, vecPos, vecAng, ally);
-
-		case EXPIDONSA_SEARGENTIDEAL:
-			entity = SeargentIdeal(client, vecPos, vecAng, ally, data);
-		
-		case VIP_BUILDING:
-			entity = VIPBuilding(client, vecPos, vecAng, data);
-
-		case EXPIDONSA_RIFALMANU:
-			entity = RifalManu(client, vecPos, vecAng, ally);
-
-		case EXPIDONSA_SICCERINO:
-			entity = Siccerino(client, vecPos, vecAng, ally);
-
-		case EXPIDONSA_SOLDINE_PROTOTYPE:
-			entity = SoldinePrototype(client, vecPos, vecAng, ally);
-
-		case EXPIDONSA_SOLDINE:
-			entity = Soldine(client, vecPos, vecAng, ally);
-			
-		case EXPIDONSA_PROTECTA:
-			entity = Protecta(client, vecPos, vecAng, ally);
-
-		case EXPIDONSA_SNIPONEER:
-			entity = Sniponeer(client, vecPos, vecAng, ally);
-
-		case EXPIDONSA_EGABUNAR:
-			entity = EgaBunar(client, vecPos, vecAng, ally);
-
-		case EXPIDONSA_ENEGAKAPUS:
-			entity = EnegaKapus(client, vecPos, vecAng, ally);
-
-		case EXPIDONSA_CAPTINOAGENTUS:
-			entity = CaptinoAgentus(client, vecPos, vecAng, ally);
-
-		case RAIDMODE_EXPIDONSA_SENSAL:
-			entity = Sensal(client, vecPos, vecAng, ally);
-
-		case EXPIDONSA_DUALREA:
-			entity = DualRea(client, vecPos, vecAng, ally);
-
-		case EXPIDONSA_GUARDUS:
-			entity = Guardus(client, vecPos, vecAng, ally);
-
-		case EXPIDONSA_VAUSTECHICUS:
-			entity = VausTechicus(client, vecPos, vecAng, ally);
-
-		case EXPIDONSA_MINIGUNASSISA:
-			entity = MinigunAssisa(client, vecPos, vecAng, ally);
-
-		case EXPIDONSA_IGNITUS:
-			entity = Ignitus(client, vecPos, vecAng, ally);
-
-		case EXPIDONSA_HELENA:
-			entity = Helena(client, vecPos, vecAng, ally);
-
-		case EXPIDONSA_ERASUS:
-			entity = Erasus(client, vecPos, vecAng, ally);
-
-		case EXPIDONSA_GIANTTANKUS:
-			entity = GiantTankus(client, vecPos, vecAng, ally);
-
-		case EXPIDONSA_ANFUHREREISENHARD:
-			entity = AnfuhrerEisenhard(client, vecPos, vecAng, ally);
-
-		case EXPIDONSA_SPEEDUSADIVUS:
-			entity = SpeedusAdivus(client, vecPos, vecAng, ally);
-
-		case WEAPON_SENSAL_AFTERIMAGE:
-			entity = AlliedSensalAbility(client, vecPos, vecAng, ally);
-
-		default:
-			PrintToChatAll("Please Spawn the NPC via plugin or select which npcs you want! ID:[%i] Is not a valid npc!", Index_Of_Npc);
-		
+		LogError("Translation '%s' does not exist", data.Name);
+		strcopy(data.Name, sizeof(data.Name), "nothing");
 	}
 
-	if(entity > 0)
+	return NPCList.PushArray(data);
+}
+
+stock int NPC_GetCount()
+{
+	return NPCList.Length;
+}
+
+stock int NPC_GetNameById(int id, char[] buffer, int length)
+{
+	static NPCData data;
+	NPC_GetById(id, data);
+	return strcopy(buffer, length, data.Name);
+}
+
+stock int NPC_GetNameByPlugin(const char[] name, char[] buffer, int length)
+{
+	int index = NPCList.FindString(name, NPCData::Plugin);
+	if(index == -1)
+		return 0;
+	
+	static NPCData data;
+	NPCList.GetArray(index, data);
+	return strcopy(buffer, length, data.Name);
+}
+
+stock int NPC_GetPluginById(int id, char[] buffer, int length)
+{
+	static NPCData data;
+	NPC_GetById(id, data);
+	return strcopy(buffer, length, data.Plugin);
+}
+
+stock void NPC_GetById(int id, NPCData data)
+{
+	NPCList.GetArray(id, data);
+}
+
+stock int NPC_GetByPlugin(const char[] name, NPCData data = {}, const char[] chardata = "")
+{
+	int index = NPCList.FindString(name, NPCData::Plugin);
+	if(index != -1)
 	{
-		if(GetEntProp(entity, Prop_Send, "m_iTeamNum") == 2)
-		{
-			Rogue_AllySpawned(entity);
-		}
-		else
-		{
-			Rogue_EnemySpawned(entity);
-		}
+		NPCList.GetArray(index, data);
+		PrecacheNPC(index, data);
+		PrecacheNPC_WithData(index, data, chardata);
 	}
 	
-	return entity;
-}	
-public void NPCDeath(int entity)
+	return index;
+}
+
+static void PrecacheNPC_WithData(int i, NPCData data, const char[] chardata)
 {
-	for(int targ; targ<i_MaxcountNpc; targ++)
+	if(data.Precache_data && data.Precache_data != INVALID_FUNCTION)
 	{
-		int baseboss_index = EntRefToEntIndex(i_ObjectsNpcs[targ]);
-		if (IsValidEntity(baseboss_index) && !b_NpcHasDied[baseboss_index])
+		Call_StartFunction(null, data.Precache_data);
+		Call_PushString(chardata);
+		Call_Finish();
+	}
+}
+static void PrecacheNPC(int i, NPCData data)
+{
+	
+	if(!data.Precached)
+	{
+		if(data.Icon[0] && data.IconCustom)
+			PrecacheMvMIconCustom(data.Icon);
+		
+		if(data.Precache && data.Precache != INVALID_FUNCTION)
 		{
-			switch(i_NpcInternalId[baseboss_index])
+			Call_StartFunction(null, data.Precache);
+			Call_Finish();
+		}
+
+		data.Precached = true;
+		NPCList.SetArray(i, data);
+	}
+}
+
+stock int NPC_CreateByName(const char[] name, int client, float vecPos[3], float vecAng[3], int team, const char[] data = "", bool ignoreSetup = false)
+{
+	static NPCData npcdata;
+	int id = NPC_GetByPlugin(name, npcdata);
+	if(id == -1)
+	{
+		PrintToChatAll("\"%s\" is not a valid NPC!", name);
+		return -1;
+	}
+
+	return CreateNPC(npcdata, id, client, vecPos, vecAng, team, data, ignoreSetup);
+}
+
+int NPC_CreateById(int Index_Of_Npc, int client, float vecPos[3], float vecAng[3], int team, const char[] data = "", bool ignoreSetup = false)
+{
+	if(Index_Of_Npc < 1 || Index_Of_Npc >= NPCList.Length)
+	{
+		PrintToChatAll("[%d] is not a valid NPC!", Index_Of_Npc);
+		return -1;
+	}
+
+	static NPCData npcdata;
+	NPC_GetById(Index_Of_Npc, npcdata);
+	return CreateNPC(npcdata, Index_Of_Npc, client, vecPos, vecAng, team, data, ignoreSetup);
+}
+
+static int CreateNPC(NPCData npcdata, int id, int client, float vecPos[3], float vecAng[3], int team, const char[] data, bool ignoreSetup)
+{
+	PrecacheNPC(id, npcdata);
+
+	any entity = -1;
+
+	Call_StartFunction(null, npcdata.Func);
+	Call_PushCell(client);
+	Call_PushArrayEx(vecPos, sizeof(vecPos), 0);
+	Call_PushArrayEx(vecAng, sizeof(vecAng), 0);
+	Call_PushCell(team);
+	Call_PushString(data);
+	Call_Finish(entity);
+	
+	if(entity != -1)
+	{
+		if(!c_NpcName[entity][0])
+			strcopy(c_NpcName[entity], sizeof(c_NpcName[]), npcdata.Name);
+		
+		if(Rogue_GetChaosLevel() > 0)
+		{
+			static char last[64];
+			b_NameNoTranslation[entity] = true;
+			
+			if(!(GetURandomInt() % 4))
 			{
-				case SEABORN_KAZIMIERZ_BESERKER:
-				{
-					if(i_NpcInternalId[entity] != SEABORN_KAZIMIERZ_BESERKER)
-					{
-						KazimierzBeserker_AllyDeath(entity, baseboss_index);	
-					}
-				}
+				strcopy(c_NpcName[entity], sizeof(c_NpcName[]), last);
+				strcopy(last, sizeof(last), npcdata.Name);
 			}
 		}
+
+		if(!i_NpcInternalId[entity])
+			i_NpcInternalId[entity] = id;
+		
+		if(!ignoreSetup)
+		{
+			if(GetTeam(entity) == 2)
+			{
+				Rogue_AllySpawned(entity);
+				Waves_AllySpawned(entity);
+			}
+			else
+			{
+				Rogue_EnemySpawned(entity);
+				Waves_EnemySpawned(entity);
+				Construction_EnemySpawned(entity);
+			}
+			Waves_UpdateMvMStats();
+		}
 	}
 
-	switch(i_NpcInternalId[entity])
+	return entity;
+}
+
+void ZR_NpcTauntWinClear()
+{
+	for(int targ; targ<i_MaxcountNpcTotal; targ++)
 	{
-		case HEADCRAB_ZOMBIE:
-			HeadcrabZombie_NPCDeath(entity);
-		
-		case FORTIFIED_HEADCRAB_ZOMBIE:
-			FortifiedHeadcrabZombie_NPCDeath(entity);
-		
-		case FASTZOMBIE:
-			FastZombie_NPCDeath(entity);
-		
-		case FORTIFIED_FASTZOMBIE:
-			FortifiedFastZombie_NPCDeath(entity);
-		
-		case TORSOLESS_HEADCRAB_ZOMBIE:
-			TorsolessHeadcrabZombie_NPCDeath(entity);
-		
-		case FORTIFIED_GIANT_POISON_ZOMBIE:
-			FortifiedGiantPoisonZombie_NPCDeath(entity);
-		
-		case POISON_ZOMBIE:
-			PoisonZombie_NPCDeath(entity);
-		
-		case FORTIFIED_POISON_ZOMBIE:
-			FortifiedPoisonZombie_NPCDeath(entity);
-		
-		case FATHER_GRIGORI:
-			FatherGrigori_NPCDeath(entity);
-		
-		case COMBINE_POLICE_PISTOL:
-			CombinePolicePistol_NPCDeath(entity);
-		
-		case COMBINE_POLICE_SMG:
-			CombinePoliceSmg_NPCDeath(entity);
-		
-		case COMBINE_SOLDIER_AR2:
-			CombineSoldierAr2_NPCDeath(entity);
-		
-		case COMBINE_SOLDIER_SHOTGUN:
-			CombineSoldierShotgun_NPCDeath(entity);
-		
-		case COMBINE_SOLDIER_SWORDSMAN:
-			CombineSwordsman_NPCDeath(entity);
-		
-		case COMBINE_SOLDIER_ELITE:
-			CombineElite_NPCDeath(entity);
-		
-		case COMBINE_SOLDIER_GIANT_SWORDSMAN:
-			CombineGaint_NPCDeath(entity);
-		
-		case COMBINE_SOLDIER_DDT:
-			CombineDDT_NPCDeath(entity);
-		
-		case COMBINE_SOLDIER_COLLOSS:
-			CombineCollos_NPCDeath(entity);
-		
-		case COMBINE_OVERLORD:
-			CombineOverlord_NPCDeath(entity);
-		
-		case SCOUT_ZOMBIE:
-			Scout_NPCDeath(entity);
-		
-		case ENGINEER_ZOMBIE:
-			Engineer_NPCDeath(entity);
-		
-		case HEAVY_ZOMBIE:
-			Heavy_NPCDeath(entity);
-		
-		case FLYINGARMOR_ZOMBIE:
-			FlyingArmor_NPCDeath(entity);
-		
-		case FLYINGARMOR_TINY_ZOMBIE:
-			FlyingArmorTiny_NPCDeath(entity);
-		
-		case KAMIKAZE_DEMO:
-			Kamikaze_NPCDeath(entity);
-		
-		case MEDIC_HEALER:
-			MedicHealer_NPCDeath(entity);
-		
-		case HEAVY_ZOMBIE_GIANT:
-			HeavyGiant_NPCDeath(entity);
-		
-		case SPY_FACESTABBER:
-			Spy_NPCDeath(entity);
-		
-		case SOLDIER_ROCKET_ZOMBIE:
-			Soldier_NPCDeath(entity);
-		
-		case SOLDIER_ZOMBIE_MINION:
-			SoldierMinion_NPCDeath(entity);
-		
-		case SOLDIER_ZOMBIE_BOSS:
-			SoldierGiant_NPCDeath(entity);
-		
-		case SPY_THIEF:
-			SpyThief_NPCDeath(entity);
-		
-		case SPY_TRICKSTABBER:
-			SpyTrickstabber_NPCDeath(entity);
-		
-		case SPY_HALF_CLOACKED:
-			SpyCloaked_NPCDeath(entity);
-		
-		case SNIPER_MAIN:
-			SniperMain_NPCDeath(entity);
-		
-		case DEMO_MAIN:
-			DemoMain_NPCDeath(entity);
-		
-		case BATTLE_MEDIC_MAIN:
-			MedicMain_NPCDeath(entity);
-		
-		case GIANT_PYRO_MAIN:
-			PyroGiant_NPCDeath(entity);
-		
-		case COMBINE_DEUTSCH_RITTER:
-			CombineDeutsch_NPCDeath(entity);
-		
-		case ALT_COMBINE_DEUTSCH_RITTER:
-			Alt_CombineDeutsch_NPCDeath(entity);
-		
-		case SPY_MAIN_BOSS:
-			SpyMainBoss_NPCDeath(entity);
-		
-		case XENO_HEADCRAB_ZOMBIE:
-			XenoHeadcrabZombie_NPCDeath(entity);
-		
-		case XENO_FORTIFIED_HEADCRAB_ZOMBIE:
-			XenoFortifiedHeadcrabZombie_NPCDeath(entity);
-		
-		case XENO_FASTZOMBIE:
-			XenoFastZombie_NPCDeath(entity);
-		
-		case XENO_FORTIFIED_FASTZOMBIE:
-			XenoFortifiedFastZombie_NPCDeath(entity);
-		
-		case XENO_TORSOLESS_HEADCRAB_ZOMBIE:
-			XenoTorsolessHeadcrabZombie_NPCDeath(entity);
-		
-		case XENO_FORTIFIED_GIANT_POISON_ZOMBIE:
-			XenoFortifiedGiantPoisonZombie_NPCDeath(entity);
-		
-		case XENO_POISON_ZOMBIE:
-			XenoPoisonZombie_NPCDeath(entity);
-		
-		case XENO_FORTIFIED_POISON_ZOMBIE:
-			XenoFortifiedPoisonZombie_NPCDeath(entity);
-		
-		case XENO_FATHER_GRIGORI:
-			XenoFatherGrigori_NPCDeath(entity);
-		
-		case XENO_COMBINE_POLICE_PISTOL:
-			XenoCombinePolicePistol_NPCDeath(entity);
-		
-		case XENO_COMBINE_POLICE_SMG:
-			XenoCombinePoliceSmg_NPCDeath(entity);
-		
-		case XENO_COMBINE_SOLDIER_AR2:
-			XenoCombineSoldierAr2_NPCDeath(entity);
-		
-		case XENO_COMBINE_SOLDIER_SHOTGUN:
-			XenoCombineSoldierShotgun_NPCDeath(entity);
-		
-		case XENO_COMBINE_SOLDIER_SWORDSMAN:
-			XenoCombineSwordsman_NPCDeath(entity);
-		
-		case XENO_COMBINE_SOLDIER_ELITE:
-			XenoCombineElite_NPCDeath(entity);
-		
-		case XENO_COMBINE_SOLDIER_GIANT_SWORDSMAN:
-			XenoCombineGaint_NPCDeath(entity);
-		
-		case XENO_COMBINE_SOLDIER_DDT:
-			XenoCombineDDT_NPCDeath(entity);
-		
-		case XENO_COMBINE_SOLDIER_COLLOSS:
-			XenoCombineCollos_NPCDeath(entity);
-		
-		case XENO_COMBINE_OVERLORD:
-			XenoCombineOverlord_NPCDeath(entity);
-		
-		case XENO_SCOUT_ZOMBIE:
-			XenoScout_NPCDeath(entity);
-		
-		case XENO_ENGINEER_ZOMBIE:
-			XenoEngineer_NPCDeath(entity);
-		
-		case XENO_HEAVY_ZOMBIE:
-			XenoHeavy_NPCDeath(entity);
-		
-		case XENO_FLYINGARMOR_ZOMBIE:
-			XenoFlyingArmor_NPCDeath(entity);
-		
-		case XENO_FLYINGARMOR_TINY_ZOMBIE:
-			XenoFlyingArmorTiny_NPCDeath(entity);
-		
-		case XENO_KAMIKAZE_DEMO:
-			XenoKamikaze_NPCDeath(entity);
-		
-		case XENO_MEDIC_HEALER:
-			XenoMedicHealer_NPCDeath(entity);
-		
-		case XENO_HEAVY_ZOMBIE_GIANT:
-			XenoHeavyGiant_NPCDeath(entity);
-		
-		case XENO_SPY_FACESTABBER:
-			XenoSpy_NPCDeath(entity);
-		
-		case XENO_SOLDIER_ROCKET_ZOMBIE:
-			XenoSoldier_NPCDeath(entity);
-		
-		case XENO_SOLDIER_ZOMBIE_MINION:
-			XenoSoldierMinion_NPCDeath(entity);
-		
-		case XENO_SOLDIER_ZOMBIE_BOSS:
-			XenoSoldierGiant_NPCDeath(entity);
-		
-		case XENO_SPY_THIEF:
-			XenoSpyThief_NPCDeath(entity);
-		
-		case XENO_SPY_TRICKSTABBER:
-			XenoSpyTrickstabber_NPCDeath(entity);
-		
-		case XENO_SPY_HALF_CLOACKED:
-			XenoSpyCloaked_NPCDeath(entity);
-		
-		case XENO_SNIPER_MAIN:
-			XenoSniperMain_NPCDeath(entity);
-		
-		case XENO_DEMO_MAIN:
-			XenoDemoMain_NPCDeath(entity);
-		
-		case XENO_BATTLE_MEDIC_MAIN:
-			XenoMedicMain_NPCDeath(entity);
-		
-		case XENO_GIANT_PYRO_MAIN:
-			XenoPyroGiant_NPCDeath(entity);
-		
-		case XENO_COMBINE_DEUTSCH_RITTER:
-			XenoCombineDeutsch_NPCDeath(entity);
-		
-		case XENO_SPY_MAIN_BOSS:
-			XenoSpyMainBoss_NPCDeath(entity);
-		
-		case NAZI_PANZER:
-			NaziPanzer_NPCDeath(entity);
-		
-		case BOB_THE_GOD_OF_GODS:
-			BobTheGod_NPCDeath(entity);
-		
-		case NECRO_COMBINE:
-			NecroCombine_NPCDeath(entity);
-		
-		case NECRO_CALCIUM:
-			NecroCalcium_NPCDeath(entity);
-		
-		case CURED_FATHER_GRIGORI:
-			CuredFatherGrigori_NPCDeath(entity);
-		
-		case ALT_COMBINE_MAGE:
-			AltCombineMage_NPCDeath(entity);
-		
-		case BTD_BLOON:
-			Bloon_NPCDeath(entity);
-		
-		case BTD_MOAB:
-			Moab_NPCDeath(entity);
-		
-		case BTD_BFB:
-			Bfb_NPCDeath(entity);
-		
-		case BTD_ZOMG:
-			Zomg_NPCDeath(entity);
-		
-		case BTD_DDT:
-			DDT_NPCDeath(entity);
-		
-		case BTD_BAD:
-			Bad_NPCDeath(entity);
-		
-		case ALT_MEDIC_APPRENTICE_MAGE:
-			AltMedicApprenticeMage_NPCDeath(entity);
-		
-		case SAWRUNNER:
-			SawRunner_NPCDeath(entity);
-		
-		case RAIDMODE_TRUE_FUSION_WARRIOR:
-			TrueFusionWarrior_NPCDeath(entity);
-		
-		case ALT_MEDIC_CHARGER:
-			AltMedicCharger_NPCDeath(entity);
-		
-		case ALT_MEDIC_BERSERKER:
-			AltMedicBerseker_NPCDeath(entity);
-		
-		case MEDIVAL_MILITIA:
-			MedivalMilitia_NPCDeath(entity);
-		
-		case MEDIVAL_ARCHER:
-			MedivalArcher_NPCDeath(entity);
-		
-		case MEDIVAL_MAN_AT_ARMS:
-			MedivalManAtArms_NPCDeath(entity);
-		
-		case MEDIVAL_SKIRMISHER:
-			MedivalSkirmisher_NPCDeath(entity);
-		
-		case MEDIVAL_SWORDSMAN:
-			MedivalSwordsman_NPCDeath(entity);
-		
-		case MEDIVAL_TWOHANDED_SWORDSMAN:
-			MedivalTwoHandedSwordsman_NPCDeath(entity);
-		
-		case MEDIVAL_CROSSBOW_MAN:
-			MedivalCrossbowMan_NPCDeath(entity);
-		
-		case MEDIVAL_SPEARMEN:
-			MedivalSpearMan_NPCDeath(entity);
-		
-		case MEDIVAL_HANDCANNONEER:
-			MedivalHandCannoneer_NPCDeath(entity);
-		
-		case MEDIVAL_ELITE_SKIRMISHER:
-			MedivalEliteSkirmisher_NPCDeath(entity);
-		
-		case RAIDMODE_BLITZKRIEG:
-			Blitzkrieg_NPCDeath(entity);
-		
-		case MEDIVAL_PIKEMAN:
-			MedivalPikeman_NPCDeath(entity);
-		
-		case ALT_MEDIC_SUPPERIOR_MAGE:
-			NPC_ALT_MEDIC_SUPPERIOR_MAGE_NPCDeath(entity);
-		
-		case CITIZEN:
-			Citizen_NPCDeath(entity);
-		
-		case MEDIVAL_EAGLE_SCOUT:
-			MedivalEagleScout_NPCDeath(entity);
-		
-		case MEDIVAL_SAMURAI:
-			MedivalSamurai_NPCDeath(entity);
-		
-		case THEADDICTION:
-			Addicition_NPCDeath(entity);
-		
-		case THEDOCTOR:
-			Doctor_NPCDeath(entity);
-		
-		case BOOKSIMON:
-			Simon_NPCDeath(entity);
-		
-		case ALT_KAHMLSTEIN:
-			Kahmlstein_NPCDeath(entity);
-		
-		case L4D2_TANK:
-			L4D2_Tank_NPCDeath(entity);
-		
-		case ALT_SNIPER_RAILGUNNER:
-			Sniper_railgunner_NPCDeath(entity);
-		
-		case BTD_GOLDBLOON:
-			GoldBloon_NPCDeath(entity);
-		
-		case BTD_BLOONARIUS:
-			Bloonarius_NPCDeath(entity);
-		
-		case MEDIVAL_RAM:
-			MedivalRam_NPCDeath(entity);
-		
-		case ALT_SOLDIER_BARRAGER:
-			Soldier_Barrager_NPCDeath(entity);
-		
-		case ALT_The_Shit_Slapper:
-			The_Shit_Slapper_NPCDeath(entity);
-		
-		case BONEZONE_BASICBONES:
-			BasicBones_NPCDeath(entity);
-		
-		case ALT_MECHA_ENGINEER:
-			Mecha_Engineer_NPCDeath(entity);
-		
-		case ALT_MECHA_HEAVY:
-			Mecha_Heavy_NPCDeath(entity);
-		
-		case ALT_MECHA_HEAVYGIANT:
-			Mecha_HeavyGiant_NPCDeath(entity);
-		
-		case ALT_MECHA_PYROGIANT:
-			Mecha_PyroGiant_NPCDeath(entity);
-		
-		case ALT_MECHA_SCOUT:
-			Mecha_Scout_NPCDeath(entity);
-		
-		case ALT_DONNERKRIEG:
-			Donnerkrieg_NPCDeath(entity);
-		
-		case ALT_SCHWERTKRIEG:
-			Schwertkrieg_NPCDeath(entity);
-		
-		case PHANTOM_KNIGHT:
-			PhantomKnight_NPCDeath(entity);
-		
-		case ALT_MEDIC_HEALER_3:
-			Alt_Medic_Constructor_NPCDeath(entity);
-		
-		case THE_GAMBLER:
-			TheGambler_NPCDeath(entity);
-		
-		case PABLO_GONZALES:
-			Pablo_Gonzales_NPCDeath(entity);
-		
-		case DOKTOR_MEDICK:
-			Doktor_Medick_NPCDeath(entity);
-		
-		case KAPTAIN_HEAVY:
-			Eternal_Kaptain_Heavy_NPCDeath(entity);
-		
-		case BOOTY_EXECUTIONIER:
-			BootyExecutioner_NPCDeath(entity);
-		
-		case SANDVICH_SLAYER:
-			SandvichSlayer_NPCDeath(entity);
-		
-		case PAYDAYCLOAKER:
-			Payday_Cloaker_NPCDeath(entity);
-		
-		case BUNKER_KAHML_VTWO:
-			BunkerKahml_NPCDeath(entity);
-		
-		case TRUE_ZEROFUSE:
-			TrueZerofuse_NPCDeath(entity);
-		
-		case BUNKER_BOT_SOLDIER:
-			BunkerBotSoldier_NPCDeath(entity);
-		
-		case BUNKER_BOT_SNIPER:
-			BunkerBotSniper_NPCDeath(entity);
-		
-		case BUNKER_SKELETON:
-			BunkerSkeleton_NPCDeath(entity);
-		
-		case BUNKER_SMALL_SKELETON:
-			BunkerSkeletonSmall_NPCDeath(entity);
-		
-		case BUNKER_KING_SKELETON:
-			BunkerSkeletonKing_NPCDeath(entity);
-		
-		case BUNKER_HEADLESSHORSE:
-			BunkerHeadlessHorse_NPCDeath(entity);
-		
-		case MEDIVAL_SCOUT:
-			MedivalScout_NPCDeath(entity);
-		
-		case MEDIVAL_VILLAGER:
-			MedivalVillager_NPCDeath(entity);
-		
-		case MEDIVAL_BUILDING:
-			MedivalBuilding_NPCDeath(entity);
-		
-		case MEDIVAL_CONSTRUCT:
-			MedivalConstruct_NPCDeath(entity);
-		
-		case MEDIVAL_CHAMPION:
-			MedivalChampion_NPCDeath(entity);
-		
-		case MEDIVAL_LIGHT_CAV:
-			MedivalLightCav_NPCDeath(entity);
-		
-		case MEDIVAL_HUSSAR:
-			MedivalHussar_NPCDeath(entity);
-		
-		case MEDIVAL_KNIGHT:
-			MedivalKnight_NPCDeath(entity);
-		
-		case MEDIVAL_OBUCH:
-			MedivalObuch_NPCDeath(entity);
-		
-		case MEDIVAL_MONK:
-			MedivalMonk_NPCDeath(entity);
-		
-		case BARRACK_MILITIA:
-			BarrackMilitia_NPCDeath(entity);
-		
-		case BARRACK_ARCHER:
-			BarrackArcher_NPCDeath(entity);
-		
-		case BARRACK_MAN_AT_ARMS:
-			BarrackManAtArms_NPCDeath(entity);
-		
-		case MEDIVAL_HALB:
-			MedivalHalb_NPCDeath(entity);
-		
-		case MEDIVAL_BRAWLER:
-			MedivalBrawler_NPCDeath(entity);
-		
-		case MEDIVAL_LONGBOWMEN:
-			MedivalLongbowmen_NPCDeath(entity);
-		
-		case MEDIVAL_ARBALEST:
-			MedivalArbalest_NPCDeath(entity);
-		
-		case MEDIVAL_ELITE_LONGBOWMEN:
-			MedivalEliteLongbowmen_NPCDeath(entity);
-		
-		case BARRACK_CROSSBOW:
-			BarrackCrossbow_NPCDeath(entity);
-		
-		case BARRACK_SWORDSMAN:
-			BarrackSwordsman_NPCDeath(entity);
-		
-		case BARRACK_ARBELAST:
-			BarrackArbelast_NPCDeath(entity);
-		
-		case BARRACK_TWOHANDED:
-			BarrackTwoHanded_NPCDeath(entity);
-		
-		case BARRACK_LONGBOW:
-			BarrackLongbow_NPCDeath(entity);
-		
-		case BARRACK_CHAMPION:
-			BarrackChampion_NPCDeath(entity);
-		
-		case BARRACK_MONK:
-			BarrackMonk_NPCDeath(entity);
-		
-		case BARRACK_HUSSAR:
-			BarrackHussar_NPCDeath(entity);
-		
-		case MEDIVAL_CAVALARY:
-			MedivalCavalary_NPCDeath(entity);
-		
-		case MEDIVAL_PALADIN:
-			MedivalPaladin_NPCDeath(entity);
-		
-		case MEDIVAL_CROSSBOW_GIANT:
-			MedivalCrossbowGiant_NPCDeath(entity);
-		
-		case MEDIVAL_SWORDSMAN_GIANT:
-			MedivalSwordsmanGiant_NPCDeath(entity);
-		
-		case MEDIVAL_EAGLE_WARRIOR:
-			MedivalEagleWarrior_NPCDeath(entity);
-		
-		case MEDIVAL_RIDDENARCHER:
-			MedivalRiddenArcher_NPCDeath(entity);
-		
-		case MEDIVAL_EAGLE_GIANT:
-			MedivalEagleGiant_NPCDeath(entity);
-		
-		case MEDIVAL_SON_OF_OSIRIS:
-			MedivalSonOfOsiris_NPCDeath(entity);
-		
-		case MEDIVAL_ACHILLES:
-			MedivalAchilles_NPCDeath(entity);
-		
-		case MEDIVAL_TREBUCHET:
-			MedivalTrebuchet_NPCDeath(entity);
-		
-		case ALT_IKUNAGAE:
-			Ikunagae_NPCDeath(entity);
-		
-		case ALT_MECHASOLDIER_BARRAGER:
-			MechaSoldier_Barrager_NPCDeath(entity);
-		
-		case NEARL_SWORD:
-			NearlSwordAbility_NPCDeath(entity);
-		
-		case STALKER_COMBINE:
-			StalkerCombine_NPCDeath(entity);
-		
-		case STALKER_FATHER:
-			StalkerFather_NPCDeath(entity);
-		
-		case STALKER_GOGGLES:
-			StalkerGoggles_NPCDeath(entity);
-		
-		case XENO_RAIDBOSS_SILVESTER:
-			RaidbossSilvester_NPCDeath(entity);
-		
-		case XENO_RAIDBOSS_BLUE_GOGGLES:
-			RaidbossBlueGoggles_NPCDeath(entity);
-		
-		case XENO_RAIDBOSS_SUPERSILVESTER:
-			RaidbossSilvester_NPCDeath(entity);
-		
-		case XENO_RAIDBOSS_NEMESIS:
-			RaidbossNemesis_NPCDeath(entity);
-		
-		case SEARUNNER, SEARUNNER_ALT:
-			SeaRunner_NPCDeath(entity);
-		
-		case SEASLIDER, SEASLIDER_ALT:
-			SeaSlider_NPCDeath(entity);
-		
-		case SEASPITTER, SEASPITTER_ALT:
-			SeaSpitter_NPCDeath(entity);
-		
-		case SEAREAPER, SEAREAPER_ALT:
-			SeaReaper_NPCDeath(entity);
-		
-		case SEACRAWLER, SEACRAWLER_ALT:
-			SeaCrawler_NPCDeath(entity);
-		
-		case SEAPIERCER, SEAPIERCER_ALT:
-			SeaPiercer_NPCDeath(entity);
-		
-		case FIRSTTOTALK:
-			FirstToTalk_NPCDeath(entity);
-		
-		case UNDERTIDES:
-			UnderTides_NPCDeath(entity);
-		
-		case SEABORN_KAZIMIERZ_KNIGHT:
-			KazimierzKnight_NPCDeath(entity);
-		
-		case SEABORN_KAZIMIERZ_KNIGHT_ARCHER:
-			KazimierzKnightArcher_NPCDeath(entity);
-		
-		case SEABORN_KAZIMIERZ_BESERKER:
-			KazimierzBeserker_NPCDeath(entity);
-		
-		case SEABORN_KAZIMIERZ_LONGARCHER:
-			KazimierzLongArcher_NPCDeath(entity);
-		
-		case REMAINS:
-			Remains_NPCDeath(entity);
-		
-		case ENDSPEAKER_1:
-			EndSpeaker1_NPCDeath(entity);
-		
-		case ENDSPEAKER_2:
-			EndSpeaker2_NPCDeath(entity);
-		
-		case ENDSPEAKER_3:
-			EndSpeaker3_NPCDeath(entity);
-		
-		case ENDSPEAKER_4:
-			EndSpeaker4_NPCDeath(entity);
-		
-		case SEAFOUNDER, SEAFOUNDER_ALT, SEAFOUNDER_CARRIER:
-			SeaFounder_NPCDeath(entity);
-		
-		case SEAPREDATOR, SEAPREDATOR_ALT, SEAPREDATOR_CARRIER:
-			SeaPredator_NPCDeath(entity);
-		
-		case SEABRANDGUIDER, SEABRANDGUIDER_ALT, SEABRANDGUIDER_CARRIER:
-			SeaBrandguider_NPCDeath(entity);
-		
-		case SEABORN_KAZIMIERZ_ASSASIN_MELEE:
-			KazimierzKnightAssasin_NPCDeath(entity);
-		
-		case SEASPEWER, SEASPEWER_ALT, SEASPEWER_CARRIER:
-			SeaSpewer_NPCDeath(entity);
-		
-		case SEASWARMCALLER, SEASWARMCALLER_ALT, SEASWARMCALLER_CARRIER:
-			SeaSwarmcaller_NPCDeath(entity);
-		
-		case SEAREEFBREAKER, SEAREEFBREAKER_ALT, SEAREEFBREAKER_CARRIER:
-			SeaReefbreaker_NPCDeath(entity);
-		
-		case BARRACK_THORNS:
-			BarrackThorns_NPCDeath(entity);
-
-		case RAIDMODE_GOD_ARKANTOS:
-			GodArkantos_NPCDeath(entity);
-
-		case SEABORN_SCOUT:
-			SeabornScout_NPCDeath(entity);
-
-		case SEABORN_SOLDIER:
-			SeabornSoldier_NPCDeath(entity);
-
-		case CITIZEN_RUNNER:
-			CitizenRunner_NPCDeath(entity);
-
-		case SEABORN_PYRO:
-			SeabornPyro_NPCDeath(entity);
-
-		case SEABORN_DEMO:
-			SeabornDemo_NPCDeath(entity);
-
-		case SEABORN_HEAVY:
-			SeabornHeavy_NPCDeath(entity);
-
-		case SEABORN_ENGINEER:
-			SeabornEngineer_NPCDeath(entity);
-
-		case SEABORN_MEDIC:
-			SeabornMedic_NPCDeath(entity);
-
-		case SEABORN_SNIPER:
-			SeabornSniper_NPCDeath(entity);
-
-		case SEABORN_SPY:
-			SeabornSpy_NPCDeath(entity);
-			
-		case ALT_BARRACKS_SCHWERTKRIEG:
-			Barrack_Alt_Shwertkrieg_NPCDeath(entity);
-			
-		case ALT_BARRACK_IKUNAGAE:
-			Barrack_Alt_Ikunagae_NPCDeath(entity);
-			
-		case ALT_BARRACK_RAILGUNNER:
-			Barrack_Alt_Raigunner_NPCDeath(entity);
-			
-		case ALT_BARRACK_BASIC_MAGE:
-			Barrack_Alt_Basic_Mage_NPCDeath(entity);
-			
-		case ALT_BARRACK_INTERMEDIATE_MAGE:
-			Barrack_Alt_Intermediate_Mage_NPCDeath(entity);
-			
-		case ALT_BARRACK_DONNERKRIEG:
-			Barrack_Alt_Donnerkrieg_NPCDeath(entity);
-			
-		case ALT_BARRACKS_HOLY_KNIGHT:
-			Barrack_Alt_Holy_Knight_NPCDeath(entity);
-		
-		case ALT_BARRACK_MECHA_BARRAGER:
-			Barrack_Alt_Mecha_Barrager_NPCDeath(entity);
-		
-		case ALT_BARRACK_BARRAGER:
-			Barrack_Alt_Barrager_NPCDeath(entity);
-		
-		case ALT_BARRACKS_BERSERKER:
-			Barrack_Alt_Berserker_NPCDeath(entity);
-			
-		case ALT_BARRACKS_CROSSBOW_MEDIC:
-			Barrack_Alt_Crossbowmedic_NPCDeath(entity);
-		
-		case LASTKNIGHT:
-			LastKnight_NPCDeath(entity);
-		
-		case BARRACK_LASTKNIGHT:
-			BarrackLastKnight_NPCDeath(entity);
-		
-		case SAINTCARMEN:
-			SaintCarmen_NPCDeath(entity);
-		
-		case PATHSHAPER:
-			Pathshaper_NPCDeath(entity);
-		
-		case PATHSHAPER_FRACTAL:
-			PathshaperFractal_NPCDeath(entity);
-			
-		case BARRACKS_TEUTONIC_KNIGHT:
-			BarrackTeuton_NPCDeath(entity);
-
-		case BARRACKS_VILLAGER:
-			BarrackVillager_NPCDeath(entity);
-
-		case BARRACKS_BUILDING:
-			BarrackBuilding_NPCDeath(entity);
-		
-		case TIDELINKED_BISHOP:
-			TidelinkedBishop_NPCDeath(entity);
-		
-		case TIDELINKED_ARCHON:
-			TidelinkedArchon_NPCDeath(entity);
-			
-		case ALT_BARRACK_SCIENTIFIC_WITCHERY:
-			Barrack_Alt_Scientific_Witchery_NPCDeath(entity);
-		
-		case SEABORN_GUARD:
-			SeabornGuard_NPCDeath(entity);
-		
-		case SEABORN_DEFENDER:
-			SeabornDefender_NPCDeath(entity);
-		
-		case SEABORN_VANGUARD:
-			SeabornVanguard_NPCDeath(entity);
-		
-		case SEABORN_CASTER:
-			SeabornCaster_NPCDeath(entity);
-		
-		case SEABORN_SPECIALIST:
-			SeabornSpecialist_NPCDeath(entity);
-		
-		case SEABORN_SUPPORTER:
-			SeabornSupporter_NPCDeath(entity);
-		
-		case ISHARMLA:
-			Isharmla_NPCDeath(entity);
-		
-		case ISHARMLA_TRANS:
-			IsharmlaTrans_NPCDeath(entity);
-			
-		case RUINA_THEOCRACY, RUINA_ADIANTUM, RUINA_LANIUS, RUINA_MAGIA:
-			Ruina_NPCDeath_Override(entity); //all ruina npc deaths are here
-		
-		case SEA_RAIDBOSS_DONNERKRIEG:
-			Raidboss_Donnerkrieg_NPCDeath(entity);
-			
-		case SEA_RAIDBOSS_SCHWERTKRIEG:
-			Raidboss_Schwertkrieg_NPCDeath(entity);
-		
-		case SEA_ALLY_SILVESTER:
-			SeaAllySilvester_NPCDeath(entity);
-		
-		case SEA_ALLY_GOGGLES:
-			SeaAllyGoggles_NPCDeath(entity);
-
-		case EXPIDONSA_BENERA:
-			Benera_NPCDeath(entity); 
-
-		case EXPIDONSA_PENTAL:
-			Pental_NPCDeath(entity);
-
-		case EXPIDONSA_DEFANDA:
-			Defanda_NPCDeath(entity);
-
-		case EXPIDONSA_SELFAM_IRE:
-			SelfamIre_NPCDeath(entity);
-
-		case EXPIDONSA_VAUSMAGICA:
-			VausMagica_NPCDeath(entity);
-
-		case EXPIDONSA_PISTOLEER:
-			Pistoleer_NPCDeath(entity);
-
-		case EXPIDONSA_DIVERSIONISTICO:
-			Diversionistico_NPCDeath(entity);
-
-		case EXPIDONSA_HEAVYPUNUEL:
-			HeavyPunuel_NPCDeath(entity);
-
-		case EXPIDONSA_SEARGENTIDEAL:
-			SeargentIdeal_NPCDeath(entity);
-		
-		case VIP_BUILDING:
-			VIPBuilding_NPCDeath(entity);
-
-		case EXPIDONSA_RIFALMANU:
-			RifalManu_NPCDeath(entity);
-
-		case EXPIDONSA_SICCERINO:
-			Siccerino_NPCDeath(entity);
-
-		case EXPIDONSA_SOLDINE_PROTOTYPE:
-			SoldinePrototype_NPCDeath(entity);
-
-		case EXPIDONSA_SOLDINE:
-			Soldine_NPCDeath(entity);
-
-		case EXPIDONSA_PROTECTA:
-			Protecta_NPCDeath(entity);
-
-		case EXPIDONSA_SNIPONEER:
-			Sniponeer_NPCDeath(entity);
-
-		case EXPIDONSA_EGABUNAR:
-			EgaBunar_NPCDeath(entity);
-
-		case EXPIDONSA_ENEGAKAPUS:
-			EnegaKapus_NPCDeath(entity);
-
-		case EXPIDONSA_CAPTINOAGENTUS:
-			CaptinoAgentus_NPCDeath(entity);
-
-		case RAIDMODE_EXPIDONSA_SENSAL:
-			Sensal_NPCDeath(entity);
-
-		case EXPIDONSA_DUALREA:
-			DualRea_NPCDeath(entity);
-
-		case EXPIDONSA_GUARDUS:
-			Guardus_NPCDeath(entity);
-
-		case EXPIDONSA_VAUSTECHICUS:
-			VausTechicus_NPCDeath(entity);
-
-		case EXPIDONSA_MINIGUNASSISA:
-			MinigunAssisa_NPCDeath(entity);
-
-		case EXPIDONSA_IGNITUS:
-			Ignitus_NPCDeath(entity);
-
-		case EXPIDONSA_HELENA:
-			Helena_NPCDeath(entity);
-
-		case EXPIDONSA_ERASUS:
-			Erasus_NPCDeath(entity);
-
-		case EXPIDONSA_GIANTTANKUS:
-			GiantTankus_NPCDeath(entity);
-
-		case EXPIDONSA_ANFUHREREISENHARD:
-			AnfuhrerEisenhard_NPCDeath(entity);
-
-		case EXPIDONSA_SPEEDUSADIVUS:
-			SpeedusAdivus_NPCDeath(entity);
-
-		case WEAPON_SENSAL_AFTERIMAGE:
-			AlliedSensalAbility_NPCDeath(entity);
-
-		default:
-			PrintToChatAll("This Npc Did NOT Get a Valid Internal ID! ID that was given but was invalid:[%i]", i_NpcInternalId[entity]);
-		
+		int baseboss_index = EntRefToEntIndexFast(i_ObjectsNpcsTotal[targ]);
+		if (IsValidEntity(baseboss_index) && !b_NpcHasDied[baseboss_index])
+		{
+			func_NPCFuncWin[baseboss_index] = INVALID_FUNCTION;
+		}
 	}
-	
+}
+
+void ZR_NpcTauntWin()
+{
+	for(int targ; targ<i_MaxcountNpcTotal; targ++)
+	{
+		int baseboss_index = EntRefToEntIndexFast(i_ObjectsNpcsTotal[targ]);
+		if (IsValidEntity(baseboss_index) && !b_NpcHasDied[baseboss_index])
+		{
+			Function func = func_NPCFuncWin[baseboss_index];
+			if(func && func != INVALID_FUNCTION)
+			{
+				Call_StartFunction(null, func);
+				Call_PushCell(baseboss_index);
+				Call_Finish();
+			}
+			func_NPCFuncWin[baseboss_index] = INVALID_FUNCTION;
+		}
+	}
+}
+
+void NPCDeath(int entity)
+{
+	Freeplay_OnNPCDeath(entity);
+	Cheese_OnNPCDeath(entity);
 	if(view_as<CClotBody>(entity).m_fCreditsOnKill)
 	{
 		int GiveMoney = 0;
@@ -3601,21 +1316,6 @@ public void NPCDeath(int entity)
 		if (CreditsOnKill <= 1.0)
 		{
 			f_FactionCreditGain += CreditsOnKill;
-
-			for(int client=1; client<=MaxClients; client++)
-			{
-				if(!b_IsPlayerABot[client] && IsClientInGame(client))
-				{
-					if(GetClientTeam(client) != 2)
-					{
-						f_FactionCreditGainReduction[client] = f_FactionCreditGain * 0.2;
-					}
-					else if (TeutonType[client] == TEUTON_WAITING)
-					{
-						f_FactionCreditGainReduction[client] = f_FactionCreditGain * 0.1;
-					}
-				}
-			}		
 
 			if(f_FactionCreditGain >= 1.0)
 			{
@@ -3628,21 +1328,6 @@ public void NPCDeath(int entity)
 			GiveMoney = RoundToFloor(CreditsOnKill);
 			float Decimal_MoneyGain = FloatFraction(CreditsOnKill);	
 			f_FactionCreditGain += Decimal_MoneyGain;
-			
-			for(int client=1; client<=MaxClients; client++)
-			{
-				if(!b_IsPlayerABot[client] && IsClientInGame(client))
-				{
-					if(GetClientTeam(client) != 2)
-					{
-						f_FactionCreditGainReduction[client] = (f_FactionCreditGain * float(GiveMoney) * 0.2);
-					}
-					else if (TeutonType[client] == TEUTON_WAITING)
-					{
-						f_FactionCreditGainReduction[client] = (f_FactionCreditGain * float(GiveMoney) * 0.1);
-					}
-				}
-			}
 
 			if(f_FactionCreditGain >= 1.0)
 			{
@@ -3662,1113 +1347,1065 @@ public void NPCDeath(int entity)
 				}
 			}
 		}
+		Native_OnGivenCash(0, GiveMoney);
 		CurrentCash += GiveMoney;
+		Waves_AddCashGivenThisWaveViaKills(CurrentCash);
+	}
+	for(int targ; targ<i_MaxcountNpcTotal; targ++)
+	{
+		int DeathNoticer = EntRefToEntIndexFast(i_ObjectsNpcsTotal[targ]);
+		if (IsValidEntity(DeathNoticer) && !b_NpcHasDied[DeathNoticer])
+		{
+			Function func = func_NPCDeathForward[DeathNoticer];
+			if(func && func != INVALID_FUNCTION)
+			{
+				Call_StartFunction(null, func);
+				Call_PushCell(DeathNoticer);
+				Call_PushCell(entity);
+				Call_Finish();
+			}
+		}
+	}
+	StatusEffectReset(entity, false);
+	Function func = func_NPCDeath[entity];
+	if(func && func != INVALID_FUNCTION)
+	{
+		Call_StartFunction(null, func);
+		Call_PushCell(entity);
+		Call_Finish();
+		return;
 	}
 }
 
 Action NpcSpecificOnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3], int damagecustom)
 {
-	switch(i_NpcInternalId[victim])
+	Function func = func_NPCOnTakeDamage[victim];
+	if(func && func != INVALID_FUNCTION)
 	{
-		case HEADCRAB_ZOMBIE, FORTIFIED_HEADCRAB_ZOMBIE, FASTZOMBIE, FORTIFIED_FASTZOMBIE:
-			Generic_OnTakeDamage(victim, attacker);
-		
-		case TORSOLESS_HEADCRAB_ZOMBIE:
-			TorsolessHeadcrabZombie_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case FORTIFIED_GIANT_POISON_ZOMBIE:
-			FortifiedGiantPoisonZombie_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case POISON_ZOMBIE:
-			PoisonZombie_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case FORTIFIED_POISON_ZOMBIE:
-			FortifiedPoisonZombie_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case FATHER_GRIGORI:
-			FatherGrigori_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case COMBINE_POLICE_PISTOL:
-			CombinePolicePistol_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case COMBINE_POLICE_SMG:
-			CombinePoliceSmg_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case COMBINE_SOLDIER_AR2:
-			CombineSoldierAr2_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case COMBINE_SOLDIER_SHOTGUN:
-			CombineSoldierShotgun_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case COMBINE_SOLDIER_SWORDSMAN:
-			CombineSwordsman_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case COMBINE_SOLDIER_ELITE:
-			CombineElite_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case COMBINE_SOLDIER_GIANT_SWORDSMAN:
-			CombineGaint_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case COMBINE_SOLDIER_DDT:
-			CombineDDT_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case COMBINE_SOLDIER_COLLOSS:
-			CombineCollos_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case COMBINE_OVERLORD:
-			CombineOverlord_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case SCOUT_ZOMBIE:
-			Scout_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case ENGINEER_ZOMBIE:
-			Engineer_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case HEAVY_ZOMBIE:
-			Heavy_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case FLYINGARMOR_ZOMBIE:
-			FlyingArmor_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case FLYINGARMOR_TINY_ZOMBIE:
-			FlyingArmorTiny_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case KAMIKAZE_DEMO:
-			Kamikaze_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case MEDIC_HEALER:
-			MedicHealer_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case HEAVY_ZOMBIE_GIANT:
-			HeavyGiant_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case SPY_FACESTABBER:
-			Spy_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case SOLDIER_ROCKET_ZOMBIE:
-			Soldier_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case SOLDIER_ZOMBIE_MINION:
-			SoldierMinion_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case SOLDIER_ZOMBIE_BOSS:
-			SoldierGiant_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case SPY_THIEF:
-			SpyThief_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case SPY_TRICKSTABBER:
-			SpyTrickstabber_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case SPY_HALF_CLOACKED:
-			SpyCloaked_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case SNIPER_MAIN:
-			SniperMain_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case DEMO_MAIN:
-			DemoMain_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case BATTLE_MEDIC_MAIN:
-			MedicMain_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case GIANT_PYRO_MAIN:
-			PyroGiant_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case COMBINE_DEUTSCH_RITTER:
-			CombineDeutsch_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case ALT_COMBINE_DEUTSCH_RITTER:
-			Alt_CombineDeutsch_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case SPY_MAIN_BOSS:
-			SpyMainBoss_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_HEADCRAB_ZOMBIE:
-			XenoHeadcrabZombie_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_FORTIFIED_HEADCRAB_ZOMBIE:
-			XenoFortifiedHeadcrabZombie_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_FASTZOMBIE:
-			XenoFastZombie_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_FORTIFIED_FASTZOMBIE:
-			XenoFortifiedFastZombie_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_TORSOLESS_HEADCRAB_ZOMBIE:
-			XenoTorsolessHeadcrabZombie_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_FORTIFIED_GIANT_POISON_ZOMBIE:
-			XenoFortifiedGiantPoisonZombie_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_POISON_ZOMBIE:
-			XenoPoisonZombie_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_FORTIFIED_POISON_ZOMBIE:
-			XenoFortifiedPoisonZombie_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_FATHER_GRIGORI:
-			XenoFatherGrigori_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_COMBINE_POLICE_PISTOL:
-			XenoCombinePolicePistol_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_COMBINE_POLICE_SMG:
-			XenoCombinePoliceSmg_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_COMBINE_SOLDIER_AR2:
-			XenoCombineSoldierAr2_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_COMBINE_SOLDIER_SHOTGUN:
-			XenoCombineSoldierShotgun_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_COMBINE_SOLDIER_SWORDSMAN:
-			XenoCombineSwordsman_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_COMBINE_SOLDIER_ELITE:
-			XenoCombineElite_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_COMBINE_SOLDIER_GIANT_SWORDSMAN:
-			XenoCombineGaint_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_COMBINE_SOLDIER_DDT:
-			XenoCombineDDT_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_COMBINE_SOLDIER_COLLOSS:
-			XenoCombineCollos_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_COMBINE_OVERLORD:
-			XenoCombineOverlord_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_SCOUT_ZOMBIE:
-			XenoScout_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_ENGINEER_ZOMBIE:
-			XenoEngineer_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_HEAVY_ZOMBIE:
-			XenoHeavy_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_FLYINGARMOR_ZOMBIE:
-			XenoFlyingArmor_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_FLYINGARMOR_TINY_ZOMBIE:
-			XenoFlyingArmorTiny_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_KAMIKAZE_DEMO:
-			XenoKamikaze_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_MEDIC_HEALER:
-			XenoMedicHealer_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_HEAVY_ZOMBIE_GIANT:
-			XenoHeavyGiant_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_SPY_FACESTABBER:
-			XenoSpy_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_SOLDIER_ROCKET_ZOMBIE:
-			XenoSoldier_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_SOLDIER_ZOMBIE_MINION:
-			XenoSoldierMinion_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_SOLDIER_ZOMBIE_BOSS:
-			XenoSoldierGiant_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_SPY_THIEF:
-			XenoSpyThief_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_SPY_TRICKSTABBER:
-			XenoSpyTrickstabber_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_SPY_HALF_CLOACKED:
-			XenoSpyCloaked_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_SNIPER_MAIN:
-			XenoSniperMain_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_DEMO_MAIN:
-			XenoDemoMain_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_BATTLE_MEDIC_MAIN:
-			XenoMedicMain_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_GIANT_PYRO_MAIN:
-			XenoPyroGiant_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_COMBINE_DEUTSCH_RITTER:
-			XenoCombineDeutsch_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_SPY_MAIN_BOSS:
-			XenoSpyMainBoss_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case NAZI_PANZER:
-			NaziPanzer_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case BOB_THE_GOD_OF_GODS:
-			BobTheGod_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case NECRO_COMBINE:
-			NecroCombine_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case NECRO_CALCIUM:
-			NecroCalcium_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case CURED_FATHER_GRIGORI:
-			CuredFatherGrigori_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case ALT_COMBINE_MAGE:
-			AltCombineMage_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case BTD_BLOON:
-			Bloon_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case BTD_MOAB:
-			Moab_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case BTD_BFB:
-			Bfb_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case BTD_ZOMG:
-			Zomg_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case BTD_DDT:
-			DDT_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case BTD_BAD:
-			Bad_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case ALT_MEDIC_APPRENTICE_MAGE:
-			AltMedicApprenticeMage_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case SAWRUNNER:
-			SawRunner_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case RAIDMODE_TRUE_FUSION_WARRIOR:
-			TrueFusionWarrior_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case ALT_MEDIC_CHARGER:
-			AltMedicCharger_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case ALT_MEDIC_BERSERKER:
-			AltMedicBerseker_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case MEDIVAL_MILITIA:
-			MedivalMilitia_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case MEDIVAL_ARCHER:
-			MedivalArcher_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case MEDIVAL_MAN_AT_ARMS:
-			MedivalManAtArms_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case MEDIVAL_SKIRMISHER:
-			MedivalSkirmisher_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case MEDIVAL_SWORDSMAN:
-			MedivalSwordsman_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case MEDIVAL_TWOHANDED_SWORDSMAN:
-			MedivalTwoHandedSwordsman_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case MEDIVAL_CROSSBOW_MAN:
-			MedivalCrossbowMan_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case MEDIVAL_SPEARMEN:
-			MedivalSpearMan_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case MEDIVAL_HANDCANNONEER:
-			MedivalHandCannoneer_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case MEDIVAL_ELITE_SKIRMISHER:
-			MedivalEliteSkirmisher_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case RAIDMODE_BLITZKRIEG:
-			Blitzkrieg_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case MEDIVAL_PIKEMAN:
-			MedivalPikeman_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case ALT_MEDIC_SUPPERIOR_MAGE:
-			NPC_ALT_MEDIC_SUPPERIOR_MAGE_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case CITIZEN:
-			Citizen_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case MEDIVAL_EAGLE_SCOUT:
-			MedivalEagleScout_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case MEDIVAL_SAMURAI:
-			MedivalSamurai_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case THEADDICTION:
-			Addicition_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-	//	case THEDOCTOR:
-	//		Doctor_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-	//	case BOOKSIMON:
-	//		Simon_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case ALT_KAHMLSTEIN:
-			Kahmlstein_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case L4D2_TANK:
-			L4D2_Tank_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case ALT_SNIPER_RAILGUNNER:
-			Sniper_railgunner_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case BTD_GOLDBLOON:
-			GoldBloon_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-	//	case BTD_BLOONARIUS:
-	//		Bloonarius_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-	//	case MEDIVAL_RAM:
-	//		MedivalRam_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case ALT_SOLDIER_BARRAGER:
-			Soldier_Barrager_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case ALT_The_Shit_Slapper:
-			The_Shit_Slapper_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case BONEZONE_BASICBONES:
-			BasicBones_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case ALT_MECHA_ENGINEER:
-			Mecha_Engineer_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case ALT_MECHA_HEAVY:
-			Mecha_Heavy_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case ALT_MECHA_HEAVYGIANT:
-			Mecha_HeavyGiant_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case ALT_MECHA_PYROGIANT:
-			Mecha_PyroGiant_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case ALT_MECHA_SCOUT:
-			Mecha_Scout_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case ALT_DONNERKRIEG:
-			Donnerkrieg_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case ALT_SCHWERTKRIEG:
-			Schwertkrieg_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case PHANTOM_KNIGHT:
-			PhantomKnight_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case ALT_MEDIC_HEALER_3:
-			Alt_Medic_Constructor_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case THE_GAMBLER:
-			TheGambler_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case PABLO_GONZALES:
-			Pablo_Gonzales_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case DOKTOR_MEDICK:
-			Doktor_Medick_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case KAPTAIN_HEAVY:
-			Eternal_Kaptain_Heavy_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case BOOTY_EXECUTIONIER:
-			BootyExecutioner_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case SANDVICH_SLAYER:
-			SandvichSlayer_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case PAYDAYCLOAKER:
-			Payday_Cloaker_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case BUNKER_KAHML_VTWO:
-			BunkerKahml_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case TRUE_ZEROFUSE:
-			TrueZerofuse_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case BUNKER_BOT_SOLDIER:
-			BunkerBotSoldier_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case BUNKER_BOT_SNIPER:
-			BunkerBotSniper_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case BUNKER_SKELETON:
-			BunkerSkeleton_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case BUNKER_SMALL_SKELETON:
-			BunkerSkeletonSmall_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case BUNKER_KING_SKELETON:
-			BunkerSkeletonKing_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case BUNKER_HEADLESSHORSE:
-			BunkerHeadlessHorse_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case MEDIVAL_SCOUT:
-			MedivalScout_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case MEDIVAL_VILLAGER:
-			MedivalVillager_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case MEDIVAL_BUILDING:
-			MedivalBuilding_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case MEDIVAL_CONSTRUCT:
-			MedivalConstruct_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case MEDIVAL_CHAMPION:
-			MedivalChampion_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case MEDIVAL_LIGHT_CAV:
-			MedivalLightCav_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case MEDIVAL_HUSSAR:
-			MedivalHussar_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case MEDIVAL_KNIGHT:
-			MedivalKnight_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case MEDIVAL_OBUCH:
-			MedivalObuch_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case MEDIVAL_MONK:
-			MedivalMonk_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case BARRACK_MILITIA, BARRACK_ARCHER, BARRACK_MAN_AT_ARMS, BARRACK_CROSSBOW, BARRACK_SWORDSMAN, BARRACK_ARBELAST,
-		BARRACK_TWOHANDED, BARRACK_LONGBOW, BARRACK_CHAMPION, BARRACK_MONK, BARRACK_HUSSAR, BARRACK_LASTKNIGHT, BARRACKS_TEUTONIC_KNIGHT,
-		BARRACKS_VILLAGER,BARRACKS_BUILDING:
-			BarrackBody_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case MEDIVAL_HALB:
-			MedivalHalb_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case MEDIVAL_BRAWLER:
-			MedivalBrawler_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case MEDIVAL_LONGBOWMEN:
-			MedivalLongbowmen_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case MEDIVAL_ARBALEST:
-			MedivalArbalest_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case MEDIVAL_ELITE_LONGBOWMEN:
-			MedivalEliteLongbowmen_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case MEDIVAL_CAVALARY:
-			MedivalCavalary_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case MEDIVAL_PALADIN:
-			MedivalPaladin_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case MEDIVAL_CROSSBOW_GIANT:
-			MedivalCrossbowGiant_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case MEDIVAL_SWORDSMAN_GIANT:
-			MedivalSwordsmanGiant_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case MEDIVAL_EAGLE_WARRIOR:
-			MedivalEagleWarrior_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case MEDIVAL_RIDDENARCHER:
-			MedivalRiddenArcher_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case MEDIVAL_EAGLE_GIANT:
-			MedivalEagleGiant_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case MEDIVAL_SON_OF_OSIRIS:
-			MedivalSonOfOsiris_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case MEDIVAL_ACHILLES:
-			MedivalAchilles_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-	//	case MEDIVAL_TREBUCHET:
-	//		MedivalTrebuchet_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case ALT_IKUNAGAE:
-			Ikunagae_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case ALT_MECHASOLDIER_BARRAGER:
-			MechaSoldier_Barrager_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case NEARL_SWORD:
-			NearlSwordAbility_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case STALKER_COMBINE:
-			StalkerCombine_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case STALKER_FATHER:
-			StalkerFather_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case STALKER_GOGGLES:
-			StalkerGoggles_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_RAIDBOSS_SILVESTER:
-			RaidbossSilvester_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_RAIDBOSS_BLUE_GOGGLES:
-			RaidbossBlueGoggles_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_RAIDBOSS_SUPERSILVESTER:
-			RaidbossSilvester_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case XENO_RAIDBOSS_NEMESIS:
-			RaidbossNemesis_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case SEARUNNER, SEARUNNER_ALT:
-			SeaRunner_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case SEASLIDER, SEASLIDER_ALT:
-			SeaSlider_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case SEASPITTER, SEASPITTER_ALT:
-			SeaSpitter_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case SEAREAPER, SEAREAPER_ALT:
-			SeaReaper_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case SEACRAWLER, SEACRAWLER_ALT:
-			SeaCrawler_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case SEAPIERCER, SEAPIERCER_ALT:
-			SeaPiercer_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case FIRSTTOTALK:
-			FirstToTalk_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-	//	case UNDERTIDES:
-	//		UnderTides_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case SEABORN_KAZIMIERZ_KNIGHT:
-			KazimierzKnight_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case SEABORN_KAZIMIERZ_KNIGHT_ARCHER:
-			KazimierzKnightArcher_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case SEABORN_KAZIMIERZ_BESERKER:
-			KazimierzBeserker_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case SEABORN_KAZIMIERZ_LONGARCHER:
-			KazimierzLongArcher_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-	//	case REMAINS:
-	//		Remains_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case ENDSPEAKER_1:
-			EndSpeaker_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case ENDSPEAKER_2:
-			EndSpeaker_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case ENDSPEAKER_3:
-			EndSpeaker_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case ENDSPEAKER_4:
-			EndSpeaker_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case SEAFOUNDER, SEAFOUNDER_ALT, SEAFOUNDER_CARRIER:
-			SeaFounder_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case SEAPREDATOR, SEAPREDATOR_ALT, SEAPREDATOR_CARRIER:
-			SeaPredator_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case SEABRANDGUIDER, SEABRANDGUIDER_ALT, SEABRANDGUIDER_CARRIER:
-			SeaBrandguider_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case SEABORN_KAZIMIERZ_ASSASIN_MELEE:
-			KazimierzKnightAssasin_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case SEASPEWER, SEASPEWER_ALT, SEASPEWER_CARRIER:
-			SeaSpewer_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case SEASWARMCALLER, SEASWARMCALLER_ALT, SEASWARMCALLER_CARRIER:
-			SeaSwarmcaller_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case SEAREEFBREAKER, SEAREEFBREAKER_ALT, SEAREEFBREAKER_CARRIER:
-			SeaReefbreaker_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case BARRACK_THORNS:
-			BarrackBody_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-
-		case RAIDMODE_GOD_ARKANTOS:
-			GodArkantos_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-		
-		case SEABORN_SCOUT, SEABORN_SOLDIER, SEABORN_PYRO, SEABORN_DEMO, SEABORN_ENGINEER, SEABORN_MEDIC, SEABORN_SNIPER, SEABORN_SPY:
-			Generic_OnTakeDamage(victim, attacker);
-		
-		case SEABORN_HEAVY:
-			SeabornHeavy_OnTakeDamage(victim, attacker, damagetype);
-		
-		case LASTKNIGHT:
-			LastKnight_OnTakeDamage(victim, attacker, damage, weapon);
-		
-		case SAINTCARMEN, PATHSHAPER_FRACTAL:
-			Generic_OnTakeDamage(victim, attacker);
-		
-		case PATHSHAPER:
-			Pathshaper_OnTakeDamage(victim, attacker);
-		
-		case TIDELINKED_BISHOP:
-			TidelinkedBishop_OnTakeDamage(victim, attacker, damage);
-		
-		case TIDELINKED_ARCHON:
-			TidelinkedArchon_OnTakeDamage(victim, attacker, damage);
-		
-		case SEABORN_GUARD, SEABORN_VANGUARD, SEABORN_CASTER, SEABORN_SPECIALIST, SEABORN_SUPPORTER:
-			Generic_OnTakeDamage(victim, attacker);
-		
-		case SEABORN_DEFENDER:
-			SeabornDefender_OnTakeDamage(victim, attacker, damage, damagetype, damagePosition);
-		
-		case ISHARMLA:
-			Isharmla_OnTakeDamage(victim, attacker, damage);
-			
-		
-		case RUINA_THEOCRACY, RUINA_ADIANTUM, RUINA_LANIUS, RUINA_MAGIA:	//warp
-			Ruina_NPC_OnTakeDamage_Override(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-			
-		case SEA_RAIDBOSS_DONNERKRIEG:
-			Raidboss_Donnerkrieg_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-			
-		case SEA_RAIDBOSS_SCHWERTKRIEG:
-			Raidboss_Schwertkrieg_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-
-
-
-		case EXPIDONSA_BENERA:
-			Benera_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-
-		case EXPIDONSA_PENTAL:
-			Pental_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-
-		case EXPIDONSA_DEFANDA:
-			Defanda_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-
-		case EXPIDONSA_SELFAM_IRE:
-			Selfamire_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-
-		case EXPIDONSA_VAUSMAGICA:
-			Vausmagica_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-
-		case EXPIDONSA_PISTOLEER:
-			Pistoleer_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-
-		case EXPIDONSA_DIVERSIONISTICO:
-			Diversionistico_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-
-		case EXPIDONSA_HEAVYPUNUEL:
-			HeavyPunuel_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-
-		case EXPIDONSA_SEARGENTIDEAL:
-			SeargentIdeal_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-			
-		case EXPIDONSA_RIFALMANU:
-			RifalManu_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-
-		case VIP_BUILDING:
-			VIPBuilding_OnTakeDamagePost(victim, attacker);
-
-		case EXPIDONSA_SICCERINO:
-			Siccerino_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-
-		case EXPIDONSA_SOLDINE_PROTOTYPE:
-			SoldinePrototype_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-
-		case EXPIDONSA_SOLDINE:
-			Soldine_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-			
-		case EXPIDONSA_PROTECTA:
-			Protecta_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-
-		case EXPIDONSA_SNIPONEER:
-			Sniponeer_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-
-		case EXPIDONSA_EGABUNAR:
-			EgaBunar_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-
-		case EXPIDONSA_ENEGAKAPUS:
-			EnegaKapus_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-
-		case EXPIDONSA_CAPTINOAGENTUS:
-			CaptinoAgentus_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-
-		case RAIDMODE_EXPIDONSA_SENSAL:
-			Sensal_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-
-		case EXPIDONSA_DUALREA:
-			DualRea_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-
-		case EXPIDONSA_GUARDUS:
-			Guardus_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-
-		case EXPIDONSA_VAUSTECHICUS:
-			VausTechicus_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-
-		case EXPIDONSA_MINIGUNASSISA:
-			MinigunAssisa_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-			
-		case EXPIDONSA_IGNITUS:
-			Ignitus_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-
-		case EXPIDONSA_HELENA:
-			Helena_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-
-		case EXPIDONSA_ERASUS:
-			Erasus_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-
-		case EXPIDONSA_GIANTTANKUS:
-			GiantTankus_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-
-		case EXPIDONSA_ANFUHREREISENHARD:
-			AnfuhrerEisenhard_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
-
-		case EXPIDONSA_SPEEDUSADIVUS:
-			SpeedusAdivus_OnTakeDamage(victim, attacker, inflictor, damage, damagetype, weapon, damageForce, damagePosition, damagecustom);
+		Call_StartFunction(null, func);
+		Call_PushCell(victim);
+		Call_PushCellRef(attacker);
+		Call_PushCellRef(inflictor);
+		Call_PushFloatRef(damage);
+		Call_PushCellRef(damagetype);
+		Call_PushCellRef(weapon);
+		Call_PushArray(damageForce, sizeof(damageForce));
+		Call_PushArray(damagePosition, sizeof(damagePosition));
+		Call_PushCell(damagecustom);
+		Call_Finish();
+		return Plugin_Changed;
+		//todo: convert all on death and on take damage to this.
 	}
 	return Plugin_Changed;
 }
 
+//BASES FOR ENEMIES
+#include "npc/expidonsa/npc_expidonsa_base.sp" //ALSO IN RPG!
+#include "npc/seaborn/npc_nethersea_shared.sp"
+#include "npc/ruina/ruina_npc_enchanced_ai_core.sp"	//this controls almost every ruina npc's behaviors.
+
+//BUILDINGS
+#include "object/obj_shared.sp"
+#include "object/obj_armortable.sp"
+#include "object/obj_decorative.sp"
+#include "object/obj_perkmachine.sp"
+#include "object/obj_healingstation.sp"
+#include "object/obj_packapunch.sp"
+#include "object/obj_barricade.sp"
+#include "object/obj_ammobox.sp"
+#include "object/obj_tinker_anvil.sp"
+#include "object/obj_sentrygun.sp"
+#include "object/obj_vintulum_bomb.sp"
+#include "object/obj_mortar.sp"
+#include "object/obj_railgun.sp"
+#include "object/obj_village.sp"
+#include "object/obj_barracks.sp"
+#include "object/obj_brewing_stand.sp"
+#include "object/obj_revenant.sp"
+#include "object/obj_grill.sp"
+#include "object/construction/obj_giant_lighthouse.sp"
+#include "object/construction/obj_const_stove.sp"
+#include "object/construction/obj_const_factory.sp"
+//#include "object/construction/obj_hospital.sp"
+#include "object/construction/obj_const_research.sp"
+#include "object/construction/obj_const_pump.sp"
+#include "object/construction/obj_const_wood.sp"
+#include "object/construction/obj_const_stone.sp"
+#include "object/construction/obj_const_minter.sp"
+#include "object/construction/obj_const_wall.sp"
+#include "object/construction/obj_supergun.sp"
+#include "object/construction/obj_minigun_turret.sp"
+#include "object/construction/obj_teslars_medusa.sp"
+#include "object/construction/obj_const_stungun.sp"
+#include "object/construction/obj_const_dispenser.sp"
+#include "object/construction/obj_const_furniture.sp"
+#include "object/construction/obj_const_supply.sp"
+#include "object/construction/obj_const_helper.sp"
+#include "object/construction/obj_const_voidstone.sp"
+
+// VEHICLES
+#include "../shared/vehicles/vehicle_shared.sp"
+#include "../shared/vehicles/vehicle_hl2.sp"
+#include "vehicles/vehicle_fulljeep.sp"
+#include "vehicles/vehicle_ambulance.sp"
+//#include "vehicles/vehicle_bus.sp"
+#include "vehicles/vehicle_camper.sp"
+#include "vehicles/vehicle_dumptruck.sp"
+#include "vehicles/vehicle_landrover.sp"
+#include "vehicles/vehicle_pickup.sp"
 
 //NORMAL
-
-#include "zombie_riot/npc/normal/npc_headcrabzombie.sp"
-#include "zombie_riot/npc/normal/npc_headcrabzombie_fortified.sp"
-#include "zombie_riot/npc/normal/npc_fastzombie.sp"
-#include "zombie_riot/npc/normal/npc_fastzombie_fortified.sp"
-#include "zombie_riot/npc/normal/npc_torsoless_headcrabzombie.sp"
-#include "zombie_riot/npc/normal/npc_poisonzombie_fortified_giant.sp"
-#include "zombie_riot/npc/normal/npc_poisonzombie.sp"
-#include "zombie_riot/npc/normal/npc_poisonzombie_fortified.sp"
-#include "zombie_riot/npc/normal/npc_last_survivor.sp"
-#include "zombie_riot/npc/normal/npc_combine_police_pistol.sp"
-#include "zombie_riot/npc/normal/npc_combine_police_smg.sp"
-#include "zombie_riot/npc/normal/npc_combine_soldier_ar2.sp"
-#include "zombie_riot/npc/normal/npc_combine_soldier_shotgun.sp"
-#include "zombie_riot/npc/normal/npc_combine_soldier_swordsman.sp"
-#include "zombie_riot/npc/normal/npc_combine_soldier_elite.sp"
-#include "zombie_riot/npc/normal/npc_combine_soldier_giant_swordsman.sp"
-#include "zombie_riot/npc/normal/npc_combine_soldier_swordsman_ddt.sp"
-#include "zombie_riot/npc/normal/npc_combine_soldier_collos_swordsman.sp"
-#include "zombie_riot/npc/normal/npc_combine_soldier_overlord.sp"
-#include "zombie_riot/npc/normal/npc_zombie_scout_grave.sp"
-#include "zombie_riot/npc/normal/npc_zombie_engineer_grave.sp"
-#include "zombie_riot/npc/normal/npc_zombie_heavy_grave.sp"
-#include "zombie_riot/npc/normal/npc_flying_armor.sp"
-#include "zombie_riot/npc/normal/npc_flying_armor_tiny_swords.sp"
-#include "zombie_riot/npc/normal/npc_kamikaze_demo.sp"
-#include "zombie_riot/npc/normal/npc_medic_healer.sp"
-#include "zombie_riot/npc/normal/npc_zombie_heavy_giant_grave.sp"
-#include "zombie_riot/npc/normal/npc_zombie_spy_grave.sp"
-#include "zombie_riot/npc/normal/npc_zombie_soldier_grave.sp"
-#include "zombie_riot/npc/normal/npc_zombie_soldier_minion_grave.sp"
-#include "zombie_riot/npc/normal/npc_zombie_soldier_giant_grave.sp"
-#include "zombie_riot/npc/normal/npc_spy_thief.sp"
-#include "zombie_riot/npc/normal/npc_spy_trickstabber.sp"
-#include "zombie_riot/npc/normal/npc_spy_half_cloacked_main.sp"
-#include "zombie_riot/npc/normal/npc_sniper_main.sp"
-#include "zombie_riot/npc/normal/npc_zombie_demo_main.sp"
-#include "zombie_riot/npc/normal/npc_medic_main.sp"
-#include "zombie_riot/npc/normal/npc_zombie_pyro_giant_main.sp"
-#include "zombie_riot/npc/normal/npc_combine_soldier_deutsch_ritter.sp"
-#include "zombie_riot/npc/normal/npc_spy_boss.sp"
+#include "npc/normal/npc_headcrabzombie.sp"
+#include "npc/normal/npc_headcrabzombie_fortified.sp"
+#include "npc/normal/npc_fastzombie.sp"
+#include "npc/normal/npc_fastzombie_fortified.sp"
+#include "npc/normal/npc_torsoless_headcrabzombie.sp"
+#include "npc/normal/npc_poisonzombie_fortified_giant.sp"
+#include "npc/normal/npc_poisonzombie.sp"
+#include "npc/normal/npc_poisonzombie_fortified.sp"
+#include "npc/normal/npc_last_survivor.sp"
+#include "npc/normal/npc_combine_police_pistol.sp"
+#include "npc/normal/npc_combine_police_smg.sp"
+#include "npc/normal/npc_combine_soldier_ar2.sp"
+#include "npc/normal/npc_combine_soldier_shotgun.sp"
+#include "npc/normal/npc_combine_soldier_swordsman.sp"
+#include "npc/normal/npc_combine_soldier_elite.sp"
+#include "npc/normal/npc_combine_soldier_giant_swordsman.sp"
+#include "npc/normal/npc_combine_soldier_swordsman_ddt.sp"
+#include "npc/normal/npc_combine_soldier_collos_swordsman.sp"
+#include "npc/normal/npc_combine_soldier_overlord.sp"
+#include "npc/normal/npc_zombie_scout_grave.sp"
+#include "npc/normal/npc_zombie_engineer_grave.sp"
+#include "npc/normal/npc_zombie_heavy_grave.sp"
+#include "npc/normal/npc_flying_armor.sp"
+#include "npc/normal/npc_flying_armor_tiny_swords.sp"
+#include "npc/normal/npc_kamikaze_demo.sp"
+#include "npc/normal/npc_medic_healer.sp"
+#include "npc/normal/npc_zombie_heavy_giant_grave.sp"
+#include "npc/normal/npc_zombie_spy_grave.sp"
+#include "npc/normal/npc_zombie_soldier_grave.sp"
+#include "npc/normal/npc_zombie_soldier_minion_grave.sp"
+#include "npc/normal/npc_zombie_soldier_giant_grave.sp"
+#include "npc/normal/npc_spy_thief.sp"
+#include "npc/normal/npc_spy_trickstabber.sp"
+#include "npc/normal/npc_spy_half_cloacked_main.sp"
+#include "npc/normal/npc_sniper_main.sp"
+#include "npc/normal/npc_zombie_demo_main.sp"
+#include "npc/normal/npc_medic_main.sp"
+#include "npc/normal/npc_zombie_pyro_giant_main.sp"
+#include "npc/normal/npc_combine_soldier_deutsch_ritter.sp"
+#include "npc/normal/npc_spy_boss.sp"
 
 //XENO
 
-#include "zombie_riot/npc/xeno/npc_xeno_headcrabzombie.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_headcrabzombie_fortified.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_fastzombie.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_fastzombie_fortified.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_torsoless_headcrabzombie.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_poisonzombie_fortified_giant.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_poisonzombie.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_poisonzombie_fortified.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_last_survivor.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_combine_police_pistol.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_combine_police_smg.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_combine_soldier_ar2.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_combine_soldier_shotgun.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_combine_soldier_swordsman.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_combine_soldier_elite.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_combine_soldier_giant_swordsman.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_combine_soldier_swordsman_ddt.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_combine_soldier_collos_swordsman.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_combine_soldier_overlord.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_zombie_scout_grave.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_zombie_engineer_grave.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_zombie_heavy_grave.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_flying_armor.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_flying_armor_tiny_swords.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_kamikaze_demo.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_medic_healer.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_zombie_heavy_giant_grave.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_zombie_spy_grave.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_zombie_soldier_grave.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_zombie_soldier_minion_grave.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_zombie_soldier_giant_grave.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_spy_thief.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_spy_trickstabber.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_spy_half_cloacked_main.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_sniper_main.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_zombie_demo_main.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_medic_main.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_zombie_pyro_giant_main.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_combine_soldier_deutsch_ritter.sp"
-#include "zombie_riot/npc/xeno/npc_xeno_spy_boss.sp"
+#include "npc/xeno/npc_xeno_headcrabzombie.sp"
+#include "npc/xeno/npc_xeno_headcrabzombie_fortified.sp"
+#include "npc/xeno/npc_xeno_fastzombie.sp"
+#include "npc/xeno/npc_xeno_fastzombie_fortified.sp"
+#include "npc/xeno/npc_xeno_torsoless_headcrabzombie.sp"
+#include "npc/xeno/npc_xeno_poisonzombie_fortified_giant.sp"
+#include "npc/xeno/npc_xeno_poisonzombie.sp"
+#include "npc/xeno/npc_xeno_poisonzombie_fortified.sp"
+#include "npc/xeno/npc_xeno_last_survivor.sp"
+#include "npc/xeno/npc_xeno_combine_police_pistol.sp"
+#include "npc/xeno/npc_xeno_combine_police_smg.sp"
+#include "npc/xeno/npc_xeno_combine_soldier_ar2.sp"
+#include "npc/xeno/npc_xeno_combine_soldier_shotgun.sp"
+#include "npc/xeno/npc_xeno_combine_soldier_swordsman.sp"
+#include "npc/xeno/npc_xeno_combine_soldier_elite.sp"
+#include "npc/xeno/npc_xeno_combine_soldier_giant_swordsman.sp"
+#include "npc/xeno/npc_xeno_combine_soldier_swordsman_ddt.sp"
+#include "npc/xeno/npc_xeno_combine_soldier_collos_swordsman.sp"
+#include "npc/xeno/npc_xeno_combine_soldier_overlord.sp"
+#include "npc/xeno/npc_xeno_zombie_scout_grave.sp"
+#include "npc/xeno/npc_xeno_zombie_engineer_grave.sp"
+#include "npc/xeno/npc_xeno_zombie_heavy_grave.sp"
+#include "npc/xeno/npc_xeno_flying_armor.sp"
+#include "npc/xeno/npc_xeno_flying_armor_tiny_swords.sp"
+#include "npc/xeno/npc_xeno_kamikaze_demo.sp"
+#include "npc/xeno/npc_xeno_medic_healer.sp"
+#include "npc/xeno/npc_xeno_zombie_heavy_giant_grave.sp"
+#include "npc/xeno/npc_xeno_zombie_spy_grave.sp"
+#include "npc/xeno/npc_xeno_zombie_soldier_grave.sp"
+#include "npc/xeno/npc_xeno_zombie_soldier_minion_grave.sp"
+#include "npc/xeno/npc_xeno_zombie_soldier_giant_grave.sp"
+#include "npc/xeno/npc_xeno_spy_thief.sp"
+#include "npc/xeno/npc_xeno_spy_trickstabber.sp"
+#include "npc/xeno/npc_xeno_spy_half_cloacked_main.sp"
+#include "npc/xeno/npc_xeno_sniper_main.sp"
+#include "npc/xeno/npc_xeno_zombie_demo_main.sp"
+#include "npc/xeno/npc_xeno_medic_main.sp"
+#include "npc/xeno/npx_xeno_infected_lab_doctor.sp"
+#include "npc/xeno/npc_xeno_zombie_pyro_giant_main.sp"
+#include "npc/xeno/npc_xeno_combine_soldier_deutsch_ritter.sp"
+#include "npc/xeno/npc_xeno_spy_boss.sp"
 
-#include "zombie_riot/npc/special/npc_panzer.sp"
-#include "zombie_riot/npc/special/npc_sawrunner.sp"
-#include "zombie_riot/npc/special/npc_l4d2_tank.sp"
-#include "zombie_riot/npc/special/npc_itstilives.sp"
-#include "zombie_riot/npc/special/npc_phantom_knight.sp"
+#include "npc/xeno_lab/npc_xeno_acclaimed_swordsman.sp"
+#include "npc/xeno_lab/npc_xeno_early_infected.sp"
+#include "npc/xeno_lab/npc_xeno_patient_few.sp"
+#include "npc/xeno_lab/npc_xeno_ekas_robo.sp"
 
-#include "zombie_riot/npc/btd/npc_bloon.sp"
-#include "zombie_riot/npc/btd/npc_moab.sp"
-#include "zombie_riot/npc/btd/npc_bfb.sp"
-#include "zombie_riot/npc/btd/npc_zomg.sp"
-#include "zombie_riot/npc/btd/npc_ddt.sp"
-#include "zombie_riot/npc/btd/npc_bad.sp"
-#include "zombie_riot/npc/btd/npc_goldbloon.sp"
-#include "zombie_riot/npc/btd/npc_bloonarius.sp"
+#include "npc/special/npc_sawrunner.sp"
+#include "npc/special/npc_l4d2_tank.sp"
+#include "npc/special/npc_phantom_knight.sp"
+#include "npc/special/npc_beheaded_kamikaze.sp"
+#include "npc/special/npc_doctor.sp"
+#include "npc/special/npc_wandering_spirit.sp"
+#include "npc/special/npc_vengefull_spirit.sp"
+#include "npc/special/npc_fallen_warrior.sp"
+#include "npc/special/npc_3650.sp"
+#include "npc/special/npc_john_the_allmighty.sp"
+#include "npc/special/npc_ravaging_intellect.sp"
 
-#include "zombie_riot/npc/ally/npc_bob_the_overlord.sp"
-#include "zombie_riot/npc/ally/npc_necromancy_combine.sp"
-#include "zombie_riot/npc/ally/npc_necromancy_calcium.sp"
-#include "zombie_riot/npc/ally/npc_cured_last_survivor.sp"
-#include "zombie_riot/npc/ally/npc_citizen.sp"
-#include "zombie_riot/npc/ally/npc_allied_sensal_afterimage.sp"
+#include "npc/btd/npc_bloon.sp"
+#include "npc/btd/npc_moab.sp"
+#include "npc/btd/npc_bfb.sp"
+#include "npc/btd/npc_zomg.sp"
+#include "npc/btd/npc_ddt.sp"
+#include "npc/btd/npc_bad.sp"
+#include "npc/btd/npc_bloonarius.sp"
 
-#include "zombie_riot/npc/raidmode_bosses/npc_true_fusion_warrior.sp"
-#include "zombie_riot/npc/raidmode_bosses/npc_blitzkrieg.sp"
-#include "zombie_riot/npc/raidmode_bosses/npc_god_arkantos.sp"
+#include "npc/ally/npc_bob_the_overlord.sp"
+#include "npc/ally/npc_necromancy_combine.sp"
+#include "npc/ally/npc_necromancy_calcium.sp"
+#include "npc/ally/npc_cured_last_survivor.sp"
+#include "npc/ally/npc_citizen_new.sp"
+#include "npc/ally/npc_allied_sensal_afterimage.sp"
+#include "npc/ally/npc_allied_warped_crystal_visualiser.sp"
+#include "npc/ally/npc_allied_leper_visualiser.sp"
+#include "npc/ally/npc_allied_kahml_afterimage.sp"
+#include "npc/ally/npc_allied_kiyru_visualiser.sp"
+#include "npc/ally/npc_allied_ritualist_visualiser.sp"
 
+#include "npc/raidmode_bosses/npc_true_fusion_warrior.sp"
+#include "npc/raidmode_bosses/npc_blitzkrieg.sp"
+#include "npc/raidmode_bosses/npc_god_alaxios.sp"
 
+#if defined RUINA_BASE
 //Ruina
 
-#include "zombie_riot/npc/ruina/ruina_npc_enchanced_ai_core.sp"	//this controls almost every ruina npc's behaviors.
 //stage 1
-#include "zombie_riot/npc/ruina/stage1/npc_ruina_theocracy.sp"
-#include "zombie_riot/npc/ruina/stage1/npc_ruina_adiantum.sp"
-#include "zombie_riot/npc/ruina/stage1/npc_ruina_lanius.sp"
-#include "zombie_riot/npc/ruina/stage1/npc_ruina_magia.sp"
+#include "npc/ruina/stage1/npc_ruina_theocracy.sp"
+#include "npc/ruina/stage1/npc_ruina_adiantum.sp"
+#include "npc/ruina/stage1/npc_ruina_lanius.sp"
+#include "npc/ruina/stage1/npc_ruina_magia.sp"
+#include "npc/ruina/stage1/npc_ruina_helia.sp"
+#include "npc/ruina/stage1/npc_ruina_astria.sp"
+#include "npc/ruina/stage1/npc_ruina_aether.sp"
+#include "npc/ruina/stage1/npc_ruina_europa.sp"
+#include "npc/ruina/stage1/npc_ruina_drone.sp"
+#include "npc/ruina/stage1/npc_ruina_ruriana.sp"
+#include "npc/ruina/stage1/npc_ruina_daedalus.sp"
+#include "npc/ruina/stage1/npc_ruina_malius.sp"
+#include "npc/ruina/stage1/npc_ruina_laz.sp"
 
+//Stage 2
+#include "npc/ruina/stage2/npc_ruina_laniun.sp"
+#include "npc/ruina/stage2/npc_ruina_magnium.sp"
+#include "npc/ruina/stage2/npc_ruina_heliara.sp"
+#include "npc/ruina/stage2/npc_ruina_astriana.sp"
+#include "npc/ruina/stage2/npc_ruina_europis.sp"
+#include "npc/ruina/stage2/npc_ruina_draedon.sp"
+#include "npc/ruina/stage2/npc_ruina_aetheria.sp"
+#include "npc/ruina/stage2/npc_ruina_maliana.sp"
+#include "npc/ruina/stage2/npc_ruina_ruianus.sp"
+#include "npc/ruina/stage2/npc_ruina_lazius.sp"
+#include "npc/ruina/stage2/npc_ruina_dronian.sp"
+#include "npc/ruina/stage2/npc_ruina_lex.sp"
+#include "npc/ruina/stage2/npc_ruina_iana.sp"
+
+//stage 3
+
+#include "npc/ruina/stage3/npc_ruina_loonaris.sp"
+#include "npc/ruina/stage3/npc_ruina_magianas.sp"
+#include "npc/ruina/stage3/npc_ruina_heliaris.sp"
+#include "npc/ruina/stage3/npc_ruina_astrianis.sp"
+#include "npc/ruina/stage3/npc_ruina_eurainis.sp"
+#include "npc/ruina/stage3/npc_ruina_draeonis.sp"
+#include "npc/ruina/stage3/npc_ruina_aetherium.sp"
+#include "npc/ruina/stage3/npc_ruina_malianium.sp"
+#include "npc/ruina/stage3/npc_ruina_rulius.sp"
+#include "npc/ruina/stage3/npc_ruina_lazines.sp"
+#include "npc/ruina/stage3/npc_ruina_dronis.sp"
+#include "npc/ruina/stage3/npc_ruina_ruliana.sp"
+
+//stage 4
+
+#include "npc/ruina/stage4/npc_ruina_aetherianus.sp"
+#include "npc/ruina/stage4/npc_ruina_astrianious.sp"
+#include "npc/ruina/stage4/npc_ruina_draconia.sp"
+#include "npc/ruina/stage4/npc_ruina_dronianis.sp"
+#include "npc/ruina/stage4/npc_ruina_euranionis.sp"
+#include "npc/ruina/stage4/npc_ruina_heliarionus.sp"
+#include "npc/ruina/stage4/npc_ruina_lazurus.sp"
+#include "npc/ruina/stage4/npc_ruina_loonarionus.sp"
+#include "npc/ruina/stage4/npc_ruina_magianius.sp"
+#include "npc/ruina/stage4/npc_ruina_malianius.sp"
+#include "npc/ruina/stage4/npc_ruina_rulianius.sp"
+#include "npc/ruina/stage4/npc_ruina_lancelot.sp"
+
+
+//Special Ruina
+#include "npc/ruina/special/npc_ruina_valiant.sp"
+#include "npc/ruina/special/npc_ruina_magia_anchor.sp"
+#include "npc/ruina/special/npc_ruina_storm_weaver.sp"
+#include "npc/ruina/special/npc_ruina_storm_weaver_mid.sp"
+#include "npc/raidmode_bosses/npc_twirl.sp"
+//#include "npc/raidmode_bosses/npc_levita.sp"
+
+#endif
+
+#include "npc/ally/npc_fractal_cannon_animation.sp"
+
+
+#include "npc/rogue/chaos_expansion/npc_lelouch.sp"
+#include "npc/rogue/chaos_expansion/npc_manipulation_ent.sp"
+#include "npc/rogue/chaos_expansion/npc_interstellar_weaver.sp"
+#include "npc/rogue/chaos_expansion/npc_interstellar_weaver_mid.sp"
 
 //Alt
 
-#include "zombie_riot/npc/alt/npc_alt_medic_charger.sp"
-#include "zombie_riot/npc/alt/npc_alt_medic_berserker.sp"
-#include "zombie_riot/npc/alt/npc_alt_medic_supperior_mage.sp"
-#include "zombie_riot/npc/alt/npc_alt_kahml.sp"
-#include "zombie_riot/npc/alt/npc_alt_combine_soldier_deutsch_ritter.sp"
-#include "zombie_riot/npc/alt/npc_alt_sniper_railgunner.sp"
-#include "zombie_riot/npc/alt/npc_alt_soldier_barrager.sp"
-#include "zombie_riot/npc/alt/npc_alt_the_shit_slapper.sp"
-#include "zombie_riot/npc/alt/npc_alt_mecha_engineer.sp"
-#include "zombie_riot/npc/alt/npc_alt_mecha_heavy.sp"
-#include "zombie_riot/npc/alt/npc_alt_mecha_heavy_giant.sp"
-#include "zombie_riot/npc/alt/npc_alt_mecha_pyro_giant_main.sp"
-#include "zombie_riot/npc/alt/npc_alt_mecha_scout.sp"
-#include "zombie_riot/npc/alt/npc_alt_combine_soldier_mage.sp"
-#include "zombie_riot/npc/alt/npc_alt_medic_apprentice_mage.sp"
-#include "zombie_riot/npc/alt/npc_alt_donnerkrieg.sp"
-#include "zombie_riot/npc/alt/npc_alt_schwertkrieg.sp"
-#include "zombie_riot/npc/alt/npc_alt_medic_constructor.sp"
-#include "zombie_riot/npc/alt/npc_alt_ikunagae.sp"
-#include "zombie_riot/npc/alt/npc_alt_mecha_soldier_barrager.sp"
+#include "npc/alt/npc_alt_medic_charger.sp"
+#include "npc/alt/npc_alt_medic_berserker.sp"
+#include "npc/alt/npc_alt_medic_supperior_mage.sp"
+#include "npc/alt/npc_alt_kahml.sp"
+#include "npc/alt/npc_alt_combine_soldier_deutsch_ritter.sp"
+#include "npc/alt/npc_alt_sniper_railgunner.sp"
+#include "npc/alt/npc_alt_soldier_barrager.sp"
+#include "npc/alt/npc_alt_the_shit_slapper.sp"
+#include "npc/alt/npc_alt_mecha_engineer.sp"
+#include "npc/alt/npc_alt_mecha_heavy.sp"
+#include "npc/alt/npc_alt_mecha_heavy_giant.sp"
+#include "npc/alt/npc_alt_mecha_pyro_giant_main.sp"
+#include "npc/alt/npc_alt_mecha_scout.sp"
+#include "npc/alt/npc_alt_combine_soldier_mage.sp"
+#include "npc/alt/npc_alt_donnerkrieg.sp"
+#include "npc/alt/npc_alt_schwertkrieg.sp"
+#include "npc/alt/npc_alt_medic_constructor.sp"
+#include "npc/alt/npc_alt_ikunagae.sp"
+#include "npc/alt/npc_alt_mecha_soldier_barrager.sp"
 
 
-#include "zombie_riot/npc/medival/npc_medival_militia.sp"
-#include "zombie_riot/npc/medival/npc_medival_archer.sp"
-#include "zombie_riot/npc/medival/npc_medival_man_at_arms.sp"
-#include "zombie_riot/npc/medival/npc_medival_skirmisher.sp"
-#include "zombie_riot/npc/medival/npc_medival_swordsman.sp"
-#include "zombie_riot/npc/medival/npc_medival_twohanded_swordsman.sp"
-#include "zombie_riot/npc/medival/npc_medival_crossbow.sp"
-#include "zombie_riot/npc/medival/npc_medival_spearmen.sp"
-#include "zombie_riot/npc/medival/npc_medival_handcannoneer.sp"
-#include "zombie_riot/npc/medival/npc_medival_elite_skirmisher.sp"
-#include "zombie_riot/npc/medival/npc_medival_pikeman.sp"
-#include "zombie_riot/npc/medival/npc_medival_eagle_scout.sp"
-#include "zombie_riot/npc/medival/npc_medival_samurai.sp"
-#include "zombie_riot/npc/medival/npc_medival_ram.sp"
-#include "zombie_riot/npc/medival/npc_medival_scout.sp"
-#include "zombie_riot/npc/medival/npc_medival_villager.sp"
-#include "zombie_riot/npc/medival/npc_medival_building.sp"
-#include "zombie_riot/npc/medival/npc_medival_construct.sp"
-#include "zombie_riot/npc/medival/npc_medival_champion.sp"
-#include "zombie_riot/npc/medival/npc_medival_light_cav.sp"
-#include "zombie_riot/npc/medival/npc_medival_hussar.sp"
-#include "zombie_riot/npc/medival/npc_medival_knight.sp"
-#include "zombie_riot/npc/medival/npc_medival_obuch.sp"
-#include "zombie_riot/npc/medival/npc_medival_monk.sp"
-#include "zombie_riot/npc/medival/npc_medival_halbadeer.sp"
-#include "zombie_riot/npc/medival/npc_medival_longbowmen.sp"
-#include "zombie_riot/npc/medival/npc_medival_arbalest.sp"
-#include "zombie_riot/npc/medival/npc_medival_brawler.sp"
-#include "zombie_riot/npc/medival/npc_medival_elite_longbowmen.sp"
-#include "zombie_riot/npc/medival/npc_medival_eagle_warrior.sp"
-#include "zombie_riot/npc/medival/npc_medival_cavalary.sp"
-#include "zombie_riot/npc/medival/npc_medival_paladin.sp"
-#include "zombie_riot/npc/medival/npc_medival_crossbow_giant.sp"
-#include "zombie_riot/npc/medival/npc_medival_swordsman_giant.sp"
-#include "zombie_riot/npc/medival/npc_medival_eagle_giant.sp"
-#include "zombie_riot/npc/medival/npc_medival_riddenarcher.sp"
-#include "zombie_riot/npc/medival/npc_medival_son_of_osiris.sp"
-#include "zombie_riot/npc/medival/npc_medival_achilles.sp"
-#include "zombie_riot/npc/medival/npc_medival_trebuchet.sp"
+#include "npc/medival/npc_medival_militia.sp"
+#include "npc/medival/npc_medival_archer.sp"
+#include "npc/medival/npc_medival_man_at_arms.sp"
+#include "npc/medival/npc_medival_skirmisher.sp"
+#include "npc/medival/npc_medival_swordsman.sp"
+#include "npc/medival/npc_medival_twohanded_swordsman.sp"
+#include "npc/medival/npc_medival_crossbow.sp"
+#include "npc/medival/npc_medival_spearmen.sp"
+#include "npc/medival/npc_medival_handcannoneer.sp"
+#include "npc/medival/npc_medival_elite_skirmisher.sp"
+#include "npc/medival/npc_medival_pikeman.sp"
+#include "npc/medival/npc_medival_eagle_scout.sp"
+#include "npc/medival/npc_medival_samurai.sp"
+#include "npc/medival/npc_medival_ram.sp"
+#include "npc/medival/npc_medival_scout.sp"
+#include "npc/medival/npc_medival_villager.sp"
+#include "npc/medival/npc_medival_building.sp"
+#include "npc/medival/npc_medival_construct.sp"
+#include "npc/medival/npc_medival_champion.sp"
+#include "npc/medival/npc_medival_light_cav.sp"
+#include "npc/medival/npc_medival_hussar.sp"
+#include "npc/medival/npc_medival_knight.sp"
+#include "npc/medival/npc_medival_obuch.sp"
+#include "npc/medival/npc_medival_monk.sp"
+#include "npc/medival/npc_medival_halbadeer.sp"
+#include "npc/medival/npc_medival_longbowmen.sp"
+#include "npc/medival/npc_medival_arbalest.sp"
+#include "npc/medival/npc_medival_brawler.sp"
+#include "npc/medival/npc_medival_elite_longbowmen.sp"
+#include "npc/medival/npc_medival_eagle_warrior.sp"
+#include "npc/medival/npc_medival_cavalary.sp"
+#include "npc/medival/npc_medival_paladin.sp"
+#include "npc/medival/npc_medival_crossbow_giant.sp"
+#include "npc/medival/npc_medival_swordsman_giant.sp"
+#include "npc/medival/npc_medival_eagle_giant.sp"
+#include "npc/medival/npc_medival_riddenarcher.sp"
+#include "npc/medival/npc_medival_son_of_osiris.sp"
+#include "npc/medival/npc_medival_achilles.sp"
+#include "npc/medival/npc_medival_trebuchet.sp"
 
-#include "zombie_riot/npc/cof/npc_addiction.sp"
-#include "zombie_riot/npc/cof/npc_doctor.sp"
-#include "zombie_riot/npc/cof/npc_simon.sp"
+#include "npc/cof/npc_addiction.sp"
+#include "npc/cof/npc_doctor.sp"
+#include "npc/cof/npc_simon.sp"
+#include "npc/cof/npc_sewmo.sp"
+#include "npc/cof/npc_faster.sp"
+#include "npc/cof/npc_psycho.sp"
+#include "npc/cof/npc_suicider.sp"
+#include "npc/cof/npc_crazylady.sp"
+#include "npc/cof/npc_children.sp"
+#include "npc/cof/npc_taller.sp"
+#include "npc/cof/npc_baby.sp"
+#include "npc/cof/npc_stranger.sp"
+#include "npc/ally/npc_cured_purnell.sp"
+#include "npc/cof/npc_corruptedbarney.sp"
+#include "npc/xeno/npc_xeno_malfunctioning_robot.sp"
 
-#include "zombie_riot/npc/bonezone/npc_basicbones.sp"
+/*
+#include "npc/bonezone/npc_basicbones.sp"
+#include "npc/bonezone/npc_beefybones.sp"
+#include "npc/bonezone/npc_brittlebones.sp"
+#include "npc/bonezone/npc_bigbones.sp"
+*/
 
-#include "zombie_riot/npc/bunker/npc_gambler.sp"
-#include "zombie_riot/npc/bunker/npc_pablo.sp"
-#include "zombie_riot/npc/bunker/npc_dokmedick.sp"
-#include "zombie_riot/npc/bunker/npc_kapheavy.sp"
-#include "zombie_riot/npc/bunker/npc_booty_execut.sp"
-#include "zombie_riot/npc/bunker/npc_sand_slayer.sp"
-#include "zombie_riot/npc/bunker/npc_payday_cloaker.sp"
-#include "zombie_riot/npc/bunker/npc_bunker_kahml.sp"
-#include "zombie_riot/npc/bunker/npc_zerofuse.sp"
-#include "zombie_riot/npc/bunker/npc_bunker_bot_soldier.sp"
-#include "zombie_riot/npc/bunker/npc_bunker_bot_sniper.sp"
-#include "zombie_riot/npc/bunker/npc_bunker_skeleton.sp"
-#include "zombie_riot/npc/bunker/npc_bunker_small_skeleton.sp"
-#include "zombie_riot/npc/bunker/npc_bunker_king_skeleton.sp"
-#include "zombie_riot/npc/bunker/npc_bunker_hhh.sp"
 
-#include "zombie_riot/npc/ally/npc_barrack.sp"
-#include "zombie_riot/npc/ally/npc_barrack_militia.sp"
-#include "zombie_riot/npc/ally/npc_barrack_archer.sp"
-#include "zombie_riot/npc/ally/npc_barrack_man_at_arms.sp"
-#include "zombie_riot/npc/ally/npc_barrack_crossbow.sp"
-#include "zombie_riot/npc/ally/npc_barrack_swordsman.sp"
-#include "zombie_riot/npc/ally/npc_barrack_arbelast.sp"
-#include "zombie_riot/npc/ally/npc_barrack_twohanded.sp"
-#include "zombie_riot/npc/ally/npc_barrack_longbow.sp"
-#include "zombie_riot/npc/ally/npc_barrack_champion.sp"
-#include "zombie_riot/npc/ally/npc_barrack_monk.sp"
-#include "zombie_riot/npc/ally/npc_barrack_hussar.sp"
-#include "zombie_riot/npc/ally/npc_nearl_sword.sp"
-#include "zombie_riot/npc/ally/npc_barrack_thorns.sp"
-#include "zombie_riot/npc/ally/npc_barrack_teutonic_knight.sp"
-#include "zombie_riot/npc/ally/npc_barrack_villager.sp"
-#include "zombie_riot/npc/ally/npc_barrack_building.sp"
+/*
+#include "npc/bunker/npc_gambler.sp"
+#include "npc/bunker/npc_pablo.sp"
+#include "npc/bunker/npc_dokmedick.sp"
+#include "npc/bunker/npc_kapheavy.sp"
+#include "npc/bunker/npc_booty_execut.sp"
+#include "npc/bunker/npc_sand_slayer.sp"
+#include "npc/bunker/npc_payday_cloaker.sp"
+#include "npc/bunker/npc_bunker_kahml.sp"
+#include "npc/bunker/npc_zerofuse.sp"
+#include "npc/bunker/npc_bunker_bot_soldier.sp"
+#include "npc/bunker/npc_bunker_bot_sniper.sp"
+#include "npc/bunker/npc_bunker_skeleton.sp"
+#include "npc/bunker/npc_bunker_small_skeleton.sp"
+#include "npc/bunker/npc_bunker_king_skeleton.sp"
+#include "npc/bunker/npc_bunker_hhh.sp"
+*/
 
-#include "zombie_riot/npc/ally/alt_barracks/npc_alt_barracks_basic_mage.sp"
-#include "zombie_riot/npc/ally/alt_barracks/npc_alt_barracks_iku_nagae.sp"
-#include "zombie_riot/npc/ally/alt_barracks/npc_alt_barracks_intermediate_mage.sp"
-#include "zombie_riot/npc/ally/alt_barracks/npc_alt_barracks_railgunner.sp"
-#include "zombie_riot/npc/ally/alt_barracks/npc_alt_barracks_schwertkrieg.sp"
-#include "zombie_riot/npc/ally/alt_barracks/npc_alt_barracks_donnerkrieg.sp"
-#include "zombie_riot/npc/ally/alt_barracks/npc_alt_barracks_holy_knight.sp"
-#include "zombie_riot/npc/ally/alt_barracks/npc_alt_barracks_mecha_barrager.sp"
-#include "zombie_riot/npc/ally/alt_barracks/npc_alt_barracks_barrager.sp"
-#include "zombie_riot/npc/ally/alt_barracks/npc_alt_barracks_berserker.sp"
-#include "zombie_riot/npc/ally/alt_barracks/npc_alt_barracks_crossbowman.sp"
-#include "zombie_riot/npc/ally/alt_barracks/npc_alt_barracks_scientific_witchery.sp"
 
-#include "zombie_riot/npc/respawn/npc_stalker_combine.sp"
-#include "zombie_riot/npc/respawn/npc_stalker_father.sp"
-#include "zombie_riot/npc/respawn/npc_stalker_goggles.sp"
+#include "npc/ally/npc_barrack.sp"
+#include "npc/ally/npc_barrack_militia.sp"
+#include "npc/ally/npc_barrack_archer.sp"
+#include "npc/ally/npc_barrack_man_at_arms.sp"
+#include "npc/ally/npc_barrack_crossbow.sp"
+#include "npc/ally/npc_barrack_swordsman.sp"
+#include "npc/ally/npc_barrack_arbelast.sp"
+#include "npc/ally/npc_barrack_twohanded.sp"
+#include "npc/ally/npc_barrack_longbow.sp"
+#include "npc/ally/npc_barrack_handcannoneer.sp"
+#include "npc/ally/npc_barrack_champion.sp"
+#include "npc/ally/npc_barrack_monk.sp"
+#include "npc/ally/npc_barrack_hussar.sp"
+#include "npc/ally/npc_barrack_thorns.sp"
+#include "npc/ally/npc_barrack_teutonic_knight.sp"
+#include "npc/ally/npc_barrack_villager.sp"
+#include "npc/ally/npc_barrack_building.sp"
 
-#include "zombie_riot/npc/raidmode_bosses/xeno/npc_infected_silvester.sp"
-#include "zombie_riot/npc/raidmode_bosses/xeno/npc_infected_goggles.sp"
-#include "zombie_riot/npc/raidmode_bosses/xeno/npc_nemesis.sp"
+#include "npc/ally/alt_barracks/npc_barrack_alt_basic_mage.sp"
+#include "npc/ally/alt_barracks/npc_barrack_alt_iku_nagae.sp"
+#include "npc/ally/alt_barracks/npc_barrack_alt_intermediate_mage.sp"
+#include "npc/ally/alt_barracks/npc_barrack_alt_advanced_mage.sp"
+#include "npc/ally/alt_barracks/npc_barrack_alt_railgunner.sp"
+#include "npc/ally/alt_barracks/npc_barrack_alt_schwertkrieg.sp"
+#include "npc/ally/alt_barracks/npc_barrack_alt_donnerkrieg.sp"
+#include "npc/ally/alt_barracks/npc_barrack_alt_holy_knight.sp"
+#include "npc/ally/alt_barracks/npc_barrack_alt_mecha_barrager.sp"
+#include "npc/ally/alt_barracks/npc_barrack_alt_barrager.sp"
+#include "npc/ally/alt_barracks/npc_barrack_alt_mecha_loader.sp"
+#include "npc/ally/alt_barracks/npc_barrack_alt_crossbowman.sp"
+#include "npc/ally/alt_barracks/npc_barrack_alt_scientific_witchery.sp"
 
-#include "zombie_riot/npc/seaborn/npc_firsttotalk.sp"
-#include "zombie_riot/npc/seaborn/npc_seacrawler.sp"
-#include "zombie_riot/npc/seaborn/npc_seapiercer.sp"
-#include "zombie_riot/npc/seaborn/npc_seareaper.sp"
-#include "zombie_riot/npc/seaborn/npc_searunner.sp"
-#include "zombie_riot/npc/seaborn/npc_seaslider.sp"
-#include "zombie_riot/npc/seaborn/npc_seaspitter.sp"
-#include "zombie_riot/npc/seaborn/npc_undertides.sp"
-#include "zombie_riot/npc/seaborn/npc_seaborn_kazimersch_knight.sp"
-#include "zombie_riot/npc/seaborn/npc_seaborn_kazimersch_archer.sp"
-#include "zombie_riot/npc/seaborn/npc_seaborn_kazimersch_beserker.sp"
-#include "zombie_riot/npc/seaborn/npc_seaborn_kazimersch_longrange.sp"
-#include "zombie_riot/npc/seaborn/npc_remains.sp"
-#include "zombie_riot/npc/seaborn/npc_endspeaker_shared.sp"
-#include "zombie_riot/npc/seaborn/npc_endspeaker_1.sp"
-#include "zombie_riot/npc/seaborn/npc_endspeaker_2.sp"
-#include "zombie_riot/npc/seaborn/npc_endspeaker_3.sp"
-#include "zombie_riot/npc/seaborn/npc_endspeaker_4.sp"
-#include "zombie_riot/npc/seaborn/npc_netherseafounder.sp"
-#include "zombie_riot/npc/seaborn/npc_netherseapredator.sp"
-#include "zombie_riot/npc/seaborn/npc_netherseabrandguider.sp"
-#include "zombie_riot/npc/seaborn/npc_seaborn_kazimersch_melee_assasin.sp"
-#include "zombie_riot/npc/seaborn/npc_netherseaspewer.sp"
-#include "zombie_riot/npc/seaborn/npc_netherseaswarmcaller.sp"
-#include "zombie_riot/npc/seaborn/npc_netherseareefbreaker.sp"
-#include "zombie_riot/npc/seaborn/npc_seaborn_scout.sp"
-#include "zombie_riot/npc/seaborn/npc_seaborn_soldier.sp"
-#include "zombie_riot/npc/seaborn/npc_citizen_runner.sp"
-#include "zombie_riot/npc/seaborn/npc_seaborn_pyro.sp"
-#include "zombie_riot/npc/seaborn/npc_seaborn_demo.sp"
-#include "zombie_riot/npc/seaborn/npc_seaborn_heavy.sp"
-#include "zombie_riot/npc/seaborn/npc_seaborn_engineer.sp"
-#include "zombie_riot/npc/seaborn/npc_seaborn_medic.sp"
-#include "zombie_riot/npc/seaborn/npc_seaborn_sniper.sp"
-#include "zombie_riot/npc/seaborn/npc_seaborn_spy.sp"
-#include "zombie_riot/npc/seaborn/npc_lastknight.sp"
-#include "zombie_riot/npc/ally/npc_barrack_lastknight.sp"
-#include "zombie_riot/npc/seaborn/npc_saintcarmen.sp"
-#include "zombie_riot/npc/seaborn/npc_pathshaper.sp"
-#include "zombie_riot/npc/seaborn/npc_pathshaper_fractal.sp"
-#include "zombie_riot/npc/seaborn/npc_tidelinkedbishop.sp"
-#include "zombie_riot/npc/seaborn/npc_tidelinkedarchon.sp"
-#include "zombie_riot/npc/seaborn/npc_seaborn_guard.sp"
-#include "zombie_riot/npc/seaborn/npc_seaborn_defender.sp"
-#include "zombie_riot/npc/seaborn/npc_seaborn_vanguard.sp"
-#include "zombie_riot/npc/seaborn/npc_seaborn_caster.sp"
-#include "zombie_riot/npc/seaborn/npc_seaborn_specialist.sp"
-#include "zombie_riot/npc/seaborn/npc_seaborn_supporter.sp"
-#include "zombie_riot/npc/seaborn/npc_isharmla.sp"
-#include "zombie_riot/npc/seaborn/npc_isharmla_trans.sp"
+#include "npc/ally/combine_barracks/npc_barrack_combine_pistol.sp"
+#include "npc/ally/combine_barracks/npc_barrack_combine_swordsman.sp"
+#include "npc/ally/combine_barracks/npc_barrack_combine_smg.sp"
+#include "npc/ally/combine_barracks/npc_barrack_combine_ar2.sp"
+#include "npc/ally/combine_barracks/npc_barrack_combine_ddt.sp"
+#include "npc/ally/combine_barracks/npc_barrack_combine_shotgunner.sp"
+#include "npc/ally/combine_barracks/npc_barrack_combine_collos.sp"
+#include "npc/ally/combine_barracks/npc_barrack_combine_elite.sp"
+#include "npc/ally/combine_barracks/npc_barrack_combine_sniper.sp"
+#include "npc/ally/combine_barracks/npc_barrack_combine_unit.sp"
+#include "npc/ally/combine_barracks/npc_barrack_combine_giant_ddt.sp"
+#include "npc/ally/combine_barracks/npc_barrack_combine_super.sp"
+#include "npc/ally/combine_barracks/npc_barrack_combine_commander.sp"
 
-#include "zombie_riot/npc/raidmode_bosses/seaborn/npc_donnerkrieg.sp"
-#include "zombie_riot/npc/raidmode_bosses/seaborn/npc_schwertkrieg.sp"
-#include "zombie_riot/npc/ally/npc_seaally_silvester.sp"
-#include "zombie_riot/npc/ally/npc_seaally_goggles.sp"
+#include "npc/ally/iberia_barracks/npc_barrack_runner.sp"
+#include "npc/ally/iberia_barracks/npc_barrack_gunner.sp"
+#include "npc/ally/iberia_barracks/npc_barrack_tanker.sp"
+#include "npc/ally/iberia_barracks/npc_barrack_rocketeer.sp"
+#include "npc/ally/iberia_barracks/npc_barrack_healer.sp"
+#include "npc/ally/iberia_barracks/npc_barrack_boomstick.sp"
+#include "npc/ally/iberia_barracks/npc_barrack_healtanker.sp"
+#include "npc/ally/iberia_barracks/npc_barrack_guards.sp"
+#include "npc/ally/iberia_barracks/npc_barrack_elite_gunner.sp"
+#include "npc/ally/iberia_barracks/npc_barrack_commando.sp"
+#include "npc/ally/iberia_barracks/npc_barrack_headhunter.sp"
+#include "npc/ally/iberia_barracks/npc_barrack_inquisitor.sp"
+#include "npc/ally/iberia_barracks/npc_barrack_lighthouse_guardian.sp"
 
-#include "zombie_riot/npc/expidonsa/npc_expidonsa_base.sp"
-#include "zombie_riot/npc/expidonsa/npc_benera.sp"
-#include "zombie_riot/npc/expidonsa/npc_pental.sp"
-#include "zombie_riot/npc/expidonsa/npc_defanda.sp"
-#include "zombie_riot/npc/expidonsa/npc_selfam_ire.sp"
-#include "zombie_riot/npc/expidonsa/npc_vaus_magica.sp"
-#include "zombie_riot/npc/expidonsa/npc_benera_pistoleer.sp"
-#include "zombie_riot/npc/expidonsa/npc_diversionistico.sp"
-#include "zombie_riot/npc/expidonsa/npc_heavy_punuel.sp"
-#include "zombie_riot/npc/expidonsa/npc_seargent_ideal.sp"
-#include "zombie_riot/npc/expidonsa/npc_rifal_manu.sp"
-#include "zombie_riot/npc/expidonsa/npc_siccerino.sp"
-#include "zombie_riot/npc/expidonsa/npc_soldine_prototype.sp"
-#include "zombie_riot/npc/expidonsa/npc_soldine.sp"
-#include "zombie_riot/npc/expidonsa/npc_sniponeer.sp"
-#include "zombie_riot/npc/expidonsa/npc_enegakapus.sp"
-#include "zombie_riot/npc/expidonsa/npc_ega_bunar.sp"
-#include "zombie_riot/npc/expidonsa/npc_protecta.sp"
+#include "npc/ally/npc_nearl_sword.sp"
+#include "npc/ally/npc_ritualist.sp"
 
-#include "zombie_riot/npc/expidonsa/npc_captino_agentus.sp"
-#include "zombie_riot/npc/expidonsa/npc_dualrea.sp"
-#include "zombie_riot/npc/expidonsa/npc_guardus.sp"
-#include "zombie_riot/npc/expidonsa/npc_vaus_techicus.sp"
-#include "zombie_riot/npc/expidonsa/npc_minigun_assisa.sp"
-#include "zombie_riot/npc/expidonsa/npc_erasus.sp"
-#include "zombie_riot/npc/expidonsa/npc_gianttankus.sp"
-#include "zombie_riot/npc/expidonsa/npc_helena.sp"
-#include "zombie_riot/npc/expidonsa/npc_ignitus.sp"
-#include "zombie_riot/npc/expidonsa/npc_speedus_adivus.sp"
-#include "zombie_riot/npc/expidonsa/npc_anfuhrer_eisenhard.sp"
-#include "zombie_riot/npc/raidmode_bosses/npc_sensal.sp"
+#include "npc/respawn/npc_stalker_combine.sp"
+#include "npc/respawn/npc_stalker_father.sp"
+#include "npc/respawn/npc_stalker_goggles.sp"
 
-#include "zombie_riot/npc/ally/npc_vip_building.sp"
+#include "npc/raidmode_bosses/xeno/npc_infected_silvester.sp"
+#include "npc/raidmode_bosses/xeno/npc_infected_goggles.sp"
+#include "npc/raidmode_bosses/xeno/npc_nemesis.sp"
+#include "npc/raidmode_bosses/xeno/npc_mrx.sp"
+
+#include "npc/seaborn/npc_firsttotalk.sp"
+#include "npc/seaborn/npc_seacrawler.sp"
+#include "npc/seaborn/npc_seapiercer.sp"
+#include "npc/seaborn/npc_seareaper.sp"
+#include "npc/seaborn/npc_searunner.sp"
+#include "npc/seaborn/npc_seaslider.sp"
+#include "npc/seaborn/npc_seaspitter.sp"
+#include "npc/seaborn/npc_undertides.sp"
+#include "npc/seaborn/npc_seaborn_kazimersch_knight.sp"
+#include "npc/seaborn/npc_seaborn_kazimersch_archer.sp"
+#include "npc/seaborn/npc_seaborn_kazimersch_beserker.sp"
+#include "npc/seaborn/npc_seaborn_kazimersch_longrange.sp"
+#include "npc/seaborn/npc_remains.sp"
+#include "npc/seaborn/npc_endspeaker_shared.sp"
+#include "npc/seaborn/npc_endspeaker_1.sp"
+#include "npc/seaborn/npc_endspeaker_2.sp"
+#include "npc/seaborn/npc_endspeaker_3.sp"
+#include "npc/seaborn/npc_endspeaker_4.sp"
+#include "npc/seaborn/npc_netherseafounder.sp"
+#include "npc/seaborn/npc_netherseapredator.sp"
+#include "npc/seaborn/npc_netherseabrandguider.sp"
+#include "npc/seaborn/npc_seaborn_kazimersch_melee_assasin.sp"
+#include "npc/seaborn/npc_netherseaspewer.sp"
+#include "npc/seaborn/npc_netherseaswarmcaller.sp"
+#include "npc/seaborn/npc_netherseareefbreaker.sp"
+#include "npc/seaborn/npc_seaborn_scout.sp"
+#include "npc/seaborn/npc_seaborn_soldier.sp"
+#include "npc/seaborn/npc_citizen_runner.sp"
+#include "npc/seaborn/npc_seaborn_pyro.sp"
+#include "npc/seaborn/npc_seaborn_demo.sp"
+#include "npc/seaborn/npc_seaborn_heavy.sp"
+#include "npc/seaborn/npc_seaborn_engineer.sp"
+#include "npc/seaborn/npc_seaborn_medic.sp"
+#include "npc/seaborn/npc_seaborn_sniper.sp"
+#include "npc/seaborn/npc_seaborn_spy.sp"
+#include "npc/seaborn/npc_lastknight.sp"
+#include "npc/ally/npc_barrack_lastknight.sp"
+#include "npc/seaborn/npc_saintcarmen.sp"
+#include "npc/seaborn/npc_pathshaper.sp"
+#include "npc/seaborn/npc_pathshaper_fractal.sp"
+#include "npc/seaborn/npc_tidelinkedbishop.sp"
+#include "npc/seaborn/npc_tidelinkedarchon.sp"
+#include "npc/seaborn/npc_seaborn_guard.sp"
+#include "npc/seaborn/npc_seaborn_defender.sp"
+#include "npc/seaborn/npc_seaborn_vanguard.sp"
+#include "npc/seaborn/npc_seaborn_caster.sp"
+#include "npc/seaborn/npc_seaborn_specialist.sp"
+#include "npc/seaborn/npc_seaborn_supporter.sp"
+#include "npc/seaborn/npc_isharmla.sp"
+#include "npc/seaborn/npc_isharmla_trans.sp"
+
+#include "npc/raidmode_bosses/seaborn/npc_stella.sp"
+#include "npc/raidmode_bosses/seaborn/npc_karlas.sp"
+#include "npc/raidmode_bosses/seaborn/npc_bob_the_first_last_savior.sp"
+
+#include "npc/expidonsa/npc_benera.sp"
+#include "npc/expidonsa/npc_pental.sp"
+#include "npc/expidonsa/npc_defanda.sp"
+#include "npc/expidonsa/npc_selfam_ire.sp"
+#include "npc/expidonsa/npc_vaus_magica.sp"
+#include "npc/expidonsa/npc_benera_pistoleer.sp"
+#include "npc/expidonsa/npc_diversionistico.sp"
+#include "npc/expidonsa/npc_heavy_punuel.sp"
+#include "npc/expidonsa/npc_sergeant_ideal.sp"
+#include "npc/expidonsa/npc_rifal_manu.sp"
+#include "npc/expidonsa/npc_siccerino.sp"
+#include "npc/expidonsa/npc_soldine_prototype.sp"
+#include "npc/expidonsa/npc_soldine.sp"
+#include "npc/expidonsa/npc_sniponeer.sp"
+#include "npc/expidonsa/npc_enegakapus.sp"
+#include "npc/expidonsa/npc_ega_bunar.sp"
+#include "npc/expidonsa/npc_protecta.sp"
+
+#include "npc/expidonsa/npc_captino_agentus.sp"
+#include "npc/expidonsa/npc_dualrea.sp"
+#include "npc/expidonsa/npc_guardus.sp"
+#include "npc/expidonsa/npc_vaus_techicus.sp"
+#include "npc/expidonsa/npc_minigun_assisa.sp"
+#include "npc/expidonsa/npc_erasus.sp"
+#include "npc/expidonsa/npc_gianttankus.sp"
+#include "npc/expidonsa/npc_helena.sp"
+#include "npc/expidonsa/npc_ignitus.sp"
+#include "npc/expidonsa/npc_speedus_adivus.sp"
+#include "npc/expidonsa/npc_anfuhrer_eisenhard.sp"
+#include "npc/raidmode_bosses/npc_sensal.sp"
+
+#include "npc/ally/npc_vip_building.sp"
+#include "npc/rogue/npc_overlord_rogue.sp"
+#include "npc/rogue/whiteflower_rogue/npc_combine_whiteflower.sp"
+#include "npc/rogue/whiteflower_rogue/npc_combine_acclaimed_swordsman.sp"
+#include "npc/rogue/whiteflower_rogue/npc_combine_ekas_piloteer.sp"
+#include "npc/rogue/whiteflower_rogue/npc_ekas_robo.sp"
+#include "npc/rogue/whiteflower_rogue/npc_combine_extreme_knight_giant.sp"
+#include "npc/rogue/whiteflower_rogue/npc_combine_flowering_darkness.sp"
+#include "npc/rogue/whiteflower_rogue/npc_combine_raging_blader.sp"
+#include "npc/raidmode_bosses/npc_bladedance.sp"
+#include "npc/raidmode_bosses/npc_the_messenger.sp"
+#include "npc/raidmode_bosses/npc_chaos_kahmlstein.sp"
+
+#include "npc/raidmode_bosses/npc_the_purge.sp"
+
+#include "npc/interitus/desert/npc_ahim.sp"
+#include "npc/interitus/desert/npc_inabdil.sp"
+#include "npc/interitus/desert/npc_khazaan.sp"
+#include "npc/interitus/desert/npc_sakratan.sp"
+#include "npc/interitus/desert/npc_yadeam.sp"
+#include "npc/interitus/desert/npc_rajul.sp"
+#include "npc/interitus/desert/npc_qanaas.sp"
+#include "npc/interitus/desert/npc_atilla.sp"
+#include "npc/interitus/desert/npc_ancient_demon.sp"
+
+#include "npc/interitus/winter/npc_winter_sniper.sp"
+#include "npc/interitus/winter/npc_ziberian_miner.sp"
+#include "npc/interitus/winter/npc_snowey_gunner.sp"
+#include "npc/interitus/winter/npc_freezing_cleaner.sp"
+#include "npc/interitus/winter/npc_airborn_explorer.sp"
+#include "npc/interitus/winter/npc_arctic_mage.sp"
+#include "npc/interitus/winter/npc_skin_hunter.sp"
+#include "npc/interitus/winter/npc_frost_hunter.sp"
+#include "npc/interitus/winter/npc_irritated_person.sp"
+
+#include "npc/interitus/anarchy/npc_ransacker.sp"
+#include "npc/interitus/anarchy/npc_runover.sp"
+#include "npc/interitus/anarchy/npc_hitman.sp"
+#include "npc/interitus/anarchy/npc_mad_doctor.sp"
+#include "npc/interitus/anarchy/npc_abomination.sp"
+#include "npc/interitus/anarchy/npc_enforcer.sp"
+#include "npc/interitus/anarchy/npc_braindead.sp"
+#include "npc/interitus/anarchy/npc_behemoth.sp"
+#include "npc/interitus/anarchy/npc_absolute_incinirator.sp"
+
+#include "npc/interitus/forest/npc_archosauria.sp"
+#include "npc/interitus/forest/npc_aslan.sp"
+#include "npc/interitus/forest/npc_perro.sp"
+#include "npc/interitus/forest/npc_caprinae.sp"
+#include "npc/interitus/forest/npc_liberi.sp"
+#include "npc/interitus/forest/npc_ursus.sp"
+#include "npc/interitus/forest/npc_aegir.sp"
+#include "npc/interitus/forest/npc_cautus.sp"
+#include "npc/interitus/forest/npc_vulpo.sp"
+#include "npc/interitus/forest/npc_majorsteam.sp"
+
+#include "npc/void/npc_spawn_void_portal.sp"
+#include "npc/void/npc_void_base.sp"
+#include "npc/void/npc_voided_diversionistico.sp"
+//1-15
+#include "npc/void/early/npc_ealing.sp"
+#include "npc/void/early/npc_framing_voider.sp"
+#include "npc/void/early/npc_growing_exat.sp"
+#include "npc/void/early/npc_mutating_blob.sp"
+#include "npc/void/early/npc_void_spreader.sp"
+#include "npc/void/early/npc_void_infestor.sp"
+#include "npc/void/early/npc_void_crust.sp"
+#include "npc/void/early/npc_void_carrier.sp"
+#include "npc/void/early/npc_void_ixufan.sp"
+
+#include "npc/void/earlymid/npc_enframed_voider.sp"
+#include "npc/void/earlymid/npc_blood_pollutor.sp"
+#include "npc/void/earlymid/npc_voided_expidonsan_fortifier.sp"
+#include "npc/void/earlymid/npc_void_particle.sp"
+#include "npc/void/earlymid/npc_hosting_blob.sp"
+#include "npc/void/earlymid/npc_blobbing_monster.sp"
+#include "npc/void/earlymid/npc_void_sprayer.sp"
+#include "npc/void/earlymid/npc_void_encasulator.sp"
+
+
+#include "npc/void/midlate/npc_void_expidonsan_container.sp"
+#include "npc/void/midlate/npc_void_expidonsan_cleaner.sp"
+#include "npc/void/midlate/npc_void_sacraficer.sp"
+#include "npc/void/midlate/npc_voiding_bedrock.sp"
+#include "npc/void/midlate/npc_void_heavy_perisher.sp"
+#include "npc/void/midlate/npc_void_minigate_keeper.sp"
+#include "npc/void/midlate/npc_void_brooding_petra.sp"
+
+
+#include "npc/void/late/npc_void_erasus.sp"
+#include "npc/void/late/npc_void_kunul.sp"
+#include "npc/void/late/npc_void_total_growth.sp"
+#include "npc/void/late/npc_voids_offspring.sp"
+#include "npc/void/late/npc_void_rejuvinator.sp"
+#include "npc/void/late/npc_void_speechless.sp"
+#include "npc/raidmode_bosses/npc_void_unspeakable.sp"
+
+#include "npc/rogue/npc_rogue_condition.sp"
+#include "npc/rogue/chaos/npc_goggles_follower.sp"
+#include "npc/rogue/chaos/npc_thehunter.sp"
+#include "npc/rogue/chaos/npc_finalhunter.sp"
+#include "npc/rogue/chaos/npc_kahmlstein_follower.sp"
+#include "npc/rogue/chaos/npc_chaos_mage.sp"
+#include "npc/rogue/chaos/npc_chaos_supporter.sp"
+#include "npc/rogue/chaos/npc_chaos_insane.sp"
+#include "npc/rogue/chaos/npc_chaos_sick_knight.sp"
+#include "npc/rogue/chaos/npc_chaos_injured_cultist.sp"
+#include "npc/rogue/chaos/npc_vhxis.sp"
+#include "npc/rogue/chaos/npc_duck_follower.sp"
+
+
+#include "npc/rogue/chaos_expansion/npc_evil_chaos_demon.sp"
+#include "npc/rogue/chaos_expansion/npc_chaos_swordsman.sp"
+#include "npc/rogue/chaos_expansion/npc_nightmare_swordsman.sp"
+#include "npc/rogue/chaos_expansion/npc_bob_first_follower.sp"
+#include "npc/rogue/chaos_expansion/npc_twirl_follower.sp"
+#include "npc/rogue/chaos_expansion/npc_hallam_great_demon.sp"
+#include "npc/rogue/chaos_expansion/npc_Ihanal_demon_whisperer.sp"
+#include "npc/rogue/chaos_expansion/npc_majorvoided.sp"
+
+#include "npc/mutations/truesurvival/npc_nightmare.sp"
+#include "npc/mutations/truesurvival/npc_petrisisbaron.sp"
+#include "npc/mutations/truesurvival/npc_sphynx.sp"
+#include "npc/mutations/truesurvival/npc_zombine.sp"
+#include "npc/mutations/truesurvival/npc_zmain_headcrabzombie.sp"
+#include "npc/mutations/truesurvival/npc_zmain_poisonzombie.sp"
+#include "npc/mutations/truesurvival/npc_zmain_headcrab.sp"
+#include "npc/mutations/truesurvival/npc_headcrab.sp"
+#include "npc/mutations/truesurvival/npc_poisonheadcrab.sp"
+#include "npc/mutations/randomboss/npc_boss_battle_only.sp"
+
+
+
+#include "npc/iberia_expidonsa/npc_iberia_base.sp"
+#include "npc/iberia_expidonsa/npc_iberia_beacon.sp"
+#include "npc/iberia_expidonsa/npc_iberia_lighthouse.sp"
+#include "npc/iberia_expidonsa/npc_beacon_constructor.sp"
+#include "npc/iberia_expidonsa/npc_huirgrajo.sp"
+
+#include "npc/iberia_expidonsa/wave_15/npc_irani.sp"
+#include "npc/iberia_expidonsa/wave_15/npc_cambino.sp"
+#include "npc/iberia_expidonsa/wave_15/npc_kinat.sp"
+#include "npc/iberia_expidonsa/wave_15/npc_ginus.sp"
+#include "npc/iberia_expidonsa/wave_15/npc_speedus_initus.sp"
+#include "npc/iberia_expidonsa/wave_15/npc_anania.sp"
+#include "npc/iberia_expidonsa/wave_15/npc_victorian.sp"
+#include "npc/iberia_expidonsa/wave_15/npc_inqusitor_iidutas.sp"
+
+
+#include "npc/iberia_expidonsa/wave_30/npc_vivintu.sp"
+#include "npc/iberia_expidonsa/wave_30/npc_cenula.sp"
+#include "npc/iberia_expidonsa/wave_30/npc_kumbai.sp"
+#include "npc/iberia_expidonsa/wave_30/npc_speedus_instantus.sp"
+#include "npc/iberia_expidonsa/wave_30/npc_combastia.sp"
+#include "npc/iberia_expidonsa/wave_30/npc_iberia_morato.sp"
+#include "npc/iberia_expidonsa/wave_30/npc_sea_xploder.sp"
+#include "npc/iberia_expidonsa/wave_30/npc_anti_sea_robot.sp"
+
+
+#include "npc/iberia_expidonsa/wave_45/npc_ranka_s.sp"
+#include "npc/iberia_expidonsa/wave_45/npc_murdarato.sp"
+#include "npc/iberia_expidonsa/wave_45/npc_elite_kinat.sp"
+#include "npc/iberia_expidonsa/wave_45/npc_seaborn_eradicator.sp"
+#include "npc/iberia_expidonsa/wave_45/npc_speedus_itus.sp"
+#include "npc/iberia_expidonsa/wave_45/npc_sentinel.sp"
+#include "npc/iberia_expidonsa/wave_45/npc_destructius.sp"
+#include "npc/iberia_expidonsa/wave_45/npc_ironborus.sp"
+
+
+#include "npc/iberia_expidonsa/wave_60/npc_death_marker.sp"
+#include "npc/iberia_expidonsa/wave_60/npc_runaka.sp"
+#include "npc/iberia_expidonsa/wave_60/npc_speedus_elitus.sp"
+#include "npc/iberia_expidonsa/wave_60/npc_sea_dryer.sp"
+#include "npc/iberia_expidonsa/wave_60/npc_inqusitor_irene.sp"
+
+
+#include "npc/raidmode_bosses/iberia/npc_nemal.sp"
+#include "npc/raidmode_bosses/iberia/npc_raid_silvester.sp"
+
+//Victoria
+//Wave 1~15
+#include "npc/victoria/npc_batter.sp"
+#include "npc/victoria/npc_charger.sp"
+#include "npc/victoria/npc_teslar.sp"
+#include "npc/victoria/npc_victorian_vanguard.sp"
+#include "npc/victoria/npc_supplier.sp"
+#include "npc/victoria/npc_ballista.sp"
+#include "npc/victoria/npc_igniter.sp"
+#include "npc/victoria/npc_grenadier.sp"
+#include "npc/victoria/npc_squadleader.sp"
+#include "npc/victoria/npc_signaller.sp"
+
+//wave 16~30
+#include "npc/victoria/npc_humbee.sp"
+#include "npc/victoria/npc_shotgunner.sp"
+#include "npc/victoria/npc_bulldozer.sp"
+#include "npc/victoria/npc_hardener.sp"
+#include "npc/victoria/npc_raider.sp"
+#include "npc/victoria/npc_zapper.sp"
+#include "npc/victoria/npc_payback.sp"
+#include "npc/victoria/npc_blocker.sp"
+#include "npc/victoria/npc_destructor.sp"
+#include "npc/victoria/npc_ironshield.sp"
+#include "npc/victoria/npc_aviator.sp"
+
+//wave 31~45
+#include "npc/victoria/npc_basebreaker.sp"
+#include "npc/victoria/npc_booster.sp"
+#include "npc/victoria/npc_scorcher.sp"
+#include "npc/victoria/npc_mowdown.sp"
+#include "npc/victoria/npc_mechafist.sp"
+#include "npc/victoria/npc_assaulter.sp"
+#include "npc/victoria/npc_antiarmor_infantry.sp"
+#include "npc/victoria/npc_mortar.sp"
+#include "npc/victoria/npc_bombcart.sp"
+#include "npc/victoria/npc_breachcart.sp"
+#include "npc/victoria/npc_birdeye.sp"
+#include "npc/victoria/npc_harbringer.sp"
+#include "npc/victoria/npc_bigpipe.sp"
+
+//wave 46~60
+#include "npc/victoria/npc_caffeinator.sp"
+#include "npc/victoria/npc_welder.sp"
+#include "npc/victoria/npc_mechanist.sp"
+#include "npc/victoria/npc_avangard.sp"
+#include "npc/victoria/npc_tanker.sp"
+#include "npc/victoria/npc_pulverizer.sp"
+#include "npc/victoria/npc_ambusher.sp"
+#include "npc/victoria/npc_taser.sp"
+#include "npc/victoria/npc_victorian_tank.sp"
+#include "npc/victoria/npc_victoria_radiomast.sp"
+#include "npc/victoria/npc_radioguard.sp"
+#include "npc/victoria/npc_radio_repair.sp"
+
+#include "npc/victoria/npc_victorian_moru.sp"
+#include "npc/victoria/npc_victorian_fragments.sp"
+#include "npc/victoria/npc_victorian_factory.sp"
+#include "npc/victoria/npc_victoria_tacticalprotector.sp"
+#include "npc/victoria/npc_victoria_tacticalunit.sp"
+//raidbosses
+#include "npc/raidmode_bosses/victoria/npc_the_atomizer.sp"
+#include "npc/raidmode_bosses/victoria/npc_the_wall.sp"
+#include "npc/raidmode_bosses/victoria/npc_harrison.sp"
+#include "npc/raidmode_bosses/victoria/npc_castellan.sp"
+
+//Matrix Enemies
+#include "npc/matrix/15/npc_agentalan.sp"
+#include "npc/matrix/15/npc_agentalexander.sp"
+#include "npc/matrix/15/npc_agentchase.sp"
+#include "npc/matrix/15/npc_agentdave.sp"
+#include "npc/matrix/15/npc_agentgraham.sp"
+#include "npc/matrix/15/npc_agentjames.sp"
+#include "npc/matrix/15/npc_agentjohn.sp"
+#include "npc/matrix/15/npc_agentsteve.sp"
+#include "npc/matrix/30/npc_agenteric.sp"
+#include "npc/matrix/30/npc_agentjack.sp"
+#include "npc/matrix/30/npc_agentjim.sp"
+#include "npc/matrix/30/npc_agentjosh.sp"
+#include "npc/matrix/30/npc_agentkenneth.sp"
+#include "npc/matrix/30/npc_agentpaul.sp"
+#include "npc/matrix/30/npc_agenttyler.sp"
+#include "npc/matrix/30/npc_agentwayne.sp"
+#include "npc/matrix/30/npc_merovingian.sp"
+#include "npc/matrix/45/npc_agentben.sp"
+#include "npc/matrix/45/npc_agentchad.sp"
+#include "npc/matrix/45/npc_agentchris.sp"
+#include "npc/matrix/45/npc_agentdick.sp"
+#include "npc/matrix/45/npc_agentian.sp"
+#include "npc/matrix/45/npc_agentjackson.sp"
+#include "npc/matrix/45/npc_agentmike.sp"
+#include "npc/matrix/45/npc_agentsam.sp"
+#include "npc/matrix/45/npc_agentzack.sp"
+#include "npc/matrix/60/npc_agentconnor.sp"
+#include "npc/matrix/60/npc_agenthenry.sp"
+#include "npc/matrix/60/npc_agentjeremy.sp"
+#include "npc/matrix/60/npc_agentjones.sp"
+#include "npc/matrix/60/npc_agentkurt.sp"
+#include "npc/matrix/60/npc_agentlogan.sp"
+#include "npc/matrix/60/npc_agentross.sp"
+#include "npc/matrix/60/npc_agentspencer.sp"
+#include "npc/matrix/60/npc_agenttodd.sp"
+
+//Matrix Giants
+#include "npc/matrix/giants/npc_giant_haste.sp"
+#include "npc/matrix/giants/npc_giant_knockout.sp"
+#include "npc/matrix/giants/npc_giant_reflector.sp"
+#include "npc/matrix/giants/npc_giant_regeneration.sp"
+
+//Matrix Raids
+#include "npc/matrix/raids/npc_agentjohnson.sp"
+#include "npc/matrix/raids/npc_agentthompson.sp"
+#include "npc/matrix/raids/npc_twins.sp"
+#include "npc/matrix/raids/npc_agent_smith.sp"
+
+//Matrix Freeplay Enemies
+#include "npc/matrix/freeplay/npc_freeplay_agentdave.sp"
+#include "npc/matrix/freeplay/npc_freeplay_agentwayne.sp"
+#include "npc/matrix/freeplay/npc_freeplay_agentian.sp"
+#include "npc/matrix/freeplay/npc_freeplay_agentspencer.sp"
+
+//Combine Hell Mutation
+#include "npc/mutations/combinehell/other/npc_hunter.sp"
+#include "npc/mutations/combinehell/other/npc_merlton.sp"
+#include "npc/mutations/combinehell/other/npc_combine_lost_knight.sp"
+#include "npc/mutations/combinehell/other/npc_omega_raid.sp"
+#include "npc/mutations/combinehell/other/npc_bob_follower.sp"
+#include "npc/mutations/combinehell/seaborn/npc_seaborn_combine_police_pistol.sp"
+#include "npc/mutations/combinehell/seaborn/npc_seaborn_combine_police_smg.sp"
+#include "npc/mutations/combinehell/seaborn/npc_seaborn_combine_soldier_elite.sp"
+#include "npc/mutations/combinehell/seaborn/npc_seaborn_combine_soldier_ar2.sp"
+#include "npc/mutations/combinehell/seaborn/npc_seaborn_combine_soldier_shotgun.sp"
+#include "npc/mutations/combinehell/void/npc_voided_combine_police_pistol.sp"
+#include "npc/mutations/combinehell/void/npc_voided_combine_police_smg.sp"
+#include "npc/mutations/combinehell/void/npc_voided_combine_soldier_elite.sp"
+#include "npc/mutations/combinehell/void/npc_voided_combine_soldier_ar2.sp"
+#include "npc/mutations/combinehell/void/npc_voided_combine_soldier_shotgun.sp"
+
+#include "npc/voices/npc_stalker_wisp.sp"
+
+// Freeplay
+#include "npc/mutations/freeplay/npc_dimensionfrag.sp"
+#include "npc/mutations/freeplay/npc_immutableheavy.sp"
+#include "npc/mutations/freeplay/npc_vanishingmatter.sp"
+#include "npc/mutations/freeplay/npc_annoying_spirit.sp"
+#include "npc/mutations/freeplay/npc_darkenedheavy.sp"
+
+#include "npc/construction/npc_base_building.sp"
+#include "npc/construction/npc_material_cash.sp"
+#include "npc/construction/npc_material_copper.sp"
+#include "npc/construction/npc_material_crystal.sp"
+#include "npc/construction/npc_material_iron.sp"
+#include "npc/construction/npc_material_jalan.sp"
+#include "npc/construction/npc_material_ossunia.sp"
+#include "npc/construction/npc_material_stone.sp"
+#include "npc/construction/npc_material_wizuh.sp"
+#include "npc/construction/npc_material_wood.sp"
+#include "npc/construction/npc_rogue_expi_building.sp"
+#include "npc/construction/npc_material_gift.sp"
+
+// April Fools
+#include "npc/aprilfools/npc_packapunch.sp"
+#include "npc/aprilfools/npc_perkmachine.sp"
+#include "npc/aprilfools/npc_ammobox.sp"
+#include "npc/aprilfools/npc_male07.sp"
+#include "npc/aprilfools/npc_spiritrunner.sp"
+#include "npc/aprilfools/npc_error_melee.sp"
+#include "npc/aprilfools/npc_error_ranged.sp"
+#include "npc/aprilfools/npc_toddhoward.sp"
+#include "npc/aprilfools/npc_kevinmery2009.sp"
+#include "npc/aprilfools/npc_red_heavy.sp"
+#include "npc/aprilfools/npc_blue_heavy.sp"
+#include "npc/aprilfools/npc_cyan_heavy.sp"
+#include "npc/aprilfools/npc_green_heavy.sp"
+#include "npc/aprilfools/npc_orange_heavy.sp"
+#include "npc/aprilfools/npc_yellow_heavy.sp"
+#include "npc/aprilfools/npc_purple_heavy.sp"
+#include "npc/aprilfools/npc_sentrybuster.sp"
+#include "npc/aprilfools/npc_troll_ar2.sp"
+#include "npc/aprilfools/npc_troll_pistol.sp"
+#include "npc/aprilfools/npc_troll_rpg.sp"
+#include "npc/aprilfools/npc_troll_melee.sp"
+
+#include "npc/construction/enemies/npc_eirasus.sp"
+#include "npc/construction/enemies/npc_haltera.sp"
+#include "npc/construction/enemies/npc_flaigus.sp"
+#include "npc/construction/enemies/npc_biggun_assisa.sp"
+#include "npc/construction/enemies/npc_hia_rejuvinator.sp"
+#include "npc/construction/enemies/npc_cuttus_siccino.sp"
+#include "npc/construction/enemies/npc_armsa_manu.sp"
+#include "npc/construction/enemies/npc_speedus_absolutos.sp"
+#include "npc/construction/enemies/npc_vaus_shaldus.sp"
+#include "npc/construction/enemies/npc_soldinus_ilus.sp"
+#include "npc/construction/enemies/npc_selfam_scythus.sp"
+#include "npc/construction/enemies/npc_diversionistico_elitus.sp"
+#include "npc/construction/enemies/npc_zilius.sp"
+#include "npc/construction/enemies/npc_zeina_prison.sp"
+#include "npc/construction/enemies/npc_zeina_freed.sp"
+
+//Aperture
+#include "npc/aperture/10/npc_aperture_combatant.sp"
+#include "npc/aperture/10/npc_aperture_shotgunner.sp"
+#include "npc/aperture/10/npc_aperture_jumper.sp"
+#include "npc/aperture/10/npc_aperture_phaser.sp"
+#include "npc/aperture/10/npc_aperture_specialist.sp"
+#include "npc/aperture/10/npc_aperture_sniper.sp"
+#include "npc/aperture/10/npc_aperture_huntsman.sp"
+#include "npc/aperture/10/npc_last_survivor_science.sp"
+#include "npc/aperture/20/npc_aperture_combatant_v2.sp"
+#include "npc/aperture/20/npc_aperture_huntsman_v2.sp"
+#include "npc/aperture/20/npc_aperture_jumper_v2.sp"
+#include "npc/aperture/20/npc_aperture_phaser_v2.sp"
+#include "npc/aperture/20/npc_aperture_shotgunner_v2.sp"
+#include "npc/aperture/20/npc_aperture_sniper_v2.sp"
+#include "npc/aperture/20/npc_aperture_specialist_v2.sp"
+#include "npc/aperture/20/npc_aperture_supporter.sp"
+#include "npc/aperture/20/npc_aperture_devastator.sp"
+#include "npc/aperture/20/npc_aperture_demolisher.sp"
+#include "npc/aperture/20/npc_aperture_minigunner.sp"
+#include "npc/aperture/20/npc_aperture_repulsor.sp"
+#include "npc/aperture/20/npc_aperture_exterminator.sp"
+#include "npc/aperture/30/npc_aperture_combatant_perfected.sp"
+#include "npc/aperture/30/npc_aperture_shotgunner_perfected.sp"
+#include "npc/aperture/30/npc_aperture_huntsman_perfected.sp"
+#include "npc/aperture/30/npc_aperture_phaser_perfected.sp"
+#include "npc/aperture/30/npc_aperture_sniper_perfected.sp"
+#include "npc/aperture/30/npc_aperture_specialist_perfected.sp"
+#include "npc/aperture/30/npc_aperture_jumper_perfected.sp"
+#include "npc/aperture/30/npc_aperture_demolisher_v2.sp"
+#include "npc/aperture/30/npc_aperture_devastator_v2.sp"
+#include "npc/aperture/30/npc_aperture_minigunner_v2.sp"
+#include "npc/aperture/30/npc_aperture_repulsor_v2.sp"
+#include "npc/aperture/30/npc_aperture_supporter_v2.sp"
+#include "npc/aperture/30/npc_aperture_builder.sp"
+#include "npc/aperture/30/npc_aperture_sentry.sp"
+#include "npc/aperture/30/npc_aperture_dispenser.sp"
+#include "npc/aperture/30/npc_aperture_teleporter.sp"
+#include "npc/aperture/30/npc_aperture_container.sp"
+#include "npc/aperture/30/npc_aperture_spokesman.sp"
+#include "npc/aperture/40/npc_aperture_traveller.sp"
+#include "npc/aperture/40/npc_aperture_demolisher_perfected.sp"
+#include "npc/aperture/40/npc_aperture_devastator_perfected.sp"
+#include "npc/aperture/40/npc_aperture_minigunner_perfected.sp"
+#include "npc/aperture/40/npc_aperture_repulsor_perfected.sp"
+#include "npc/aperture/40/npc_aperture_supporter_perfected.sp"
+#include "npc/aperture/40/npc_aperture_researcher.sp"
+#include "npc/aperture/refragmented/npc_refragmented_headcrabzombie.sp"
+#include "npc/aperture/refragmented/npc_refragmented_fastzombie.sp"
+#include "npc/aperture/refragmented/npc_refragmented_poisonzombie.sp"
+#include "npc/aperture/refragmented/npc_refragmented_combine_police_pistol.sp"
+#include "npc/aperture/refragmented/npc_refragmented_combine_police_smg.sp"
+#include "npc/aperture/refragmented/npc_refragmented_combine_soldier_ar2.sp"
+#include "npc/aperture/refragmented/npc_refragmented_combine_soldier_elite.sp"
+#include "npc/aperture/refragmented/npc_refragmented_heavy.sp"
+#include "npc/aperture/refragmented/npc_refragmented_medic.sp"
+#include "npc/aperture/refragmented/npc_refragmented_spy.sp"
+#include "npc/aperture/refragmented/npc_refragmented_parasihtta.sp"
+#include "npc/aperture/refragmented/npc_refragmented_hostis.sp"
+#include "npc/aperture/refragmented/npc_refragmented_defectio.sp"
+#include "npc/aperture/npc_portalgate.sp"
+#include "npc/aperture/npc_talker.sp"
+#include "npc/aperture/giants/npc_aperture_collector.sp"
+#include "npc/aperture/giants/npc_aperture_fueler.sp"
+#include "npc/aperture/giants/npc_aperture_halter.sp"
+#include "npc/aperture/giants/npc_aperture_suppressor.sp"
+#include "npc/aperture/raids/npc_cat.sp"
+#include "npc/aperture/raids/npc_aris.sp"
+#include "npc/aperture/npc_aris_makeshift_beacon.sp"
+#include "npc/aperture/raids/npc_chimera.sp"
+#include "npc/aperture/refragmented/npc_chimeraboss_refragmented_winter_sniper.sp"
+#include "npc/aperture/refragmented/npc_chimeraboss_refragmented_frost_hunter.sp"
+#include "npc/aperture/raids/npc_vincent.sp"
+#include "npc/aperture/npc_vincent_beacon.sp"
+
+#include "npc/rogue/rouge3/npc_umbral_ltzens.sp"
+#include "npc/rogue/rouge3/npc_umbral_refract.sp"
+#include "npc/rogue/rouge3/npc_umbral_koulm.sp"
+#include "npc/rogue/rouge3/npc_hhh.sp"
+#include "npc/rogue/rouge3/npc_gentlespy.sp"
+#include "npc/rogue/rouge3/npc_christianbrutalsniper.sp"
+#include "npc/rogue/rouge3/npc_umbral_spuud.sp"
+#include "npc/rogue/rouge3/npc_umbral_keitosis.sp"
+#include "npc/rogue/rouge3/npc_almagest_seinr.sp"
+#include "npc/rogue/rouge3/npc_almagest_jkei.sp"
+#include "npc/rogue/rouge3/npc_almagest_jkei_drone.sp"
+#include "npc/rogue/rouge3/npc_randomizer.sp"
+#include "npc/rogue/rouge3/randomizer/npc_randomizer_base_flamethrower.sp"
+#include "npc/rogue/rouge3/randomizer/npc_randomizer_base_huntsman.sp"
+#include "npc/rogue/rouge3/randomizer/npc_randomizer_base_southern_hospitality.sp"
+#include "npc/rogue/rouge3/npc_boss_reila.sp"
+#include "npc/rogue/rouge3/npc_boss_reila_beacon.sp"
+#include "npc/rogue/rouge3/npc_reila_follower.sp"
+#include "npc/rogue/rouge3/npc_umbral_automaton.sp"
+#include "npc/rogue/rouge3/npc_umbral_rouam.sp"
+#include "npc/rogue/rouge3/npc_omega_follower.sp"
+#include "npc/rogue/rouge3/npc_vhxis_follower.sp"
+#include "npc/rogue/rouge3/npc_shadow_flowering_darkness.sp"
+#include "npc/rogue/rouge3/npc_shadowing_darkness.sp"
+#include "npc/rogue/rouge3/npc_torn_umbral_gate.sp"
+#include "npc/rogue/rouge3/npc_umbral_whiteflower.sp"
+#include "npc/construction/logic_win_timer.sp"
+#include "npc/construction/npc_sensal_follower.sp"
+#include "npc/construction/npc_overlord_follower.sp"

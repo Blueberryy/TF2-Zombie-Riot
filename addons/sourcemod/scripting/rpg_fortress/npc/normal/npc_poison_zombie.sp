@@ -46,8 +46,18 @@ public void PoisonZombie_OnMapStart_NPC()
 	for (int i = 0; i < (sizeof(g_HurtSound));	i++) { PrecacheSound(g_HurtSound[i]);	}
 	for (int i = 0; i < (sizeof(g_IdleAlertedSounds));	i++) { PrecacheSound(g_IdleAlertedSounds[i]);	}
 
-	PrecacheModel("models/zombie/classic.mdl");
+	PrecacheModel("models/zombie/poison.mdl");
 	PrecacheModel("models/weapons/w_grenade.mdl");
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Poison Zombie");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_poison_zombie");
+	data.Func = ClotSummon;
+	NPC_Add(data);
+}
+
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team)
+{
+	return PoisonZombie(vecPos, vecAng, team);
 }
 
 methodmap PoisonZombie < CClotBody
@@ -87,11 +97,11 @@ methodmap PoisonZombie < CClotBody
 	}
 	
 	
-	public PoisonZombie(int client, float vecPos[3], float vecAng[3], bool ally)
+	public PoisonZombie(float vecPos[3], float vecAng[3], int ally)
 	{
 		PoisonZombie npc = view_as<PoisonZombie>(CClotBody(vecPos, vecAng, "models/zombie/poison.mdl", "1.15", "300", ally, false,_,_,_,_));
 		
-		i_NpcInternalId[npc.index] = POISON_ZOMBIE;
+		KillFeed_SetKillIcon(npc.index, "taunt_soldier");
 		
 		FormatEx(c_HeadPlaceAttachmentGibName[npc.index], sizeof(c_HeadPlaceAttachmentGibName[]), "head");
 		
@@ -106,24 +116,23 @@ methodmap PoisonZombie < CClotBody
 		npc.m_iStepNoiseType = STEPSOUND_NORMAL;	
 		npc.m_iNpcStepVariation = STEPTYPE_NORMAL;
 		npc.m_flNextThinkTime = GetGameTime() + GetRandomFloat(0.0, 1.0);
+		func_NPCDeath[npc.index] = PoisonZombie_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = PoisonZombie_OnTakeDamage;
+		func_NPCThink[npc.index] = PoisonZombie_ClotThink;
 
 		f3_SpawnPosition[npc.index][0] = vecPos[0];
 		f3_SpawnPosition[npc.index][1] = vecPos[1];
 		f3_SpawnPosition[npc.index][2] = vecPos[2];
 		
-		SDKHook(npc.index, SDKHook_OnTakeDamage, PoisonZombie_OnTakeDamage);
-		SDKHook(npc.index, SDKHook_Think, PoisonZombie_ClotThink);
-		
-		NPC_StopPathing(npc.index);
-		npc.m_bPathing = false;	
+		npc.StopPathing();
+			
 		
 		return npc;
 	}
 	
 }
 
-//TODO 
-//Rewrite
+
 public void PoisonZombie_ClotThink(int iNPC)
 {
 	PoisonZombie npc = view_as<PoisonZombie>(iNPC);
@@ -157,8 +166,8 @@ public void PoisonZombie_ClotThink(int iNPC)
 	
 	npc.m_flNextThinkTime = gameTime + 0.1;
 
-	// npc.m_iTarget comes from here.
-	Npc_Base_Thinking(iNPC, 500.0, "ACT_WALK", "ACT_IDLE", 80.0, gameTime);
+	// npc.m_iTarget comes from here, This only handles out of battle instancnes, for inbattle, code it yourself. It also makes NPCS jump if youre too high up.
+	Npc_Base_Thinking(iNPC, 250.0, "ACT_WALK", "ACT_IDLE", 80.0, gameTime);
 
 	if(npc.m_flAttackHappens)
 	{
@@ -169,19 +178,25 @@ public void PoisonZombie_ClotThink(int iNPC)
 			if(IsValidEnemy(npc.index, npc.m_iTarget))
 			{
 				Handle swingTrace;
-				npc.FaceTowards(WorldSpaceCenter(npc.m_iTarget), 15000.0); //Snap to the enemy. make backstabbing hard to do.
+				float WorldSpaceCenterVec[3]; 
+				WorldSpaceCenter(npc.m_iTarget, WorldSpaceCenterVec);
+				npc.FaceTowards(WorldSpaceCenterVec, 15000.0); //Snap to the enemy. make backstabbing hard to do.
 				if(npc.DoSwingTrace(swingTrace, npc.m_iTarget, _, _, _, _)) //Big range, but dont ignore buildings if somehow this doesnt count as a raid to be sure.
 				{
 					int target = TR_GetEntityIndex(swingTrace);	
 					
 					float vecHit[3];
 					TR_GetEndPosition(vecHit, swingTrace);
-					float damage = 100.0;
+					float damage = 20000.0;
 
-					npc.PlayMeleeHitSound();
+					
 					if(target > 0) 
 					{
+						npc.PlayMeleeHitSound();
+						KillFeed_SetKillIcon(npc.index, "warrior_spirit");
 						SDKHooks_TakeDamage(target, npc.index, npc.index, damage, DMG_CLUB);
+						KillFeed_SetKillIcon(npc.index, "taunt_soldier");
+						StartBleedingTimer(target, npc.index,8000.0, 5, -1, DMG_TRUEDAMAGE, 0);
 
 						int Health = GetEntProp(target, Prop_Data, "m_iHealth");
 						
@@ -195,38 +210,27 @@ public void PoisonZombie_ClotThink(int iNPC)
 			}
 		}
 	}
-
-	if(npc.m_flNextRangedAttackHappening)
-	{
-		if(IsValidEnemy(npc.index, npc.m_iTarget))
-		{
-			float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
-			npc.FaceTowards(vecTarget, 30000.0);
-			if(npc.m_flNextRangedAttackHappening < gameTime)
-			{
-				npc.m_flNextRangedAttackHappening = 0.0;
-				
-			//	npc.PlayRangedSound();
-				npc.FireGrenade(vecTarget, 800.0, 100.0, "models/weapons/w_grenade.mdl");
-			}
-		}
-	}
 	
 	if(IsValidEnemy(npc.index, npc.m_iTarget))
 	{
-		float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
-		float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+		float vecTarget[3];
+		WorldSpaceCenter(npc.m_iTarget, vecTarget);
+		float vecSelf[3];
+		WorldSpaceCenter(npc.index, vecSelf);
+
+		float flDistanceToTarget = GetVectorDistance(vecTarget, vecSelf, true);
 			
 		//Predict their pos.
 		if(flDistanceToTarget < npc.GetLeadRadius()) 
 		{
-			float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, npc.m_iTarget);
+			float vPredictedPos[3]; 
+			PredictSubjectPosition(npc, npc.m_iTarget,_,_,vPredictedPos);
 			
-			NPC_SetGoalVector(npc.index, vPredictedPos);
+			npc.SetGoalVector(vPredictedPos);
 		}
 		else
 		{
-			NPC_SetGoalEntity(npc.index, npc.m_iTarget);
+			npc.SetGoalEntity(npc.m_iTarget);
 		}
 		//Get position for just travel here.
 
@@ -237,10 +241,6 @@ public void PoisonZombie_ClotThink(int iNPC)
 		else if(flDistanceToTarget < NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED && npc.m_flNextMeleeAttack < gameTime)
 		{
 			npc.m_iState = 1; //Engage in Close Range Destruction.
-		}
-		else if(flDistanceToTarget < (NORMAL_ENEMY_MELEE_RANGE_FLOAT_SQUARED * 4.0) && npc.m_flNextRangedAttack < gameTime)
-		{
-			npc.m_iState = 2; //Throw a ranged attack.
 		}
 		else 
 		{
@@ -268,11 +268,9 @@ public void PoisonZombie_ClotThink(int iNPC)
 			}
 			case 1:
 			{			
-				int Enemy_I_See;
-							
-				Enemy_I_See = Can_I_See_Enemy(npc.index, npc.m_iTarget);
+				int Enemy_I_See = Can_I_See_Enemy(npc.index, npc.m_iTarget);
 				//Can i see This enemy, is something in the way of us?
-				//Dont even check if its the same enemy, just engage in rape, and also set our new target to this just in case.
+				//Dont even check if its the same enemy, just engage in killing, and also set our new target to this just in case.
 				if(IsValidEntity(Enemy_I_See) && IsValidEnemy(npc.index, Enemy_I_See))
 				{
 					npc.m_iTarget = Enemy_I_See;
@@ -286,28 +284,6 @@ public void PoisonZombie_ClotThink(int iNPC)
 					npc.m_flDoingAnimation = gameTime + 0.8;
 					npc.m_flNextMeleeAttack = gameTime + 1.5;
 					npc.m_bisWalking = true;
-				}
-			}
-			case 2:
-			{			
-				int Enemy_I_See;
-							
-				Enemy_I_See = Can_I_See_Enemy(npc.index, npc.m_iTarget);
-				//Can i see This enemy, is something in the way of us?
-				//Dont even check if its the same enemy, just engage in rape, and also set our new target to this just in case.
-				if(IsValidEntity(Enemy_I_See) && IsValidEnemy(npc.index, Enemy_I_See))
-				{
-					npc.m_iTarget = Enemy_I_See;
-
-					npc.AddGesture("ACT_RANGE_ATTACK2");
-
-					npc.PlayMeleeSound();
-					
-					npc.m_flNextRangedAttackHappening = gameTime + 1.2;
-
-					npc.m_flDoingAnimation = gameTime + 2.3;
-					npc.m_flNextRangedAttack = gameTime + 7.5;
-					npc.m_bisWalking = false;
 				}
 			}
 		}
@@ -341,8 +317,6 @@ public void PoisonZombie_NPCDeath(int entity)
 	{
 		npc.PlayDeathSound();
 	}
-	SDKUnhook(entity, SDKHook_OnTakeDamage, PoisonZombie_OnTakeDamage);
-	SDKUnhook(entity, SDKHook_Think, PoisonZombie_ClotThink);
 
 	if(IsValidEntity(npc.m_iWearable1))
 		RemoveEntity(npc.m_iWearable1);

@@ -1,7 +1,6 @@
 #pragma semicolon 1
 #pragma newdecls required
 
-static float Strength[MAXTF2PLAYERS];
 static float Damage_Projectile[MAXENTITIES]={0.0, ...};
 static float Damage_Tornado[MAXENTITIES]={0.0, ...};
 static float Duration_Tornado[MAXENTITIES]={0.0, ...};
@@ -13,29 +12,11 @@ static int Projectile_To_Client[MAXENTITIES]={0, ...};
 static int Projectile_To_Particle[MAXENTITIES]={0, ...};
 static int Projectile_To_Weapon[MAXENTITIES]={0, ...};
 
-static float TORNADO_Radius[MAXTF2PLAYERS];
+static float TORNADO_Radius[MAXPLAYERS];
 
-static bool BEAM_CanUse[MAXTF2PLAYERS];
-static bool BEAM_IsUsing[MAXTF2PLAYERS];
-static int BEAM_TicksActive[MAXTF2PLAYERS];
 static int Beam_Laser;
 static int Beam_Glow;
-static float BEAM_CloseDPT[MAXTF2PLAYERS];
-static float BEAM_FarDPT[MAXTF2PLAYERS];
-static int BEAM_MaxDistance[MAXTF2PLAYERS];
-static int BEAM_BeamRadius[MAXTF2PLAYERS];
-static int BEAM_ColorHex[MAXTF2PLAYERS];
-static int BEAM_ChargeUpTime[MAXTF2PLAYERS];
-static float BEAM_CloseBuildingDPT[MAXTF2PLAYERS];
-static float BEAM_FarBuildingDPT[MAXTF2PLAYERS];
-static float BEAM_Duration[MAXTF2PLAYERS];
-static float BEAM_BeamOffset[MAXTF2PLAYERS][3];
-static float BEAM_ZOffset[MAXTF2PLAYERS];
-static bool BEAM_HitDetected[MAXTF2PLAYERS];
-static int BEAM_BuildingHit[MAX_TARGETS_HIT];
-static bool BEAM_UseWeapon[MAXTF2PLAYERS];
 
-static float BEAM_Targets_Hit[MAXTF2PLAYERS];
 
 public void WindStaff_ClearAll()
 {
@@ -53,97 +34,7 @@ void Wind_Staff_MapStart()
 	TBB_Precache_Wind_Staff();
 }
 
-public void Weapon_Wind_Laser_Builder_Unused(int client, int weapon, const char[] classname, bool &result)
-{
-	switch(GetRandomInt(1, 4))
-	{
-		case 1:
-		{
-			EmitSoundToAll("weapons/physcannon/superphys_launch1.wav", client, 80, _, _, 1.0);					
-		}
-		case 2:
-		{
-			EmitSoundToAll("weapons/physcannon/superphys_launch2.wav", client, 80, _, _, 1.0);
-		}
-		case 3:
-		{
-			EmitSoundToAll("weapons/physcannon/superphys_launch3.wav", client, 80, _, _, 1.0);			
-		}
-		case 4:
-		{
-			EmitSoundToAll("weapons/physcannon/superphys_launch4.wav", client, 80, _, _, 1.0);
-		}		
-	}
-	
-	float flMultiplier = (GetGameTime() - GetEntPropFloat(weapon, Prop_Send, "m_flChargeBeginTime")) / 4.0; // 4.0 is the default one
-	
-	flMultiplier -= 0.30; // Minimum dmg is lower so they dont just spam the fuck out of it and expect more damage like idiots
-		
-	flMultiplier *= 2.2;
-	
-	BEAM_Targets_Hit[client] = 0.0;
-	Strength[client] = 400.0 * flMultiplier;
-	
-	Strength[client] *= Attributes_FindOnPlayerZR(client, 287);
-	
-	float Sniper_Sentry_Bonus_Removal = Attributes_FindOnPlayerZR(client, 344);
-			
-	if(Sniper_Sentry_Bonus_Removal >= 1.01) //do 1.01 cus minigun sentry can give abit more then less half range etc
-	{
-		Strength[client] *= 0.5; //Nerf in half as it gives 2x the dmg.
-	}
-		
-	//	TBB_Ability(client);
-	RequestFrame(TBB_Ability_Wind_Staff, client);
-	
-}
-
-public void Weapon_Wind_Laser_Builder(int client, int weapon, const char[] classname, bool &result)
-{
-	switch(GetRandomInt(1, 4))
-	{
-		case 1:
-		{
-			EmitSoundToAll("weapons/physcannon/superphys_launch1.wav", client, 80, _, _, 1.0);					
-		}
-		case 2:
-		{
-			EmitSoundToAll("weapons/physcannon/superphys_launch2.wav", client, 80, _, _, 1.0);
-		}
-		case 3:
-		{
-			EmitSoundToAll("weapons/physcannon/superphys_launch3.wav", client, 80, _, _, 1.0);			
-		}
-		case 4:
-		{
-			EmitSoundToAll("weapons/physcannon/superphys_launch4.wav", client, 80, _, _, 1.0);
-		}		
-	}
-	
-	float flMultiplier = GetGameTime() - GetEntPropFloat(weapon, Prop_Send, "m_flDetonateTime"); // 4.0 is the default one
-	
-	flMultiplier += 1.3; // have a minimum.
-		
-	flMultiplier *= 1.5;
-	
-	BEAM_Targets_Hit[client] = 0.0;
-	
-	Strength[client] = 100.0 * flMultiplier;
-	
-	float attack_speed;
-		
-	attack_speed = 1.0 / Attributes_FindOnPlayerZR(client, 343, true, 1.0); //Sentry attack speed bonus
-				
-	Strength[client] = attack_speed * Strength[client] * Attributes_FindOnPlayerZR(client, 287, true, 1.0);			//Sentry damage bonus
-	
-	Strength[client] *= 0.5;
-			
-	//	TBB_Ability(client);
-	RequestFrame(TBB_Ability_Wind_Staff, client);
-	
-}
-
-public void Weapon_Wind_Staff(int client, int weapon, const char[] classname, bool &result)
+public void Weapon_Wind_Staff(int client, int weapon, bool crit, int slot)
 {
 	int mana_cost;
 	mana_cost = RoundToCeil(Attributes_Get(weapon, 733, 1.0));
@@ -172,7 +63,7 @@ public void Weapon_Wind_Staff(int client, int weapon, const char[] classname, bo
 		float damage = 125.0;
 		damage *= Attributes_Get(weapon, 410, 1.0);
 		
-		Mana_Regen_Delay[client] = GetGameTime() + 1.0;
+		SDKhooks_SetManaRegenDelayTime(client, 1.0);
 		Mana_Hud_Delay[client] = 0.0;
 		
 		Current_Mana[client] -= mana_cost;
@@ -222,7 +113,7 @@ public void Weapon_Wind_Staff(int client, int weapon, const char[] classname, bo
 }
 
 
-public void Weapon_Wind_StaffM2(int client, int weapon, const char[] classname, bool &result)
+public void Weapon_Wind_StaffM2(int client, int weapon, bool crit, int slot)
 {
 	int mana_cost;
 	mana_cost = RoundToCeil(Attributes_Get(weapon, 733, 1.0));
@@ -253,7 +144,7 @@ public void Weapon_Wind_StaffM2(int client, int weapon, const char[] classname, 
 
 		i_WeaponRefM2[client] = EntIndexToEntRef(weapon);
 		
-		Mana_Regen_Delay[client] = GetGameTime() + 1.0;
+		SDKhooks_SetManaRegenDelayTime(client, 1.0);
 		Mana_Hud_Delay[client] = 0.0;
 		i_TornadoManaCost[client] = mana_cost / 8;
 		f_TornadoDamage[client] = damage * 0.25;
@@ -292,10 +183,10 @@ public void WindStaffM2_Think(int client)
 			if(i_TornadoManaCost[client] <= Current_Mana[client])
 			{
 				Current_Mana[client] -= i_TornadoManaCost[client];
-				Mana_Regen_Delay[client] = GetGameTime() + 1.0;
+				SDKhooks_SetManaRegenDelayTime(client, 1.0);
 				Mana_Hud_Delay[client] = 0.0;
 				float TornadoRange = 300.0;
-				Explode_Logic_Custom(f_TornadoDamage[client], client, client, weapon, _, TornadoRange,1.9,_,false);
+				Explode_Logic_Custom(f_TornadoDamage[client], client, client, weapon, _, TornadoRange,0.52,_,false, 4);
 				float flCarrierPos[3];//, targPos[3];
 				GetEntPropVector(client, Prop_Send, "m_vecOrigin", flCarrierPos);
 				flCarrierPos[2] += 15.0;
@@ -321,246 +212,6 @@ void TBB_Precache_Wind_Staff()
 	Beam_Laser = PrecacheModel("materials/sprites/laser.vmt", false);
 	Beam_Glow = PrecacheModel("sprites/glow02.vmt", true);
 }
-
-void TBB_Ability_Wind_Staff(int client)
-{
-	for (int building = 1; building < MAX_TARGETS_HIT; building++)
-	{
-		BEAM_BuildingHit[building] = false;
-		BEAM_Targets_Hit[client] = 0.0;
-	}
-			
-	BEAM_IsUsing[client] = false;
-	BEAM_TicksActive[client] = 0;
-
-	BEAM_CanUse[client] = true;
-	BEAM_CloseDPT[client] = 2.0;
-	BEAM_FarDPT[client] = 1.0;
-	
-	float sentry_range;
-			
-	sentry_range = Attributes_FindOnPlayerZR(client, 344, true, 1.0);			//Sentry Range bonus
-	
-	BEAM_MaxDistance[client] = RoundToCeil(1000.0 * sentry_range);
-	BEAM_BeamRadius[client] = 50;
-	BEAM_ColorHex[client] = ParseColor("D3D3D3");
-	BEAM_ChargeUpTime[client] = 1;
-	BEAM_CloseBuildingDPT[client] = Strength[client];
-	BEAM_FarBuildingDPT[client] = Strength[client];
-	BEAM_Duration[client] = 2.5;
-	
-	BEAM_BeamOffset[client][0] = 0.0;
-	BEAM_BeamOffset[client][1] = -8.0;
-	BEAM_BeamOffset[client][2] = 15.0;
-
-	BEAM_ZOffset[client] = 0.0;
-	BEAM_UseWeapon[client] = false;
-
-	BEAM_IsUsing[client] = true;
-	BEAM_TicksActive[client] = 0;
-	/*
-	EmitSoundToAll("weapons/physcannon/energy_sing_loop4.wav", client, SNDCHAN_STATIC, 80, _, 1.0, 75);
-	
-	switch(GetRandomInt(1, 4))
-	{
-		case 1:
-		{
-			EmitSoundToAll("weapons/physcannon/superphys_launch1.wav", client, 80, _, _, 1.0);					
-		}
-		case 2:
-		{
-			EmitSoundToAll("weapons/physcannon/superphys_launch2.wav", client, 80, _, _, 1.0);
-		}
-		case 3:
-		{
-			EmitSoundToAll("weapons/physcannon/superphys_launch3.wav", client, 80, _, _, 1.0);			
-		}
-		case 4:
-		{
-			EmitSoundToAll("weapons/physcannon/superphys_launch4.wav", client, 80, _, _, 1.0);
-		}		
-	}
-			*/
-	TBB_Tick(client);
-//	SDKHook(client, SDKHook_PreThink, TBB_Tick);
-	
-//	CreateTimer(999.9, Timer_RemoveEntity, EntIndexToEntRef(client), TIMER_FLAG_NO_MAPCHANGE);
-}
-
-static bool BEAM_TraceWallsOnly(int entity, int contentsMask)
-{
-	return !entity;
-}
-
-static bool BEAM_TraceUsers(int entity, int contentsMask, int client)
-{
-	if (IsValidEntity(entity))
-	{
-		entity = Target_Hit_Wand_Detection(client, entity);
-		if(0 < entity)
-		{
-			for(int i=1; i <= (MAX_TARGETS_HIT -1 ); i++)
-			{
-				if(!BEAM_BuildingHit[i])
-				{
-					BEAM_BuildingHit[i] = entity;
-					break;
-				}
-			}
-			
-		}
-	}
-	return false;
-}
-
-static void GetBeamDrawStartPoint(int client, float startPoint[3])
-{
-	GetClientEyePosition(client, startPoint);
-	float angles[3];
-	GetClientEyeAngles(client, angles);
-	startPoint[2] -= 25.0;
-	if (0.0 == BEAM_BeamOffset[client][0] && 0.0 == BEAM_BeamOffset[client][1] && 0.0 == BEAM_BeamOffset[client][2])
-	{
-		return;
-	}
-	float tmp[3];
-	float actualBeamOffset[3];
-	tmp[0] = BEAM_BeamOffset[client][0];
-	tmp[1] = BEAM_BeamOffset[client][1];
-	tmp[2] = 0.0;
-	VectorRotate(tmp, angles, actualBeamOffset);
-	actualBeamOffset[2] = BEAM_BeamOffset[client][2];
-	startPoint[0] += actualBeamOffset[0];
-	startPoint[1] += actualBeamOffset[1];
-	startPoint[2] += actualBeamOffset[2];
-}
-
-
-static void TBB_Tick(int client)
-{
-	if(!IsValidClient(client))
-	{
-		return;
-	}
-
-//	int BossTeam = GetClientTeam(client);
-//	BEAM_TicksActive[client] = tickCount;
-	float diameter = float(BEAM_BeamRadius[client] * 2);
-	int r = GetR(BEAM_ColorHex[client]);
-	int g = GetG(BEAM_ColorHex[client]);
-	int b = GetB(BEAM_ColorHex[client]);
-	/*int r = GetRandomInt(1, 254);
-	int g = GetRandomInt(1, 254);	// This was just for proof of recompile
-	int b = GetRandomInt(1, 254);*/
-	static float angles[3];
-	static float startPoint[3];
-	static float endPoint[3];
-	static float hullMin[3];
-	static float hullMax[3];
-	static float playerPos[3];
-	GetClientEyeAngles(client, angles);
-	GetClientEyePosition(client, startPoint);
-	Handle trace = TR_TraceRayFilterEx(startPoint, angles, 11, RayType_Infinite, BEAM_TraceWallsOnly);
-	if (TR_DidHit(trace))
-	{
-		TR_GetEndPosition(endPoint, trace);
-		CloseHandle(trace);
-		ConformLineDistance(endPoint, startPoint, endPoint, float(BEAM_MaxDistance[client]));
-		float lineReduce = BEAM_BeamRadius[client] * 2.0 / 3.0;
-		float curDist = GetVectorDistance(startPoint, endPoint, false);
-		if (curDist > lineReduce)
-		{
-			ConformLineDistance(endPoint, startPoint, endPoint, curDist - lineReduce);
-		}
-		for (int i = 1; i < MAXTF2PLAYERS; i++)
-		{
-			BEAM_HitDetected[i] = false;
-		}
-		
-		
-		for (int building = 1; building < MAX_TARGETS_HIT; building++)
-		{
-			BEAM_BuildingHit[building] = false;
-		}
-		
-		
-		hullMin[0] = -float(BEAM_BeamRadius[client]);
-		hullMin[1] = hullMin[0];
-		hullMin[2] = hullMin[0];
-		hullMax[0] = -hullMin[0];
-		hullMax[1] = -hullMin[1];
-		hullMax[2] = -hullMin[2];
-		trace = TR_TraceHullFilterEx(startPoint, endPoint, hullMin, hullMax, 1073741824, BEAM_TraceUsers, client);	// 1073741824 is CONTENTS_LADDER?
-		delete trace;
-//		int weapon = BEAM_UseWeapon[client] ? GetPlayerWeaponSlot(client, 2) : -1;
-		/*
-		for (int victim = 1; victim < MaxClients; victim++)
-		{
-			if (BEAM_HitDetected[victim] && BossTeam != GetClientTeam(victim))
-			{
-				GetEntPropVector(victim, Prop_Send, "m_vecOrigin", playerPos, 0);
-				float distance = GetVectorDistance(startPoint, playerPos, false);
-				float damage = BEAM_CloseDPT[client] + (BEAM_FarDPT[client]-BEAM_CloseDPT[client]) * (distance/BEAM_MaxDistance[client]);
-				if (damage < 0)
-					damage *= -1.0;
-				TakeDamage(victim, client, client, damage/6, 2048, -1, NULL_VECTOR, startPoint);	// 2048 is DMG_NOGIB?
-			}
-		}
-		*/
-		float vecForward[3];
-		GetAngleVectors(angles, vecForward, NULL_VECTOR, NULL_VECTOR);
-		BEAM_Targets_Hit[client] = 1.0;
-		int weapon_active = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
-		for (int building = 0; building < MAX_TARGETS_HIT; building++)
-		{
-			if (BEAM_BuildingHit[building])
-			{
-				if(IsValidEntity(BEAM_BuildingHit[building]))
-				{
-					playerPos = WorldSpaceCenter(BEAM_BuildingHit[building]);
-					
-					float distance = GetVectorDistance(startPoint, playerPos, false);
-					float damage = BEAM_CloseBuildingDPT[client] + (BEAM_FarBuildingDPT[client]-BEAM_CloseBuildingDPT[client]) * (distance/BEAM_MaxDistance[client]);
-					if (damage < 0)
-						damage *= -1.0;
-
-					SDKHooks_TakeDamage(BEAM_BuildingHit[building], client, client, damage/BEAM_Targets_Hit[client], DMG_PLASMA, weapon_active, CalculateDamageForce(vecForward, 10000.0), playerPos);	// 2048 is DMG_NOGIB?
-					BEAM_Targets_Hit[client] *= LASER_AOE_DAMAGE_FALLOFF; //sneaky. DONT do 1.25.
-				}
-				else
-					BEAM_BuildingHit[building] = false;
-			}
-		}
-		
-		static float belowBossEyes[3];
-		GetBeamDrawStartPoint(client, belowBossEyes);
-		int colorLayer4[4];
-		SetColorRGBA(colorLayer4, r, g, b, 60);
-		int colorLayer3[4];
-		SetColorRGBA(colorLayer3, colorLayer4[0] * 7 + 255 / 8, colorLayer4[1] * 7 + 255 / 8, colorLayer4[2] * 7 + 255 / 8, 60);
-		int colorLayer2[4];
-		SetColorRGBA(colorLayer2, colorLayer4[0] * 6 + 510 / 8, colorLayer4[1] * 6 + 510 / 8, colorLayer4[2] * 6 + 510 / 8, 60);
-		int colorLayer1[4];
-		SetColorRGBA(colorLayer1, colorLayer4[0] * 5 + 765 / 8, colorLayer4[1] * 5 + 765 / 8, colorLayer4[2] * 5 + 765 / 8, 60);
-		TE_SetupBeamPoints(belowBossEyes, endPoint, Beam_Laser, 0, 0, 0, 0.11, ClampBeamWidth(diameter * 0.3 * 1.28), ClampBeamWidth(diameter * 0.3 * 1.28), 0, 1.0, colorLayer1, 3);
-		TE_SendToAll(0.0);
-		TE_SetupBeamPoints(belowBossEyes, endPoint, Beam_Laser, 0, 0, 0, 0.22, ClampBeamWidth(diameter * 0.5 * 1.28), ClampBeamWidth(diameter * 0.5 * 1.28), 0, 1.0, colorLayer2, 3);
-		TE_SendToAll(0.0);
-		TE_SetupBeamPoints(belowBossEyes, endPoint, Beam_Laser, 0, 0, 0, 0.33, ClampBeamWidth(diameter * 0.8 * 1.28), ClampBeamWidth(diameter * 0.8 * 1.28), 0, 1.0, colorLayer3, 3);
-		TE_SendToAll(0.0);
-		TE_SetupBeamPoints(belowBossEyes, endPoint, Beam_Laser, 0, 0, 0, 0.44, ClampBeamWidth(diameter * 1.28), ClampBeamWidth(diameter * 1.28), 0, 1.0, colorLayer4, 3);
-		TE_SendToAll(0.0);
-		int glowColor[4];
-		SetColorRGBA(glowColor, r, g, b, 60);
-		TE_SetupBeamPoints(belowBossEyes, endPoint, Beam_Glow, 0, 0, 0, 0.55, ClampBeamWidth(diameter * 1.28), ClampBeamWidth(diameter * 1.28), 0, 5.0, glowColor, 0);
-		TE_SendToAll(0.0);
-	}
-	else
-	{
-		delete trace;
-	}
-}
-
 static void Wand_Launch_Tornado(int client, int iRot, float speed, float time, float damage, int weapon)
 {
 	float fAng[3], fPos[3];
@@ -585,11 +236,9 @@ static void Wand_Launch_Tornado(int client, int iRot, float speed, float time, f
 	TeleportEntity(iCarrier, fPos, NULL_VECTOR, fVel);
 	SetEntityMoveType(iCarrier, MOVETYPE_FLY);	
 	
-	SetEntProp(iRot, Prop_Send, "m_iTeamNum", GetClientTeam(client));
-	SetEntProp(iCarrier, Prop_Send, "m_iTeamNum", GetClientTeam(client));
+	SetTeam(iRot, GetClientTeam(client));
+	SetTeam(iCarrier, GetClientTeam(client));
 
-	RequestFrame(See_Projectile_Team, EntIndexToEntRef(iCarrier));
-	RequestFrame(See_Projectile_Team, EntIndexToEntRef(iRot));
 	
 	SetVariantString("!activator");
 	AcceptEntityInput(iRot, "SetParent", iCarrier, iRot, 0);
@@ -622,7 +271,7 @@ static void Wand_Launch_Tornado(int client, int iRot, float speed, float time, f
 	
 	Projectile_To_Particle[iCarrier] = EntIndexToEntRef(particle);
 	
-	SetEntityRenderMode(iCarrier, RENDER_TRANSCOLOR);
+	SetEntityRenderMode(iCarrier, RENDER_NONE);
 	SetEntityRenderColor(iCarrier, 255, 255, 255, 0);
 	
 	DataPack pack;
@@ -645,10 +294,10 @@ public Action Event_Tornado_OnHatTouch(int entity, int other)
 		float vecForward[3];
 		GetAngleVectors(angles, vecForward, NULL_VECTOR, NULL_VECTOR);
 		static float Entity_Position[3];
-		Entity_Position = WorldSpaceCenter(target);
+		WorldSpaceCenter(target, Entity_Position);
 		//Code to do damage position and ragdolls
-		
-		SDKHooks_TakeDamage(target, Projectile_To_Client[entity], Projectile_To_Client[entity], Damage_Projectile[entity], DMG_PLASMA, -1, CalculateDamageForce(vecForward, 10000.0),Entity_Position);	// 2048 is DMG_NOGIB?
+		float Dmg_Force[3]; CalculateDamageForce(vecForward, 10000.0, Dmg_Force);
+		SDKHooks_TakeDamage(target, Projectile_To_Client[entity], Projectile_To_Client[entity], Damage_Projectile[entity], DMG_PLASMA, -1, Dmg_Force,Entity_Position);	// 2048 is DMG_NOGIB?
 		
 		int particle = EntRefToEntIndex(Projectile_To_Particle[entity]);
 		if(IsValidEntity(particle) && particle != 0)
@@ -744,9 +393,10 @@ static void Wand_Create_Tornado(int client, int iCarrier)
 		damage *= Attributes_Get(weapon, 410, 1.0);
 			
 		Damage_Tornado[iCarrier] = damage;
-		Duration_Tornado[iCarrier] = GetGameTime() + 5.0;
+		Duration_Tornado[iCarrier] = GetGameTime() + 2.0;
+		flCarrierPos[2] += 5.0;
 		
-		TE_SetupBeamRingPoint(flCarrierPos, TORNADO_Radius[client]*2.0, (TORNADO_Radius[client]*2.0)+0.5, Beam_Laser, Beam_Glow, 0, 10, 5.0, 25.0, 0.8, {50, 50, 250, 250}, 10, 0);
+		TE_SetupBeamRingPoint(flCarrierPos, TORNADO_Radius[client]*2.0, (TORNADO_Radius[client]*2.0)+0.5, Beam_Laser, Beam_Glow, 0, 10, 5.0, 25.0, 0.8, {50, 50, 250, 85}, 10, 0);
 		TE_SendToAll(0.0);
 		
 		CreateTimer(0.5, Timer_Tornado_Think, iCarrier, TIMER_FLAG_NO_MAPCHANGE | TIMER_REPEAT);
@@ -771,7 +421,6 @@ public Action Timer_Tornado_Think(Handle timer, int iCarrier)
 			RemoveEntity(iCarrier);
 		}
 		
-		KillTimer(timer);
 		return Plugin_Stop;
 	}
 	
@@ -788,7 +437,6 @@ public Action Timer_Tornado_Think(Handle timer, int iCarrier)
 			RemoveEntity(iCarrier);
 		}
 		
-		KillTimer(timer);
 		return Plugin_Stop;
 	}
 	
@@ -797,7 +445,75 @@ public Action Timer_Tornado_Think(Handle timer, int iCarrier)
 
 //	i_ExplosiveProjectileHexArray[weapon] = EP_DEALS_PLASMA_DAMAGE;
 	
-	Explode_Logic_Custom(Damage_Tornado[iCarrier], client, client, -1, flCarrierPos, TORNADO_Radius[client],2.2,_,false);
+	Explode_Logic_Custom(Damage_Tornado[iCarrier], client, client, -1, flCarrierPos, TORNADO_Radius[client],0.45,_,false, 4);
 	
 	return Plugin_Continue;
+}
+
+
+void RuinaNukeBackstabDo(int victim, int attacker,int weapon)
+{
+	if (Ability_Check_Cooldown(attacker, 1) > 0.0)
+	{
+		return;
+	}
+	Ability_Apply_Cooldown(attacker, 1, 15.0, weapon);
+	Rogue_OnAbilityUse(attacker, weapon);
+	float posEnemy[3];
+	float posEnemyIAm[3];
+	float posEnemySave[3];
+	GetEntPropVector(victim, Prop_Data, "m_vecAbsOrigin", posEnemyIAm);
+	posEnemyIAm[2] -= 100.0;
+	WorldSpaceCenter(victim, posEnemy);
+	posEnemySave = posEnemy;
+	posEnemy[2] += 5000.0;
+	posEnemy[1] += GetRandomFloat(-2000.0, 2000.0);
+	posEnemy[0] += GetRandomFloat(-2000.0, 2000.0);
+	int particle = ParticleEffectAt(posEnemy, "kartimpacttrail", 0.4);
+	b_IsEntityAlwaysTranmitted[particle] = true;
+	SetEdictFlags(particle, (GetEdictFlags(particle) | FL_EDICT_ALWAYS));
+
+	DataPack pack;
+	CreateDataTimer(0.1, NukeBackstabEffectDo, pack, TIMER_FLAG_NO_MAPCHANGE);
+	pack.WriteCell(EntIndexToEntRef(particle));
+	pack.WriteFloat(posEnemyIAm[0]);
+	pack.WriteFloat(posEnemyIAm[1]);
+	pack.WriteFloat(posEnemyIAm[2]);
+	EmitAmbientSound("ambient/explosions/explode_3.wav", posEnemySave, _, 90, _,0.7, GetRandomInt(75, 110));
+	TE_Particle("hightower_explosion", posEnemySave, NULL_VECTOR, NULL_VECTOR, -1, _, _, _, _, _, _, _, _, _, 0.0, .clientspec = attacker);
+	i_ExplosiveProjectileHexArray[weapon] = 0;
+	i_ExplosiveProjectileHexArray[weapon] |= EP_DEALS_CLUB_DAMAGE;
+	i_ExplosiveProjectileHexArray[weapon] |= EP_GIBS_REGARDLESS;
+		
+	float damageSeperate = 65.0;
+	damageSeperate *= WeaponDamageAttributeMultipliers(weapon);
+	damageSeperate *= 2.0;
+	Explode_Logic_Custom(damageSeperate, attacker, weapon, weapon, posEnemySave, .FunctionToCallBeforeHit = RuinaDroneKnifeExplosionDamage); //Big fuckoff nuke
+	i_ExplosiveProjectileHexArray[weapon] = 0;
+}
+
+static float RuinaDroneKnifeExplosionDamage(int attacker, int victim, float &damage, int weapon)
+{
+	if(b_thisNpcIsARaid[victim])
+	{
+		//Remove raid damage bonus from this explosion.
+		damage /= EXTRA_RAID_EXPLOSIVE_DAMAGE;
+	}
+	return 0.0;
+}
+
+static Action NukeBackstabEffectDo(Handle timer, DataPack pack)
+{
+	pack.Reset();
+	int entity = EntRefToEntIndex(pack.ReadCell());
+	float PosTeleport[3];
+	PosTeleport[0] = pack.ReadFloat();
+	PosTeleport[1] = pack.ReadFloat();
+	PosTeleport[2] = pack.ReadFloat();
+	if(entity != -1)
+	{
+		TeleportEntity(entity, PosTeleport, NULL_VECTOR, NULL_VECTOR);
+	}
+	return Plugin_Stop;
+
 }

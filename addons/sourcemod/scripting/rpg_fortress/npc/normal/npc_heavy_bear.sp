@@ -52,6 +52,16 @@ public void HeavyBear_OnMapStart_NPC()
 	for (int i = 0; i < (sizeof(g_HurtSound));	i++) { PrecacheSound(g_HurtSound[i]);	}
 	for (int i = 0; i < (sizeof(g_IdleAlertedSounds));	i++) { PrecacheSound(g_IdleAlertedSounds[i]);	}
 	PrecacheModel("models/player/scout.mdl");
+	NPCData data;
+	strcopy(data.Name, sizeof(data.Name), "Heavy Bear");
+	strcopy(data.Plugin, sizeof(data.Plugin), "npc_heavy_bear");
+	data.Func = ClotSummon;
+	NPC_Add(data);
+}
+
+static any ClotSummon(int client, float vecPos[3], float vecAng[3], int team)
+{
+	return HeavyBear(vecPos, vecAng, team);
 }
 
 methodmap HeavyBear < CClotBody
@@ -91,14 +101,15 @@ methodmap HeavyBear < CClotBody
 	}
 	
 	
-	public HeavyBear(int client, float vecPos[3], float vecAng[3], bool ally)
+	public HeavyBear(float vecPos[3], float vecAng[3], int ally)
 	{
 		HeavyBear npc = view_as<HeavyBear>(CClotBody(vecPos, vecAng, "models/player/heavy.mdl", "1.0", "300", ally, false,_,_,_,_));
 		
-		i_NpcInternalId[npc.index] = HEAVY_BEAR;
-		
 		FormatEx(c_HeadPlaceAttachmentGibName[npc.index], sizeof(c_HeadPlaceAttachmentGibName[]), "head");
+		KillFeed_SetKillIcon(npc.index, "warrior_spirit");
 		
+		SetVariantInt(3);
+		AcceptEntityInput(npc.index, "SetBodyGroup");
 		int iActivity = npc.LookupActivity("ACT_MP_STAND_MELEE");
 		if(iActivity > 0) npc.StartActivity(iActivity);
 
@@ -115,8 +126,9 @@ methodmap HeavyBear < CClotBody
 		f3_SpawnPosition[npc.index][1] = vecPos[1];
 		f3_SpawnPosition[npc.index][2] = vecPos[2];
 		
-		SDKHook(npc.index, SDKHook_OnTakeDamage, HeavyBear_OnTakeDamage);
-		SDKHook(npc.index, SDKHook_Think, HeavyBear_ClotThink);
+		func_NPCDeath[npc.index] = HeavyBear_NPCDeath;
+		func_NPCOnTakeDamage[npc.index] = HeavyBear_OnTakeDamage;
+		func_NPCThink[npc.index] = HeavyBear_ClotThink;
 		
 		int skin = GetRandomInt(0, 1);
 		SetEntProp(npc.index, Prop_Send, "m_nSkin", skin);
@@ -139,16 +151,15 @@ methodmap HeavyBear < CClotBody
 
 		SetEntProp(npc.m_iWearable3, Prop_Send, "m_nSkin", skin);
 		
-		NPC_StopPathing(npc.index);
-		npc.m_bPathing = false;	
+		npc.StopPathing();
+			
 		
 		return npc;
 	}
 	
 }
 
-//TODO 
-//Rewrite
+
 public void HeavyBear_ClotThink(int iNPC)
 {
 	HeavyBear npc = view_as<HeavyBear>(iNPC);
@@ -161,7 +172,6 @@ public void HeavyBear_ClotThink(int iNPC)
 		return;
 	}
 	
-
 	npc.m_flNextDelayTime = gameTime + DEFAULT_UPDATE_DELAY_FLOAT;
 	
 	npc.Update();	
@@ -180,7 +190,7 @@ public void HeavyBear_ClotThink(int iNPC)
 	
 	npc.m_flNextThinkTime = gameTime + 0.1;
 
-	// npc.m_iTarget comes from here.
+	// npc.m_iTarget comes from here, This only handles out of battle instancnes, for inbattle, code it yourself. It also makes NPCS jump if youre too high up.
 	Npc_Base_Thinking(iNPC, 300.0, "ACT_MP_RUN_MELEE", "ACT_MP_STAND_MELEE", 200.0, gameTime);
 	
 	if(npc.m_flAttackHappens)
@@ -192,18 +202,21 @@ public void HeavyBear_ClotThink(int iNPC)
 			if(IsValidEnemy(npc.index, npc.m_iTarget))
 			{
 				Handle swingTrace;
-				npc.FaceTowards(WorldSpaceCenter(npc.m_iTarget), 15000.0); //Snap to the enemy. make backstabbing hard to do.
+				float WorldSpaceCenterVec[3]; 
+				WorldSpaceCenter(npc.m_iTarget, WorldSpaceCenterVec);
+				npc.FaceTowards(WorldSpaceCenterVec, 15000.0); //Snap to the enemy. make backstabbing hard to do.
 				if(npc.DoSwingTrace(swingTrace, npc.m_iTarget, _, _, _, _)) //Big range, but dont ignore buildings if somehow this doesnt count as a raid to be sure.
 				{
 					int target = TR_GetEntityIndex(swingTrace);	
 					
 					float vecHit[3];
 					TR_GetEndPosition(vecHit, swingTrace);
-					float damage = 5.0;
+					float damage = 120.0;
 
-					npc.PlayMeleeHitSound();
+					
 					if(target > 0) 
 					{
+						npc.PlayMeleeHitSound();
 						SDKHooks_TakeDamage(target, npc.index, npc.index, damage, DMG_CLUB);
 
 						int Health = GetEntProp(target, Prop_Data, "m_iHealth");
@@ -228,19 +241,24 @@ public void HeavyBear_ClotThink(int iNPC)
 	
 	if(IsValidEnemy(npc.index, npc.m_iTarget))
 	{
-		float vecTarget[3]; vecTarget = WorldSpaceCenter(npc.m_iTarget);
-		float flDistanceToTarget = GetVectorDistance(vecTarget, WorldSpaceCenter(npc.index), true);
+		float vecTarget[3];
+		WorldSpaceCenter(npc.m_iTarget, vecTarget);
+		float vecSelf[3];
+		WorldSpaceCenter(npc.index, vecSelf);
+
+		float flDistanceToTarget = GetVectorDistance(vecTarget, vecSelf, true);
 			
 		//Predict their pos.
 		if(flDistanceToTarget < npc.GetLeadRadius()) 
 		{
-			float vPredictedPos[3]; vPredictedPos = PredictSubjectPosition(npc, npc.m_iTarget);
+			float vPredictedPos[3]; 
+			PredictSubjectPosition(npc, npc.m_iTarget,_,_,vPredictedPos);
 			
-			NPC_SetGoalVector(npc.index, vPredictedPos);
+			npc.SetGoalVector(vPredictedPos);
 		}
 		else
 		{
-			NPC_SetGoalEntity(npc.index, npc.m_iTarget);
+			npc.SetGoalEntity(npc.m_iTarget);
 		}
 		//Get position for just travel here.
 
@@ -278,11 +296,9 @@ public void HeavyBear_ClotThink(int iNPC)
 			}
 			case 1:
 			{			
-				int Enemy_I_See;
-							
-				Enemy_I_See = Can_I_See_Enemy(npc.index, npc.m_iTarget);
+				int Enemy_I_See = Can_I_See_Enemy(npc.index, npc.m_iTarget);
 				//Can i see This enemy, is something in the way of us?
-				//Dont even check if its the same enemy, just engage in rape, and also set our new target to this just in case.
+				//Dont even check if its the same enemy, just engage in killing, and also set our new target to this just in case.
 				if(IsValidEntity(Enemy_I_See) && IsValidEnemy(npc.index, Enemy_I_See))
 				{
 					npc.m_iTarget = Enemy_I_See;
@@ -329,8 +345,6 @@ public void HeavyBear_NPCDeath(int entity)
 	{
 		npc.PlayDeathSound();
 	}
-	SDKUnhook(entity, SDKHook_OnTakeDamage, HeavyBear_OnTakeDamage);
-	SDKUnhook(entity, SDKHook_Think, HeavyBear_ClotThink);
 
 	if(IsValidEntity(npc.m_iWearable1))
 		RemoveEntity(npc.m_iWearable1);
